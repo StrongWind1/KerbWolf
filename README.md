@@ -5,13 +5,13 @@
 <p align="center">
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.11%E2%80%933.14-blue.svg" alt="Python 3.11+"></a>
   <a href="https://www.apache.org/licenses/LICENSE-2.0"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="License"></a>
-  <a href="https://github.com/StrongWind1/KerbWolf"><img src="https://img.shields.io/badge/docs-mkdocs-blue.svg" alt="Docs"></a>
+  <a href="https://strongwind1.github.io/KerbWolf/"><img src="https://img.shields.io/badge/docs-mkdocs-blue.svg" alt="Docs"></a>
 </p>
 
 <p align="center">
-  <a href="docs/guide/index.md">Guide</a> &bull;
-  <a href="docs/getting-started/installation.md">Installation</a> &bull;
-  <a href="docs/commands/kw-roast.md">Commands</a>
+  <a href="https://strongwind1.github.io/KerbWolf/guide/">Guide</a> &bull;
+  <a href="https://strongwind1.github.io/KerbWolf/getting-started/installation/">Installation</a> &bull;
+  <a href="https://strongwind1.github.io/KerbWolf/commands/kw-roast/">Commands</a>
 </p>
 
 Kerberos roasting and hash extraction toolkit for Active Directory.
