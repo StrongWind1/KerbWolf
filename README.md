@@ -1,11 +1,11 @@
 <p align="center">
-  <a href="https://github.com/kerbwolf/kerbwolf"><img src="https://raw.githubusercontent.com/kerbwolf/kerbwolf/main/docs/assets/kerbwolf_banner.png" alt="KerbWolf" width="800"></a>
+  <a href="https://github.com/StrongWind1/KerbWolf"><img src="https://raw.githubusercontent.com/StrongWind1/KerbWolf/main/docs/assets/kerbwolf_banner.png" alt="KerbWolf" width="800"></a>
 </p>
 
 <p align="center">
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.11%E2%80%933.14-blue.svg" alt="Python 3.11+"></a>
   <a href="https://www.apache.org/licenses/LICENSE-2.0"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="License"></a>
-  <a href="https://github.com/kerbwolf/kerbwolf"><img src="https://img.shields.io/badge/docs-mkdocs-blue.svg" alt="Docs"></a>
+  <a href="https://github.com/StrongWind1/KerbWolf"><img src="https://img.shields.io/badge/docs-mkdocs-blue.svg" alt="Docs"></a>
 </p>
 
 <p align="center">
@@ -135,7 +135,7 @@ See the [installation guide](docs/getting-started/installation.md) for developme
 ## Development
 
 ```bash
-git clone https://github.com/kerbwolf/kerbwolf.git
+git clone https://github.com/StrongWind1/KerbWolf.git
 cd kerbwolf
 uv sync                        # install dev dependencies
 make check                     # run lint + typecheck + tests

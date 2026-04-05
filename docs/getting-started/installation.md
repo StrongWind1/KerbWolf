@@ -9,7 +9,7 @@
 ## Install from source
 
 ```bash
-git clone https://github.com/kerbwolf/kerbwolf.git
+git clone https://github.com/StrongWind1/KerbWolf.git
 cd kerbwolf
 pip install .
 ```

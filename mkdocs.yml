@@ -1,8 +1,8 @@
 site_name: KerbWolf
 site_description: Kerberos roasting and TGT attack toolkit for Active Directory.
-site_url: https://github.com/kerbwolf/kerbwolf
-repo_url: https://github.com/kerbwolf/kerbwolf
-repo_name: kerbwolf/kerbwolf
+site_url: https://github.com/StrongWind1/KerbWolf
+repo_url: https://github.com/StrongWind1/KerbWolf
+repo_name: StrongWind1/KerbWolf
 
 theme:
   name: material
@@ -101,7 +101,7 @@ nav:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/kerbwolf/kerbwolf
+      link: https://github.com/StrongWind1/KerbWolf
       name: KerbWolf on GitHub
   generator: false
 
