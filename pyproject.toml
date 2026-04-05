@@ -34,7 +34,7 @@ dependencies = [
     "dnspython>=2.4",
     "gssapi>=1.11.1",
     "impacket>=0.13",
-    "ldap3 @ git+https://github.com/cannatag/ldap3.git@dev",
+    "ldap3>=2.9.1",
 ]
 
 [project.scripts]
@@ -43,9 +43,6 @@ kw-asrep = "kerbwolf.cli.asreproast:main"
 kw-extract = "kerbwolf.cli.extract:main"
 kw-tgt = "kerbwolf.cli.gettgt:main"
 kw-timeroast = "kerbwolf.cli.timeroast:main"
-
-[tool.hatch.metadata]
-allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["kerbwolf"]
