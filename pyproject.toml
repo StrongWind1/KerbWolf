@@ -1,0 +1,139 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "kerbwolf"
+version = "0.1.0"
+description = "Kerberos roasting and TGT attack toolkit for Active Directory."
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.11,<3.15"
+authors = [
+    {name = "kerbwolf"},
+]
+keywords = [
+    "active-directory",
+    "kerberos",
+    "kerberoasting",
+    "penetration-testing",
+    "red-team",
+    "security",
+]
+classifiers = [
+    "Environment :: Console",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Security",
+]
+dependencies = [
+    "dnspython>=2.4",
+    "gssapi>=1.11.1",
+    "impacket>=0.13",
+    "ldap3 @ git+https://github.com/cannatag/ldap3.git@dev",
+]
+
+[project.scripts]
+kw-roast = "kerbwolf.cli.kerberoast:main"
+kw-asrep = "kerbwolf.cli.asreproast:main"
+kw-extract = "kerbwolf.cli.extract:main"
+kw-tgt = "kerbwolf.cli.gettgt:main"
+kw-timeroast = "kerbwolf.cli.timeroast:main"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["kerbwolf"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0",
+    "ruff>=0.15",
+    "ty>=0.0.1a7",
+]
+docs = [
+    "mkdocs-material>=9.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 320
+extend-exclude = ["scripts"]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    # Formatter conflicts — cannot fix, ruff docs say to ignore these with formatter.
+    "COM812",  # trailing comma — fights with ruff formatter
+    "D203",    # blank line before class docstring — incompatible with D211
+    "D213",    # multi-line summary second line — incompatible with D212
+    # Readability — fixing these makes code harder to read.
+    "T201",    # print — CLI tools output to stdout, print is correct
+    "SIM108",  # ternary — readability loss on multi-arg calls
+    # Protocol complexity — inherent, not reducible without splitting APIs.
+    "PLR0913", # too many args — protocol functions need domain/dc_ip/etype/transport/etc.
+    "PLR0912", # too many branches — protocol state machines
+    "PLR0915", # too many statements — protocol methods
+    "PLR0911", # too many returns — early returns for readability
+    "C901",    # complexity — protocol methods
+    # False positive.
+    "S106",    # hardcoded password in arg — false positive on CLI help text metavars
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = [
+    "D",       # docstrings — tests
+    "S101",    # assert — pytest idiom
+    "S105",    # hardcoded password — test data
+    "S106",    # hardcoded password in arg — test data
+    "S108",    # /tmp paths — test fixtures
+    "PLR2004", # magic values — test assertions
+    "ANN",     # annotations — pytest fixtures / test helpers
+    "ARG",     # unused args — mock callbacks, lambda self, pytest fixtures
+    "SLF001",  # private access — testing internal methods
+    "N802",    # uppercase in function name — test names match CLI flags
+    "E741",    # ambiguous var name — DER builder uses l for length
+    "F841",    # unused local — mock setup patterns
+    "FBT",     # boolean positional — test helpers
+    "EM101",   # string literal in exception — test assertions
+    "TRY003",  # long exception message — test assertions
+    "TRY301",  # raise in try — test patterns
+    "PLC0415", # late imports — pytest pattern of importing inside test methods
+]
+
+# ---------------------------------------------------------------------------
+# ty — type checker (strictest settings)
+# ---------------------------------------------------------------------------
+[tool.ty.environment]
+python-version = "3.11"
+
+[tool.ty.rules]
+all = "error"
+
+[tool.ty.terminal]
+error-on-warning = true
+
+[tool.ty.analysis]
+# impacket has no type stubs — treat all its imports as Any.
+replace-imports-with-any = [
+    "impacket.**",
+]
+allowed-unresolved-imports = []
+
+[[tool.ty.overrides]]
+include = ["tests/**"]
+[tool.ty.overrides.rules]
+all = "ignore"
+
+[[tool.ty.overrides]]
+include = ["scripts/**"]
+[tool.ty.overrides.rules]
+all = "ignore"

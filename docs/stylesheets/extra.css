@@ -1,0 +1,145 @@
+/* KerbWolf theme — amber/orange accent for the roasting motif
+ *
+ * Palette:
+ *   Background:  #0a1628 → #0d1117 (deep navy, shared with CredWolf)
+ *   Accent:      #ff9100 / #ffab00 (amber — fire/roasting)
+ *   Glow:        #ffc107 / #ffe082 (warm gold)
+ *   Text:        #c9d1d9
+ *   Circuit:     #2a4a6b (steel blue)
+ */
+
+/* ---------- Custom primary color (both schemes) ---------- */
+
+:root > * {
+  --md-primary-fg-color: #0d1b2a;
+  --md-primary-fg-color--light: #1b2838;
+  --md-primary-fg-color--dark: #060e18;
+}
+
+/* ---------- Dark mode (slate — default) ---------- */
+
+[data-md-color-scheme="slate"] {
+  /* Tune the slate hue to match deep navy */
+  --md-hue: 215;
+
+  /* Accent — amber/orange from the roasting motif */
+  --md-accent-fg-color: #ff9100;
+  --md-accent-fg-color--transparent: #ff91001a;
+
+  /* Deep navy background */
+  --md-default-bg-color: #0d1117;
+  --md-default-bg-color--light: #111d2b;
+  --md-default-bg-color--lighter: #162234;
+  --md-default-bg-color--lightest: #1c2d42;
+
+  /* Code blocks — slightly lighter navy */
+  --md-code-bg-color: #0d1a2d;
+  --md-code-fg-color: #c9d1d9;
+  --md-code-hl-color: #ff91001a;
+
+  /* Footer */
+  --md-footer-bg-color: #060e18;
+  --md-footer-bg-color--dark: #040a12;
+  --md-footer-fg-color: #ffffffb3;
+  --md-footer-fg-color--light: #ffffff73;
+  --md-footer-fg-color--lighter: #ffffff42;
+
+  /* Typeset */
+  --md-typeset-color: #c9d1d9;
+  --md-typeset-a-color: #ff9100;
+}
+
+/* Header bar — deep navy */
+[data-md-color-scheme="slate"] .md-header {
+  background-color: #0a1628;
+}
+
+/* Tabs bar — same deep navy */
+[data-md-color-scheme="slate"] .md-tabs {
+  background-color: #0a1628;
+}
+
+/* Left sidebar — subtle navy */
+[data-md-color-scheme="slate"] .md-sidebar {
+  background-color: #0d1117;
+}
+
+/* Nav link hover — amber glow */
+[data-md-color-scheme="slate"] .md-nav__link:hover {
+  color: #ff9100;
+}
+
+/* Active nav item — amber */
+[data-md-color-scheme="slate"] .md-nav__link--active {
+  color: #ff9100;
+}
+
+/* Search bar */
+[data-md-color-scheme="slate"] .md-search__input {
+  background-color: #162234;
+}
+
+/* Admonitions — steel blue border */
+[data-md-color-scheme="slate"] .md-typeset .admonition,
+[data-md-color-scheme="slate"] .md-typeset details {
+  border-color: #2a4a6b;
+}
+
+/* Tables — deep navy headers */
+[data-md-color-scheme="slate"] .md-typeset table:not([class]) th {
+  background-color: #1b2838;
+  color: #e0e0e0;
+}
+
+[data-md-color-scheme="slate"] .md-typeset table:not([class]) td {
+  border-color: #1c2d42;
+}
+
+/* Announcement bar — dark navy with amber accent */
+[data-md-color-scheme="slate"] .md-banner {
+  background-color: #060e18;
+  color: #ffffffb3;
+}
+
+/* ---------- Header title — make site name clickable via logo link ---------- */
+
+.md-header__title {
+  cursor: pointer;
+  pointer-events: none;
+}
+
+.md-header__ellipsis {
+  pointer-events: auto;
+}
+
+/* Wrap the logo link over the adjacent title text */
+.md-header__button.md-logo {
+  position: relative;
+  z-index: 1;
+}
+
+.md-header__button.md-logo::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: -200px;
+  bottom: 0;
+  left: 0;
+  z-index: 1;
+}
+
+/* ---------- Light mode ---------- */
+
+[data-md-color-scheme="default"] {
+  --md-accent-fg-color: #e65100;
+  --md-typeset-a-color: #e65100;
+}
+
+/* Header + tabs in light mode — same deep navy */
+[data-md-color-scheme="default"] .md-header {
+  background-color: #0d1b2a;
+}
+
+[data-md-color-scheme="default"] .md-tabs {
+  background-color: #0d1b2a;
+}

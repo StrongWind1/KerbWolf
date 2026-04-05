@@ -1,0 +1,111 @@
+site_name: KerbWolf
+site_description: Kerberos roasting and TGT attack toolkit for Active Directory.
+site_url: https://github.com/kerbwolf/kerbwolf
+repo_url: https://github.com/kerbwolf/kerbwolf
+repo_name: kerbwolf/kerbwolf
+
+theme:
+  name: material
+  # logo: assets/kerbwolf_icon.png
+  # favicon: assets/kerbwolf_icon.png
+  font:
+    text: Inter
+    code: JetBrains Mono
+  icon:
+    repo: fontawesome/brands/github
+  palette:
+    # Dark mode (default) — respects system preference
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: amber
+      toggle:
+        icon: material/weather-night
+        name: Switch to light mode
+    # Light mode — respects system preference
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: amber
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to dark mode
+  features:
+    # Navigation
+    - navigation.instant
+    - navigation.instant.prefetch
+    - navigation.instant.progress
+    - navigation.tracking
+    - navigation.sections
+    - navigation.path
+    - navigation.top
+    - navigation.indexes
+    - navigation.footer
+    # Table of contents
+    - toc.follow
+    # Search
+    - search.highlight
+    - search.suggest
+    - search.share
+    # Header
+    - header.autohide
+    - announce.dismiss
+    # Content
+    - content.code.copy
+    - content.code.annotate
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.mark
+  - pymdownx.keys
+  - tables
+  - attr_list
+  - md_in_html
+  - def_list
+  - footnotes
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Guide:
+      - Overview: guide/index.md
+      - Attacks in Depth: guide/attacks.md
+      - Encryption Types: guide/encryption-types.md
+      - Hash Formats: guide/hash-formats.md
+      - Hashcat Internals: guide/hashcat-internals.md
+  - Installation: getting-started/installation.md
+  - Commands:
+      - kw-roast: commands/kw-roast.md
+      - kw-asrep: commands/kw-asrep.md
+      - kw-extract: commands/kw-extract.md
+      - kw-tgt: commands/kw-tgt.md
+      - kw-timeroast: commands/kw-timeroast.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/kerbwolf/kerbwolf
+      name: KerbWolf on GitHub
+  generator: false
+
+extra_css:
+  - stylesheets/extra.css
+
+strict: true
