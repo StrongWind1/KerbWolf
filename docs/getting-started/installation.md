@@ -61,7 +61,7 @@ uv run pytest                # 693 unit tests
 | Package | Version | Purpose |
 |---------|---------|---------|
 | impacket | >= 0.13 | Kerberos protocol: ASN.1 structures, crypto, key derivation, CCache |
-| ldap3 | >= 2.9.1 | LDAP enumeration with paging, NTLM and Kerberos auth |
+| ldap3 | dev branch | LDAP enumeration with paging, NTLM and Kerberos auth |
 | gssapi | >= 1.11 | GSSAPI/SASL for Kerberos-authenticated LDAP connections |
 | dnspython | >= 2.4 | DNS SRV record lookup for DC discovery |
 
