@@ -971,3 +971,256 @@ class TestImapNtlmExtraction:
         results = try_extract_ntlm(ip_3, sessions)
         assert len(results) >= 1
         assert results[0].username == "imapuser"
+
+
+# ---------------------------------------------------------------------------
+# DCE-RPC NTLM extraction (MS-RPCE, port 135)
+# ---------------------------------------------------------------------------
+
+
+class TestDceRpcNtlmExtraction:
+    """Test DCE-RPC NTLM extraction per [MS-RPCE] §2.2.2.4."""
+
+    def test_port_135_in_ntlm_ports(self):
+        """Port 135 is included in the set of NTLM-carrying ports."""
+        from kerbwolf.core.ntlmssp import _DCERPC_PORT, _NTLM_PORTS
+
+        assert _DCERPC_PORT in _NTLM_PORTS
+
+    def test_extracts_ntlmssp_from_dcerpc_stream(self):
+        """NTLMSSP signature embedded in DCE-RPC framing is found."""
+        from kerbwolf.core.ntlmssp import _extract_dcerpc_ntlm_tokens
+
+        token = b"NTLMSSP\x00\x02" + b"\x00" * 40
+        # Simulate DCE-RPC framing before the auth trailer.
+        dcerpc_header = b"\x05\x00\x0b\x03" + b"\x00" * 12  # bind packet header
+        payload = dcerpc_header + token
+        tokens = _extract_dcerpc_ntlm_tokens(payload)
+        assert len(tokens) == 1
+        assert tokens[0][:8] == b"NTLMSSP\x00"
+
+    def test_multiple_tokens_in_buffer(self):
+        """All NTLMSSP occurrences in the buffer are returned."""
+        from kerbwolf.core.ntlmssp import _extract_dcerpc_ntlm_tokens
+
+        t1 = b"NTLMSSP\x00\x02" + b"\x00" * 40
+        t2 = b"NTLMSSP\x00\x03" + b"\x00" * 40
+        tokens = _extract_dcerpc_ntlm_tokens(t1 + b"\xff" * 10 + t2)
+        assert len(tokens) == 2
+        assert tokens[0][8] == 2
+        assert tokens[1][8] == 3
+
+    def test_no_signature_returns_empty(self):
+        """Payload without NTLMSSP signature returns empty list."""
+        from kerbwolf.core.ntlmssp import _extract_dcerpc_ntlm_tokens
+
+        assert _extract_dcerpc_ntlm_tokens(b"\x05\x00\x0b" + b"\xff" * 50) == []
+
+    def test_dcerpc_full_pipeline(self):
+        """Full pipeline: DCE-RPC Type 2 + Type 3 on port 135."""
+        sessions: NtlmSessions = {}
+        challenge = b"\xde\xad\xbe\xef\xca\xfe\xba\xbe"
+
+        type2 = _build_ntlmssp_type2(challenge)
+        dcerpc_hdr = b"\x05\x00\x0c\x03" + b"\x00" * 12  # alter_context
+        ip_2 = _build_ipv4_tcp("10.0.0.1", 135, "10.0.0.2", 50000, dcerpc_hdr + type2)
+        try_extract_ntlm(ip_2, sessions)
+        assert len(sessions) == 1
+
+        type3 = _build_ntlmssp_type3(user="rpcuser", domain="CORP", nt_response=b"\xab" * 48)
+        ip_3 = _build_ipv4_tcp("10.0.0.2", 50000, "10.0.0.1", 135, dcerpc_hdr + type3)
+        results = try_extract_ntlm(ip_3, sessions)
+        assert len(results) >= 1
+        assert results[0].username == "rpcuser"
+
+
+# ---------------------------------------------------------------------------
+# LDAP simple bind extraction (RFC 4511 §4.2)
+# ---------------------------------------------------------------------------
+
+
+def _build_ldap_bind_request(dn: str, password: str, msg_id: int = 1) -> bytes:
+    """Build a minimal LDAPv3 BindRequest message."""
+
+    def ber_encode(tag: int, data: bytes) -> bytes:
+        if len(data) < 0x80:
+            return bytes([tag, len(data)]) + data
+        if len(data) < 0x100:
+            return bytes([tag, 0x81, len(data)]) + data
+        return bytes([tag, 0x82, len(data) >> 8, len(data) & 0xFF]) + data
+
+    version = ber_encode(0x02, b"\x03")
+    bind_dn = ber_encode(0x04, dn.encode())
+    simple = ber_encode(0x80, password.encode())
+    bind_req = ber_encode(0x60, version + bind_dn + simple)
+    message_id = ber_encode(0x02, bytes([msg_id]))
+    return ber_encode(0x30, message_id + bind_req)
+
+
+class TestBerLength:
+    def test_short_form(self):
+        from kerbwolf.core.ntlmssp import _ber_length
+
+        assert _ber_length(b"\x07rest", 0) == (7, 1)
+
+    def test_long_form_one_byte(self):
+        from kerbwolf.core.ntlmssp import _ber_length
+
+        assert _ber_length(b"\x81\xc8", 0) == (200, 2)
+
+    def test_long_form_two_bytes(self):
+        from kerbwolf.core.ntlmssp import _ber_length
+
+        assert _ber_length(b"\x82\x01\x00", 0) == (256, 3)
+
+    def test_indefinite_form_rejected(self):
+        from kerbwolf.core.ntlmssp import _ber_length
+
+        length, _ = _ber_length(b"\x80", 0)
+        assert length == -1
+
+    def test_truncated_returns_negative(self):
+        from kerbwolf.core.ntlmssp import _ber_length
+
+        length, _ = _ber_length(b"\x82\x01", 0)  # claims 2 length bytes, only 1 present
+        assert length == -1
+
+    def test_empty_returns_negative(self):
+        from kerbwolf.core.ntlmssp import _ber_length
+
+        assert _ber_length(b"", 0)[0] == -1
+
+
+class TestParseLdapBindRequest:
+    def test_simple_bind_extracted(self):
+        from kerbwolf.core.ntlmssp import _parse_ldap_bind_request
+
+        msg = _build_ldap_bind_request("cn=admin,dc=corp,dc=local", "Password1!")
+        # Skip the outer SEQUENCE (LDAPMessage) to get to the BindRequest tag.
+        bind_pos = msg.find(0x60)
+        result = _parse_ldap_bind_request(msg, bind_pos)
+        assert result is not None
+        assert result.attack.value == "LDAP-Simple"
+        assert result.username == "cn=admin,dc=corp,dc=local"
+        password = bytes.fromhex(result.cipher_hex).decode()
+        assert password == "Password1!"
+
+    def test_empty_dn_non_empty_password(self):
+        """Empty DN with a password is extracted (not skipped as anonymous)."""
+        from kerbwolf.core.ntlmssp import _parse_ldap_bind_request
+
+        msg = _build_ldap_bind_request("", "secret")
+        bind_pos = msg.find(0x60)
+        result = _parse_ldap_bind_request(msg, bind_pos)
+        assert result is not None
+        assert result.username == "(anonymous-dn)"
+
+    def test_anonymous_bind_skipped(self):
+        """Empty DN and empty password is skipped."""
+        from kerbwolf.core.ntlmssp import _parse_ldap_bind_request
+
+        msg = _build_ldap_bind_request("", "")
+        bind_pos = msg.find(0x60)
+        assert _parse_ldap_bind_request(msg, bind_pos) is None
+
+    def test_non_bind_request_tag_returns_none(self):
+        """Tag 0x63 (SearchRequest) is not a BindRequest."""
+        from kerbwolf.core.ntlmssp import _parse_ldap_bind_request
+
+        assert _parse_ldap_bind_request(b"\x63\x00rest", 0) is None
+
+    def test_garbage_returns_none(self):
+        from kerbwolf.core.ntlmssp import _parse_ldap_bind_request
+
+        assert _parse_ldap_bind_request(b"\x60\x00\x00\x00", 0) is None
+
+
+class TestExtractLdapSimpleFromStream:
+    def test_finds_simple_bind(self):
+        from kerbwolf.core.ntlmssp import extract_ldap_simple_from_stream
+
+        msg = _build_ldap_bind_request("cn=svc,dc=corp,dc=local", "Service1!")
+        buf = bytearray(msg)
+        results = extract_ldap_simple_from_stream(buf)
+        assert len(results) == 1
+        assert results[0].username == "cn=svc,dc=corp,dc=local"
+        assert bytes.fromhex(results[0].cipher_hex).decode() == "Service1!"
+
+    def test_clears_buffer_on_success(self):
+        """Buffer is cleared after credentials are extracted."""
+        from kerbwolf.core.ntlmssp import extract_ldap_simple_from_stream
+
+        msg = _build_ldap_bind_request("uid=test", "pass")
+        buf = bytearray(msg)
+        extract_ldap_simple_from_stream(buf)
+        assert len(buf) == 0
+
+    def test_no_bind_leaves_buffer(self):
+        """Buffer without a BindRequest is not cleared."""
+        from kerbwolf.core.ntlmssp import extract_ldap_simple_from_stream
+
+        buf = bytearray(b"\x30\x00\x00\x00junk")
+        extract_ldap_simple_from_stream(buf)
+        assert len(buf) > 0
+
+    def test_ntlm_payload_not_matched(self):
+        """NTLMSSP payload on port 389 does not produce LDAP-Simple results."""
+        from kerbwolf.core.ntlmssp import extract_ldap_simple_from_stream
+
+        ntlm = b"NTLMSSP\x00\x01" + b"\x00" * 20
+        buf = bytearray(ntlm)
+        assert extract_ldap_simple_from_stream(buf) == []
+
+    def test_empty_buffer(self):
+        from kerbwolf.core.ntlmssp import extract_ldap_simple_from_stream
+
+        assert extract_ldap_simple_from_stream(bytearray()) == []
+
+
+class TestCapturedToResultLdapSimple:
+    def test_ldap_simple_result(self):
+        from kerbwolf.attacks.extract import _captured_to_result
+        from kerbwolf.core.capture import AttackType, CapturedHash
+        from kerbwolf.models import HashFormat
+
+        h = CapturedHash(
+            attack=AttackType.LDAP_SIMPLE,
+            username="cn=admin,dc=corp,dc=local",
+            realm="",
+            spn="",
+            etype=0,
+            cipher_hex=b"Password1!".hex(),
+        )
+        result = _captured_to_result(h, HashFormat.HASHCAT)
+        assert result.hash_string == "cn=admin,dc=corp,dc=local:Password1!"
+        assert result.hashcat_mode == 0
+
+    def test_ldap_simple_empty_password(self):
+        from kerbwolf.attacks.extract import _captured_to_result
+        from kerbwolf.core.capture import AttackType, CapturedHash
+        from kerbwolf.models import HashFormat
+
+        h = CapturedHash(
+            attack=AttackType.LDAP_SIMPLE,
+            username="cn=svc,dc=corp,dc=local",
+            realm="",
+            spn="",
+            etype=0,
+            cipher_hex="",
+        )
+        result = _captured_to_result(h, HashFormat.HASHCAT)
+        assert result.hash_string == "cn=svc,dc=corp,dc=local:"
+
+
+class TestCliLdapSimpleSummary:
+    def test_ldap_simple_in_summary(self, capsys):
+        from kerbwolf.cli.extract import _output_results
+        from kerbwolf.log import Logger
+        from kerbwolf.models import RoastResult
+
+        results = [
+            RoastResult(username="cn=admin,dc=corp,dc=local", realm="", spn="", etype=0, hash_string="cn=admin,dc=corp,dc=local:Password1!", hashcat_mode=0),
+        ]
+        _output_results(results, None, Logger())
+        err = capsys.readouterr().err
+        assert "LDAP-Simple" in err

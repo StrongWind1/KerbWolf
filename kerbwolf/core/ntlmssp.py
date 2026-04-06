@@ -1,15 +1,16 @@
-"""NTLM hash extraction from pcap packets.
+"""NTLM hash extraction and LDAP simple-bind credential extraction from pcap.
 
 Extracts Net-NTLMv1, Net-NTLMv1-ESS, Net-NTLMv2, and Net-LMv2 hashes from
-all common NTLM transports:
+all common NTLM transports, plus cleartext passwords from LDAP simple binds:
 
 - SMB (ports 445/139) - [MS-SMB], [MS-SMB2]
 - HTTP/WinRM (ports 80/5985/5986) - [MS-NTHT]
-- LDAP (port 389) - SASL/SPNEGO
+- LDAP (port 389) - SASL/SPNEGO (NTLM) and simple bind (cleartext)
 - SMTP (ports 25/587) - [MS-SMTPNTLM]
 - POP3 (port 110) - [MS-POP3]
 - IMAP (port 143) - [MS-OXIMAP]
 - Telnet (port 23) - [MS-TNAP]
+- DCE-RPC (port 135) - [MS-RPCE] §2.2.2.4
 
 NTLM authentication spans two packets in the same TCP connection:
 - **Type 2** (CHALLENGE_MESSAGE): server sends 8-byte ServerChallenge
@@ -41,11 +42,12 @@ _log = logging.getLogger(__name__)
 _SMB_PORTS = frozenset({445, 139})
 _HTTP_PORTS = frozenset({80, 5985, 5986})  # HTTP + WinRM
 _LDAP_PORT = 389
+_DCERPC_PORT = 135  # RPC endpoint mapper [MS-RPCE]
 _SMTP_PORTS = frozenset({25, 587})
 _POP3_PORT = 110
 _IMAP_PORT = 143
 _TELNET_PORT = 23
-_NTLM_PORTS = _SMB_PORTS | _HTTP_PORTS | {_LDAP_PORT} | _SMTP_PORTS | {_POP3_PORT, _IMAP_PORT, _TELNET_PORT}
+_NTLM_PORTS = _SMB_PORTS | _HTTP_PORTS | {_LDAP_PORT, _DCERPC_PORT} | _SMTP_PORTS | {_POP3_PORT, _IMAP_PORT, _TELNET_PORT}
 
 _IP_PROTO_TCP = 6
 
@@ -347,6 +349,9 @@ def _extract_ntlmssp_tokens(payload: bytes, ntlm_port: int) -> list[bytes]:
         token = _extract_ldap_ntlm_token(payload)
         return [token] if token is not None else []
 
+    if ntlm_port == _DCERPC_PORT:
+        return _extract_dcerpc_ntlm_tokens(payload)
+
     if ntlm_port in _SMTP_PORTS:
         return _extract_smtp_ntlm_tokens(payload)
 
@@ -612,6 +617,173 @@ def _extract_ldap_ntlm_token(payload: bytes) -> bytes | None:
                 return token
 
     return None
+
+
+# ---------------------------------------------------------------------------
+# DCE-RPC NTLM extraction (MS-RPCE, port 135)
+# ---------------------------------------------------------------------------
+
+
+def _extract_dcerpc_ntlm_tokens(payload: bytes) -> list[bytes]:
+    """Extract NTLMSSP tokens from DCE-RPC auth verifiers.
+
+    DCE-RPC carries NTLMSSP in auth trailers per [MS-RPCE] §2.2.2.4.
+    Rather than fully parsing the PDU framing, we scan for the NTLMSSP
+    signature — unique enough to avoid false positives in practice.
+
+    Covers RPC endpoint mapper (port 135) and direct RPC connections.
+    Dynamically-assigned high ports used after endpoint negotiation are
+    not covered here.
+    """
+    tokens: list[bytes] = []
+    idx = 0
+    while True:
+        pos = payload.find(_NTLMSSP_SIGNATURE, idx)
+        if pos < 0:
+            break
+        tokens.append(payload[pos:])
+        idx = pos + len(_NTLMSSP_SIGNATURE)
+    return tokens
+
+
+# ---------------------------------------------------------------------------
+# LDAP simple bind extraction (RFC 4511 §4.2, port 389)
+# ---------------------------------------------------------------------------
+
+
+# BER tag bytes used in LDAP BindRequest parsing (RFC 4511, X.690).
+_BER_SHORT_FORM_MAX = 0x80  # lengths < this use single-byte short form (X.690 §8.1.3.4)
+_BER_INDEFINITE = 0x80  # length byte 0x80 = indefinite form, invalid in DER/LDAP
+_BER_INTEGER_TAG = 0x02  # UNIVERSAL PRIMITIVE INTEGER
+_BER_OCTET_STRING_TAG = 0x04  # UNIVERSAL PRIMITIVE OCTET STRING
+_BER_SEQUENCE_TAG = 0x30  # UNIVERSAL CONSTRUCTED SEQUENCE
+_LDAP_BIND_REQUEST_TAG = 0x60  # APPLICATION 0 CONSTRUCTED = LDAPv3 BindRequest
+_LDAP_SIMPLE_AUTH_TAG = 0x80  # CONTEXT PRIMITIVE 0 = simple authentication choice
+
+
+def _ber_length(data: bytes, pos: int) -> tuple[int, int]:
+    """Parse a BER-encoded length field at *pos*.
+
+    Per X.690 §8.1.3, returns ``(length, next_pos)``.  Returns ``(-1, pos)``
+    if the data is truncated or uses the unsupported indefinite form.
+    """
+    if pos >= len(data):
+        return -1, pos
+    first = data[pos]
+    if first < _BER_SHORT_FORM_MAX:  # Short form: length is in bits 0-6
+        return first, pos + 1
+    if first == _BER_INDEFINITE:  # Indefinite form: not valid in DER / LDAP
+        return -1, pos
+    num_bytes = first & 0x7F
+    if pos + num_bytes >= len(data):
+        return -1, pos
+    length = int.from_bytes(data[pos + 1 : pos + 1 + num_bytes], "big")
+    return length, pos + 1 + num_bytes
+
+
+def _parse_ldap_bind_request(payload: bytes, pos: int) -> CapturedHash | None:
+    """Parse an LDAP BindRequest at *pos* and return a credential if it is a simple bind.
+
+    Per RFC 4511 §4.2::
+
+        BindRequest ::= [APPLICATION 0] SEQUENCE {
+          version         INTEGER (1..127),
+          name            LDAPDN,
+          authentication  AuthenticationChoice
+        }
+
+        AuthenticationChoice ::= CHOICE {
+          simple  [0] OCTET STRING     -- tag 0x80, plaintext password
+        }
+
+    SASL binds (tag 0xa3) carry NTLM/Kerberos and are handled separately
+    by ``extract_ntlm_from_stream``.  Anonymous binds (empty DN + empty
+    password) are skipped.
+    """
+    if pos >= len(payload) or payload[pos] != _LDAP_BIND_REQUEST_TAG:
+        return None
+    pos += 1
+
+    bind_len, pos = _ber_length(payload, pos)
+    if bind_len < 0 or pos + bind_len > len(payload):
+        return None
+    bind_end = pos + bind_len
+
+    # version INTEGER (must be 3 for LDAPv3)
+    if pos >= bind_end or payload[pos] != _BER_INTEGER_TAG:
+        return None
+    pos += 1
+    ver_len, pos = _ber_length(payload, pos)
+    if ver_len <= 0 or pos + ver_len > bind_end:
+        return None
+    version = int.from_bytes(payload[pos : pos + ver_len], "big")
+    pos += ver_len
+    if version != 3:  # noqa: PLR2004 - only LDAPv3
+        return None
+
+    # name (bindDN) OCTET STRING
+    if pos >= bind_end or payload[pos] != _BER_OCTET_STRING_TAG:
+        return None
+    pos += 1
+    dn_len, pos = _ber_length(payload, pos)
+    if dn_len < 0 or pos + dn_len > bind_end:
+        return None
+    dn = payload[pos : pos + dn_len].decode("utf-8", errors="replace")
+    pos += dn_len
+
+    # authentication CHOICE: only handle simple [0] = 0x80; skip SASL (0xa3)
+    if pos >= bind_end:
+        return None
+    auth_tag = payload[pos]
+    pos += 1
+    if auth_tag != _LDAP_SIMPLE_AUTH_TAG:
+        return None
+
+    pwd_len, pos = _ber_length(payload, pos)
+    if pwd_len < 0 or pos + pwd_len > bind_end:
+        return None
+    pwd_bytes = payload[pos : pos + pwd_len]
+
+    # Skip anonymous binds.
+    if not dn and not pwd_bytes:
+        return None
+
+    return CapturedHash(
+        attack=AttackType.LDAP_SIMPLE,
+        username=dn or "(anonymous-dn)",
+        realm="",
+        spn="",
+        etype=0,
+        cipher_hex=pwd_bytes.hex(),
+    )
+
+
+def extract_ldap_simple_from_stream(buffer: bytearray) -> list[CapturedHash]:
+    """Extract LDAP simple bind credentials from a TCP stream buffer.
+
+    Scans the buffer for LDAPv3 BindRequest packets (APPLICATION 0, tag 0x60)
+    and extracts the plaintext password from simple-authentication binds.
+    SASL (NTLM/Kerberos) and anonymous binds are silently skipped.
+
+    Per RFC 4511 §4.2.  Clears the buffer on success to prevent re-scanning
+    the same bind request as subsequent packets arrive on the connection.
+    """
+    results: list[CapturedHash] = []
+    payload = bytes(buffer)
+    idx = 0
+    while idx < len(payload):
+        pos = payload.find(bytes([_LDAP_BIND_REQUEST_TAG]), idx)
+        if pos < 0:
+            break
+        cred = _parse_ldap_bind_request(payload, pos)
+        if cred is not None:
+            results.append(cred)
+        idx = pos + 1
+
+    if results:
+        buffer.clear()
+
+    return results
 
 
 # ---------------------------------------------------------------------------

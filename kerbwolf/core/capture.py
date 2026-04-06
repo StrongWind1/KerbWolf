@@ -102,6 +102,7 @@ class AttackType(enum.StrEnum):
     SNTP_SHA512 = "SNTP-SHA512"
     NTLMV1 = "NTLMv1"
     NTLMV2 = "NTLMv2"
+    LDAP_SIMPLE = "LDAP-Simple"
 
 
 @dataclass(frozen=True)
@@ -276,7 +277,7 @@ def _process_packet(
     are extracted from the buffer after each segment.  UDP packets (SNTP)
     are passed directly to the existing extractor.
     """
-    from kerbwolf.core.ntlmssp import _NTLM_PORTS, extract_ntlm_from_stream  # noqa: PLC0415
+    from kerbwolf.core.ntlmssp import _LDAP_PORT, _NTLM_PORTS, extract_ldap_simple_from_stream, extract_ntlm_from_stream  # noqa: PLC0415
 
     ip_data = _strip_link_layer(pkt_data, link_type)
     if ip_data is None:
@@ -304,10 +305,15 @@ def _process_packet(
         if _KRB_PORT in {src_port, dst_port} and conn_key in tcp_streams:
             results.extend(_extract_kerberos_from_stream(tcp_streams[conn_key]))
 
-        # NTLM (SMB, HTTP, LDAP, SMTP, POP3, IMAP, Telnet): stream extraction.
+        # NTLM (SMB, HTTP, LDAP, DCE-RPC, SMTP, POP3, IMAP, Telnet): stream extraction.
         ntlm_port = src_port if src_port in _NTLM_PORTS else dst_port
         if ntlm_port in _NTLM_PORTS and conn_key in tcp_streams:
             results.extend(extract_ntlm_from_stream(tcp_streams[conn_key], conn_key, ntlm_port, ntlm_sessions))
+
+        # LDAP simple bind (port 389): plaintext credential extraction.
+        # Runs after NTLM so the NTLM path sees the full buffer first.
+        if _LDAP_PORT in {src_port, dst_port} and conn_key in tcp_streams:
+            results.extend(extract_ldap_simple_from_stream(tcp_streams[conn_key]))
 
         # Clean up empty buffers.
         if conn_key in tcp_streams and not tcp_streams[conn_key]:

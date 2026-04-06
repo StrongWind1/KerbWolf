@@ -57,6 +57,8 @@ When users authenticate, their AS-REQ contains an encrypted timestamp. Capture i
 
 **Tool:** `kw-extract` &nbsp;|&nbsp; **Auth required:** No (offline pcap parsing)
 
+`kw-extract` also extracts NTLM hashes (SMB, HTTP, WinRM, LDAP, DCE-RPC, SMTP, POP3, IMAP, Telnet), MS-SNTP timeroast hashes, and plaintext credentials from LDAP simple binds — all from the same pcap in one pass.
+
 ### Timeroasting (MS-SNTP)
 
 Domain controllers respond to authenticated NTP requests from computer, gMSA, and trust accounts. The response contains a hash of the account's NT password. No authentication is needed to request these hashes -- just a valid RID. Targets machine accounts, which often have weak or default passwords.

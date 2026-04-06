@@ -49,6 +49,17 @@ def extract_from_pcap(
 
 def _captured_to_result(h: CapturedHash, fmt: HashFormat) -> RoastResult:
     """Convert a ``CapturedHash`` into a ``RoastResult`` with formatted hash string."""
+    if h.attack == AttackType.LDAP_SIMPLE:
+        password = bytes.fromhex(h.cipher_hex).decode("utf-8", errors="replace") if h.cipher_hex else ""
+        return RoastResult(
+            username=h.username,
+            realm="",
+            spn="",
+            etype=0,
+            hash_string=f"{h.username}:{password}",
+            hashcat_mode=0,
+        )
+
     if h.attack == AttackType.SNTP_MD5:
         hash_string = format_sntp_hash(bytes.fromhex(h.cipher_hex), bytes.fromhex(h.salt_hex), h.rid)
         return RoastResult(

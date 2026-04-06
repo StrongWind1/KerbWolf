@@ -116,10 +116,10 @@ class TestExtractParser:
         assert args.verbose == 2
 
     def test_no_pcap_exits(self):
-        from kerbwolf.cli.extract import _build_parser
+        from kerbwolf.cli.extract import main
 
         with pytest.raises(SystemExit):
-            _build_parser().parse_args([])
+            main([])
 
 
 # ---------------------------------------------------------------------------
@@ -173,3 +173,64 @@ class TestExtractMain:
             main(["a.pcap", "b.pcap", "c.pcap", "d.pcap"])
         err = capsys.readouterr().err
         assert "4 file(s)" in err
+
+
+# ---------------------------------------------------------------------------
+# Directory scanning (-d / --dir)
+# ---------------------------------------------------------------------------
+
+
+class TestExtractDirFlag:
+    def test_dir_flag_parsed(self):
+        from kerbwolf.cli.extract import _build_parser
+
+        args = _build_parser().parse_args(["-d", "/pcaps"])
+        assert args.dirs == ["/pcaps"]
+
+    def test_dir_flag_repeatable(self):
+        from kerbwolf.cli.extract import _build_parser
+
+        args = _build_parser().parse_args(["-d", "/a", "-d", "/b"])
+        assert args.dirs == ["/a", "/b"]
+
+    def test_find_pcaps_in_dir(self, tmp_path):
+        from kerbwolf.cli.extract import _find_pcaps_in_dir
+
+        (tmp_path / "a.pcap").touch()
+        (tmp_path / "b.pcapng").touch()
+        (tmp_path / "c.txt").touch()
+        sub = tmp_path / "sub"
+        sub.mkdir()
+        (sub / "d.pcap").touch()
+
+        found = _find_pcaps_in_dir(str(tmp_path))
+        names = {p.split("/")[-1] for p in found}
+        assert "a.pcap" in names
+        assert "b.pcapng" in names
+        assert "d.pcap" in names
+        assert "c.txt" not in names
+
+    def test_dir_only_no_positional_allowed(self, tmp_path):
+        """Passing only -d (no positional pcap) should work when dir has files."""
+        from unittest.mock import patch
+
+        (tmp_path / "cap.pcap").touch()
+
+        with patch("kerbwolf.cli.extract.extract_from_pcap", return_value=[]):
+            from kerbwolf.cli.extract import main
+
+            main(["-d", str(tmp_path)])  # should not raise
+
+    def test_no_args_exits(self):
+        from kerbwolf.cli.extract import main
+
+        with pytest.raises(SystemExit):
+            main([])
+
+    def test_dir_with_no_pcaps_exits(self, tmp_path):
+        """A directory with no pcap files causes an error."""
+        from kerbwolf.cli.extract import main
+
+        (tmp_path / "readme.txt").touch()
+        with pytest.raises(SystemExit):
+            main(["-d", str(tmp_path)])
