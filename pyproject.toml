@@ -52,7 +52,7 @@ packages = ["kerbwolf"]
 
 [dependency-groups]
 dev = [
-    "pytest>=9.0",
+    "pytest>=9.0.3",
     "ruff>=0.15",
     "ty>=0.0.1a7",
 ]
