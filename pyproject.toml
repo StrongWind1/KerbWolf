@@ -10,7 +10,7 @@ readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.11,<3.15"
 authors = [
-    {name = "kerbwolf"},
+    {name = "StrongWind1"},
 ]
 keywords = [
     "active-directory",
@@ -36,6 +36,12 @@ dependencies = [
     "impacket>=0.13",
     "ldap3 @ git+https://github.com/cannatag/ldap3.git@dev",
 ]
+
+[project.urls]
+Repository = "https://github.com/StrongWind1/KerbWolf"
+Documentation = "https://strongwind1.github.io/KerbWolf/"
+Changelog = "https://github.com/StrongWind1/KerbWolf/blob/main/CHANGELOG.md"
+Issues = "https://github.com/StrongWind1/KerbWolf/issues"
 
 [project.scripts]
 kw-roast = "kerbwolf.cli.kerberoast:main"
