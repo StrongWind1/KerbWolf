@@ -1,11 +1,11 @@
-<p align="center">
-  <a href="https://github.com/StrongWind1/KerbWolf"><img src="https://raw.githubusercontent.com/StrongWind1/KerbWolf/main/docs/assets/kerbwolf_banner.png" alt="KerbWolf" width="800"></a>
-</p>
+<h1 align="center">KerbWolf</h1>
+
+<p align="center"><strong>Kerberos roasting and hash extraction toolkit for Active Directory.</strong></p>
 
 <p align="center">
   <a href="https://github.com/StrongWind1/KerbWolf/actions/workflows/ci.yml"><img src="https://github.com/StrongWind1/KerbWolf/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.11%E2%80%933.14-blue.svg" alt="Python 3.11+"></a>
-  <a href="https://www.apache.org/licenses/LICENSE-2.0"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="License"></a>
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.11+-blue.svg" alt="Python 3.11+"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="License: Apache 2.0"></a>
   <a href="https://strongwind1.github.io/KerbWolf/"><img src="https://img.shields.io/badge/docs-mkdocs-blue.svg" alt="Docs"></a>
 </p>
 
@@ -15,15 +15,32 @@
   <a href="https://strongwind1.github.io/KerbWolf/commands/kw-roast/">Commands</a>
 </p>
 
-Kerberos roasting and hash extraction toolkit for Active Directory.
-
 1. **Kerberos roasting** - extract crackable hashes from Kerberos authentication
 2. **Timeroasting** - unauthenticated MS-SNTP hash extraction for computer and gMSA accounts
 3. **Pcap extraction** - offline Kerberos, NTLM, and SNTP hash extraction from network captures
 
-> **Warning:** This tool is intended for authorized security testing only. You must have explicit written permission from the system owner before attacking any Active Directory environment.
+## Example
 
-## Kerberos Roasting
+Kerberoast every SPN account discovered over LDAP and write hashcat-ready hashes:
+
+```console
+$ kw-roast -k -c admin.ccache --ldap
+[+] sql_svc      $krb5tgs$23$*sql_svc$CORP.LOCAL$MSSQLSvc/db01*<...>   (hashcat 13100)
+[+] backup_svc   $krb5tgs$18$*backup_svc$CORP.LOCAL$cifs/fs01*<...>    (hashcat 19700)
+[*] 2 SPN accounts roasted -> hashes.txt
+```
+
+## Installation
+
+Install with [uv](https://docs.astral.sh/uv/):
+
+```bash
+uv tool install git+https://github.com/StrongWind1/KerbWolf
+```
+
+See the [installation guide](docs/getting-started/installation.md) for development setup and dependencies.
+
+## Kerberos roasting
 
 Request encrypted tickets from domain controllers and crack them offline. Supports all 5 Windows encryption types.
 
@@ -64,7 +81,7 @@ kw-timeroast 10.0.0.1 --ldap -d CORP.LOCAL -u admin -p 'Pass!' --wordlist crack.
 
 **Features:** 68-byte MD5 (hashcat 31300) + 120-byte KDF+HMAC-SHA512, current/previous password selection, LDAP discovery of computer + gMSA accounts, cracking wordlist output.
 
-## Pcap Extraction
+## Pcap extraction
 
 Extract all crackable hashes from network captures. One tool, all protocols.
 
@@ -97,7 +114,7 @@ tcpdump -i eth0 -w - 'port 88 or port 123 or port 445' | kw-extract -
 | IMAP | 143 | [MS-OXIMAP] |
 | Telnet | 23 | [MS-TNAP] |
 
-## Attack Matrix
+## Attack matrix
 
 ### Kerberos (15 hash types)
 
@@ -123,16 +140,6 @@ Numbers in parentheses are hashcat mode numbers. The 9 RC4/AES modes work in has
 | Net-NTLMv1 / NTLMv1-ESS | 5500 |
 | Net-NTLMv2 / LMv2 | 5600 |
 
-## Installation
-
-```bash
-pip install .
-# or
-uv tool install .
-```
-
-See the [installation guide](docs/getting-started/installation.md) for development setup and dependencies.
-
 ## Development
 
 ```bash
@@ -145,13 +152,22 @@ make format                    # auto-fix formatting
 make build                     # build wheel (runs check + docs first)
 ```
 
-## Disclaimer
-
-KerbWolf is intended for authorized penetration testing, red team engagements, and security audits only. You must have explicit written permission from the system owner before attacking any Active Directory environment. Unauthorized access to computer systems is illegal. The authors are not responsible for any misuse or damage caused by this tool.
-
 ## Credits
 
 Built on [Impacket](https://github.com/fortra/impacket) and [ldap3](https://github.com/cannatag/ldap3). Inspired by [Rubeus](https://github.com/GhostPack/Rubeus), [GetUserSPNs.py](https://github.com/fortra/impacket), and [hashcat](https://hashcat.net/).
+
+## Related tools
+
+Other projects in this collection:
+
+- [AD-SecretGen](https://github.com/StrongWind1/AD-SecretGen) - derive AD password hashes and Kerberos keys from a password
+- [NTDSWolf](https://github.com/StrongWind1/NTDSWolf) - offline NTDS.dit parser and credential extractor
+- [CredWolf](https://github.com/StrongWind1/CredWolf) - Active Directory credential validation
+- [Kerberos](https://github.com/StrongWind1/Kerberos) - Kerberos in Active Directory: protocol, security, and attacks
+
+## Disclaimer
+
+KerbWolf is intended for authorized penetration testing, red team engagements, and security audits only. You must have explicit written permission from the system owner before attacking any Active Directory environment. Unauthorized access to computer systems is illegal. The authors are not responsible for any misuse or damage caused by this tool.
 
 ## License
 
