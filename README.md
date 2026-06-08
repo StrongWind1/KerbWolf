@@ -3,6 +3,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/StrongWind1/KerbWolf/actions/workflows/ci.yml"><img src="https://github.com/StrongWind1/KerbWolf/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.11%E2%80%933.14-blue.svg" alt="Python 3.11+"></a>
   <a href="https://www.apache.org/licenses/LICENSE-2.0"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="License"></a>
   <a href="https://strongwind1.github.io/KerbWolf/"><img src="https://img.shields.io/badge/docs-mkdocs-blue.svg" alt="Docs"></a>
@@ -136,7 +137,7 @@ See the [installation guide](docs/getting-started/installation.md) for developme
 
 ```bash
 git clone https://github.com/StrongWind1/KerbWolf.git
-cd kerbwolf
+cd KerbWolf
 uv sync                        # install dev dependencies
 make check                     # run lint + typecheck + tests
 make docs                      # build documentation
