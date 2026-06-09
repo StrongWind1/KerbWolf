@@ -73,10 +73,12 @@ def _is_response_too_big(response: bytes) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def _resolve_af(host: str, port: int, sock_type: int) -> tuple[int, tuple]:
+def _resolve_af(host: str, port: int, sock_type: int) -> tuple[int, tuple[str, int] | tuple[str, int, int, int] | tuple[int, bytes]]:
     """Resolve *host* to an address family and sockaddr.
 
-    Returns ``(AF_INET or AF_INET6, sockaddr_tuple)``.
+    Returns ``(AF_INET or AF_INET6, sockaddr_tuple)``.  The ``tuple[int, bytes]``
+    arm only mirrors typeshed's ``getaddrinfo`` sockaddr union (AF_PACKET et al.);
+    AF_UNSPEC with a TCP/UDP socket type always yields INET/INET6 here.
     """
     try:
         results = socket.getaddrinfo(host, port, socket.AF_UNSPEC, sock_type)

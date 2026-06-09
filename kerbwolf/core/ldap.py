@@ -138,7 +138,7 @@ def _base_dn(domain: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _paged_search(conn: ldap3.Connection, base_dn: str, ldap_filter: str, attributes: list[str]) -> list:
+def _paged_search(conn: ldap3.Connection, base_dn: str, ldap_filter: str, attributes: list[str]) -> list[ldap3.Entry]:
     """Run a paged LDAP search to handle domains with >1000 results."""
     _log.debug("LDAP search: base=%s filter=%s", base_dn, ldap_filter[:80])
     conn.search(base_dn, ldap_filter, attributes=attributes, paged_size=_PAGE_SIZE)
