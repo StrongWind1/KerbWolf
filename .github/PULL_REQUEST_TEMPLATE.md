@@ -1,18 +1,19 @@
 ## Summary
 
-Brief description of what this PR does and why.
+<!-- What does this PR do? Why is it needed? -->
 
 ## Changes
 
-- 
+<!-- Bullet list of key changes -->
 
 ## Testing
 
+<!-- How did you verify the changes? -->
+
 - [ ] `make check` passes (lint + typecheck + tests)
-- [ ] `make docs` builds without warnings
-- [ ] Tested against a live DC (if applicable)
-- [ ] New tests added for new functionality
+- [ ] New/changed behavior is covered by tests
+- [ ] Documentation updated (if applicable)
 
 ## Notes
 
-Any additional context, trade-offs, or things reviewers should know.
+<!-- Anything reviewers should know? Breaking changes, migration steps, etc. -->

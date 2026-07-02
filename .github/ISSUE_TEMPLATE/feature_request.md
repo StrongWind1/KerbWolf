@@ -6,14 +6,11 @@ labels: enhancement
 assignees: ""
 ---
 
-## Problem
+**What problem does this solve?**
+A clear description of the problem or use case.
 
-What problem does this solve? What are you trying to do that you can't do today?
+**Proposed solution**
+How you'd like KerbWolf to handle it (CLI flags, output format, etc.).
 
-## Proposed solution
-
-How should it work? Include example commands or output if possible.
-
-## Alternatives
-
-Other approaches you considered and why they don't work as well.
+**Alternatives considered**
+Any workarounds you've tried or other tools that handle this.

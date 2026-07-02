@@ -1,0 +1,130 @@
+name: "CI: Build and Publish to PyPI"
+
+# DORMANT: this repository is not yet wired for PyPI trusted publishing.
+# To enable automatic publishing when a GitHub Release is published, restore:
+#   release:
+#     types: [published]
+"on":
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: pypi-publish-${{ github.event.release.id }}
+  cancel-in-progress: false
+
+jobs:
+  verify-ci:
+    name: Verify required CI workflows
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event_name == 'release' && github.event.action == 'published'
+    permissions:
+      actions: read
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify successful CI runs for release commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          release_sha="$(git rev-list -n 1 "refs/tags/${RELEASE_TAG}")"
+          echo "Checking CI status for ${RELEASE_TAG} at ${release_sha}"
+
+          conclusion="$(
+            gh api \
+              "repos/${REPOSITORY}/actions/workflows/ci.yml/runs?head_sha=${release_sha}&status=completed&event=push&per_page=1" \
+              --jq '.workflow_runs[0].conclusion // ""'
+          )"
+
+          if [[ "${conclusion}" != "success" ]]; then
+            echo "Required workflow ci.yml is not green for ${release_sha}."
+            echo "Latest completed push-run conclusion: ${conclusion:-<none>}"
+            exit 1
+          fi
+
+  build:
+    name: Build distributions
+    needs: verify-ci
+    if: always() && (needs.verify-ci.result == 'success' || needs.verify-ci.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: "**/pyproject.toml"
+
+      - name: Build distributions
+        run: |
+          set -euo pipefail
+          uv build --sdist --wheel
+
+      - name: Validate distributions
+        run: |
+          set -euo pipefail
+          uv run --with twine twine check --strict dist/*
+
+      - name: Upload distributions
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-dists
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish to PyPI
+    needs: [verify-ci, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event_name == 'release' && github.event.action == 'published'
+
+    environment:
+      name: pypi
+      url: https://pypi.org/p/kerbwolf
+
+    permissions:
+      id-token: write
+      attestations: write
+      contents: read
+
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-dists
+          path: dist
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
+        with:
+          subject-path: dist/*
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # v1.14.0
+        with:
+          packages-dir: dist/
+          attestations: true

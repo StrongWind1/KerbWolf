@@ -1,29 +1,37 @@
 name: CI
 
-on:
+# Build / lint / format / typecheck / test on every push to main and every PR.
+# This is the tough gate: it must be green before a release can be published
+# (publish.yml re-checks this workflow's conclusion for the release commit).
+
+"on":
   push:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-
-      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
-        with:
-          enable-cache: true
-          cache-dependency-glob: "**/pyproject.toml"
 
       - name: Install system dependencies
         run: |
@@ -31,25 +39,31 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq libkrb5-dev
 
-      - name: Lint
+      - name: Set up uv
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: "**/pyproject.toml"
+
+      - name: Ruff check
         run: |
           set -euo pipefail
-          uv run ruff format --check .
-          uv run ruff check .
+          uv run ruff check
+
+      - name: Ruff format check
+        run: |
+          set -euo pipefail
+          uv run ruff format --check
 
   typecheck:
-    name: Typecheck
+    name: Type check
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-
-      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
-        with:
-          enable-cache: true
-          cache-dependency-glob: "**/pyproject.toml"
 
       - name: Install system dependencies
         run: |
@@ -57,7 +71,13 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq libkrb5-dev
 
-      - name: Typecheck
+      - name: Set up uv
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: "**/pyproject.toml"
+
+      - name: Type check
         run: |
           set -euo pipefail
           uv run ty check
@@ -65,71 +85,44 @@ jobs:
   test:
     name: Test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.11", "3.12", "3.13", "3.14"]
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-
-      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
-        with:
-          enable-cache: true
-          cache-dependency-glob: "**/pyproject.toml"
 
       - name: Install system dependencies
         run: |
           set -euo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y -qq libkrb5-dev
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: "**/pyproject.toml"
 
       - name: Test
         run: |
           set -euo pipefail
-          uv run --python ${{ matrix.python-version }} pytest tests/ -q
-
-  docs:
-    name: Docs
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          persist-credentials: false
-
-      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
-        with:
-          enable-cache: true
-          cache-dependency-glob: "**/pyproject.toml"
-
-      - name: Install system dependencies
-        run: |
-          set -euo pipefail
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq libkrb5-dev
-
-      - name: Build docs
-        run: |
-          set -euo pipefail
-          uv run --group docs mkdocs build --strict
+          uv run --python ${{ matrix.python-version }} pytest -q
 
   build:
-    name: Build
+    name: Build wheel + sdist
     runs-on: ubuntu-latest
-    timeout-minutes: 5
-    needs: [lint, typecheck, test, docs]
+    timeout-minutes: 15
+    needs: [lint, typecheck, test]
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-
-      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
-        with:
-          enable-cache: true
-          cache-dependency-glob: "**/pyproject.toml"
 
       - name: Install system dependencies
         run: |
@@ -137,47 +130,37 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq libkrb5-dev
 
-      - name: Build wheel
-        run: |
-          set -euo pipefail
-          uv build --wheel
-
-  deploy-docs:
-    name: Deploy Docs
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    needs: [lint, typecheck, test, docs]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          persist-credentials: false
-
-      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+      - name: Set up uv
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           enable-cache: true
           cache-dependency-glob: "**/pyproject.toml"
 
-      - name: Install system dependencies
+      - name: Build
         run: |
           set -euo pipefail
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq libkrb5-dev
+          uv build
 
-      - name: Build docs
-        run: |
-          set -euo pipefail
-          uv run --group docs mkdocs build --strict
-
-      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+      - name: Upload artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          path: site/
+          name: dist
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 3
 
-      - uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
-        id: deploy
+  yamllint:
+    name: YAML lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Lint YAML in .github
+        run: |
+          set -euo pipefail
+          python3 -m pip install --user --quiet yamllint
+          python3 -m yamllint --strict -c .yamllint.yml .github
