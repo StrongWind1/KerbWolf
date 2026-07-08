@@ -412,7 +412,8 @@ dependencies = [
     { name = "dnspython" },
     { name = "gssapi" },
     { name = "impacket" },
-    { name = "ldap3" },
+    { name = "pyasn1" },
+    { name = "pycryptodomex" },
 ]
 
 [package.dev-dependencies]
@@ -430,7 +431,8 @@ requires-dist = [
     { name = "dnspython", specifier = ">=2.4" },
     { name = "gssapi", specifier = ">=1.11.1" },
     { name = "impacket", specifier = ">=0.13" },
-    { name = "ldap3", git = "https://github.com/cannatag/ldap3.git?rev=dev" },
+    { name = "pyasn1", specifier = ">=0.4.6" },
+    { name = "pycryptodomex" },
 ]
 
 [package.metadata.requires-dev]
@@ -444,10 +446,14 @@ docs = [{ name = "mkdocs-material", specifier = ">=9.0" }]
 [[package]]
 name = "ldap3"
 version = "2.10.2rc4"
-source = { git = "https://github.com/cannatag/ldap3.git?rev=dev#c5be4b6f0d32a1cbb0f81918dd8994418b6c74aa" }
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pyasn1" },
     { name = "pycryptodomex" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/aa/23/01ef900e0401be82dbc86394c613fcac0d0da322354d6419544fe975c1bc/ldap3-2.10.2rc4.tar.gz", hash = "sha256:21b0345b57dd3692d11a46545b6c8b7d078bb79713936eed10b3b5ec77614010", size = 452299, upload-time = "2026-04-18T16:02:34.712Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a0/cd/069d327a2dadee6c1c1cfcff00058e6d6c0b7adae144249d0bc227320852/ldap3-2.10.2rc4-py3-none-any.whl", hash = "sha256:74246d6916d30696e032e8a85f1cccbbf47b6ca45b4a5976dc3325a8a348d1ee", size = 488323, upload-time = "2026-04-18T16:02:33.259Z" },
 ]
 
 [[package]]

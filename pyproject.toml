@@ -35,7 +35,8 @@ dependencies = [
     "dnspython>=2.4",
     "gssapi>=1.11.1",
     "impacket>=0.13",
-    "ldap3 @ git+https://github.com/cannatag/ldap3.git@dev",
+    "pyasn1>=0.4.6",
+    "pycryptodomex",
 ]
 
 [project.urls]
@@ -50,9 +51,6 @@ kw-asrep = "kerbwolf.cli.asreproast:main"
 kw-extract = "kerbwolf.cli.extract:main"
 kw-tgt = "kerbwolf.cli.gettgt:main"
 kw-timeroast = "kerbwolf.cli.timeroast:main"
-
-[tool.hatch.metadata]
-allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["kerbwolf"]
@@ -73,7 +71,7 @@ testpaths = ["tests"]
 [tool.ruff]
 target-version = "py311"
 line-length = 320
-extend-exclude = ["scripts"]
+extend-exclude = ["scripts", "kerbwolf/_vendor"]
 
 [tool.ruff.lint]
 select = ["ALL"]
@@ -132,6 +130,7 @@ error-on-warning = true
 # impacket has no type stubs — treat all its imports as Any.
 replace-imports-with-any = [
     "impacket.**",
+    "kerbwolf._vendor.**",
 ]
 allowed-unresolved-imports = []
 

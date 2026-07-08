@@ -14,7 +14,7 @@ from kerbwolf.core.resolve import is_ip, resolve_host, resolve_srv
 from kerbwolf.models import KerberosContext, KerberosCredential, RoastResult
 
 if TYPE_CHECKING:
-    import ldap3
+    from kerbwolf._vendor import ldap3
 
     from kerbwolf.log import Logger
 

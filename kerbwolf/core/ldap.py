@@ -10,7 +10,7 @@ import logging
 import os
 import struct
 
-import ldap3
+from kerbwolf._vendor import ldap3
 
 from kerbwolf.core.resolve import is_ip
 from kerbwolf.models import (
