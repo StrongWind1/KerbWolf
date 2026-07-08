@@ -15,7 +15,6 @@ from kerbwolf.models import KerberosContext, KerberosCredential, RoastResult
 
 if TYPE_CHECKING:
     from kerbwolf._vendor import ldap3
-
     from kerbwolf.log import Logger
 
 _ETYPE_CHOICES = ["des-cbc-crc", "des-cbc-md5", "rc4", "aes128", "aes256"]
