@@ -143,3 +143,8 @@ all = "ignore"
 include = ["scripts/**"]
 [tool.ty.overrides.rules]
 all = "ignore"
+
+[[tool.ty.overrides]]
+include = ["kerbwolf/_vendor/**"]
+[tool.ty.overrides.rules]
+all = "ignore"
