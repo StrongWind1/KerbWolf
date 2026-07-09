@@ -33,9 +33,16 @@ $ kw-roast -k -c admin.ccache --ldap
 
 ## Installation
 
-Install with [uv](https://docs.astral.sh/uv/):
+Install from [PyPI](https://pypi.org/project/kerbwolf/):
 
-```bash
+```sh
+uv tool install kerbwolf        # recommended
+pip install kerbwolf             # or with pip
+```
+
+Or install from source:
+
+```sh
 uv tool install git+https://github.com/StrongWind1/KerbWolf
 ```
 
