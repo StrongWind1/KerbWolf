@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Tests for kerbwolf.attacks.kerberoast - Kerberoast and no-preauth attack logic."""
 
 from unittest.mock import MagicMock, patch

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Tests for capture module - packet extraction, Kerberos ASN.1, SNTP, and TCP reassembly."""
 
 import struct

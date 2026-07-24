@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Shared CLI utilities - argument groups, credential parsing, target collection, output."""
 
 from __future__ import annotations

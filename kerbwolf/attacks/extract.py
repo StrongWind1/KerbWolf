@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Pcap-based hash extraction for Kerberos and MS-SNTP (timeroast).
 
 Parses pcap/pcapng files natively and extracts:

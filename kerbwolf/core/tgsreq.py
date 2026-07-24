@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """TGS-REQ message builder with U2U and encryption-type control.
 
 Builds Kerberos TGS-REQ messages for:

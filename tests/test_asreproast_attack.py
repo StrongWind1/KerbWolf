@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Tests for kerbwolf.attacks.asreproast - AS-REP Roast attack logic."""
 
 from unittest.mock import patch

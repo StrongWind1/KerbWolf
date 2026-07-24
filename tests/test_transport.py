@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Tests for kerbwolf.core.transport - TCP and UDP KDC communication."""
 
 from unittest.mock import MagicMock, patch

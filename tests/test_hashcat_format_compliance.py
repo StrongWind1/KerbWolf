@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Tests verifying KerbWolf hash output matches hashcat's canonical format 1 exactly.
 
 Each test constructs a known cipher and checks:

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Tests for kerbwolf.core.ntp: MS-SNTP packet construction, parsing, and crypto."""
 
 import struct

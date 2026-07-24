@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """ Some helper functions for validation of ports and lists of ports. """
 
 

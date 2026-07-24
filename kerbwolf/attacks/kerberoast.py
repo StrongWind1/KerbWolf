@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """TGS-REP Roast (Kerberoast) - request service tickets and extract hashes.
 
 Supports all 5 Windows encryption types uniformly.  Targets can be

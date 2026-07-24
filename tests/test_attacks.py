@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Tests for attack modules - kerberoast, asreproast, extract, gettgt."""
 
 from unittest.mock import patch

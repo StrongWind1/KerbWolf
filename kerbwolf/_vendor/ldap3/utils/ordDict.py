@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2009 Raymond Hettinger
 #
 # Permission is hereby granted, free of charge, to any person

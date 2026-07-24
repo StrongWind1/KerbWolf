@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Additional hashcat tests - John format edge cases, DES fallback, checksum splits."""
 
 from kerbwolf.hashcat import format_asrep_hash_raw, format_pa_hash, format_tgs_hash_raw

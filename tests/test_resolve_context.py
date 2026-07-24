@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Tests for resolve_context() - unified DC resolution from CLI args, ccache, and DNS."""
 
 import argparse

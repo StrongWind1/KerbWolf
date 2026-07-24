@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """MS-SNTP Timeroasting: NTP packet construction and response parsing.
 
 Implements both authentication mechanisms defined in MS-SNTP:

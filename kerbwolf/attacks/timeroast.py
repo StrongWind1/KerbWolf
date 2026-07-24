@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Timeroasting: extract SNTP password hashes for computer/gMSA/trust accounts.
 
 Abuses Microsoft's NTP authentication extension (MS-SNTP) to request

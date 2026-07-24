@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """AS-REP Roast - request TGTs without pre-auth and extract hashes.
 
 Supports all 5 Windows encryption types uniformly.  When spraying

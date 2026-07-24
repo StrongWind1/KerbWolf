@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """CLI entry point for ``kw-roast`` - TGS-REP Roast (Kerberoast)."""
 
 from __future__ import annotations

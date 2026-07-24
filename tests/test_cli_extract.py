@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Tests for kerbwolf.cli.extract - kw-extract CLI entry point."""
 
 from unittest.mock import patch

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """CLI entry point for ``kw-extract`` - extract Kerberos and SNTP hashes from pcap captures."""
 
 from __future__ import annotations

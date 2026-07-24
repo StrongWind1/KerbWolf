@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """CLI entry point for ``kw-tgt`` - request a TGT with any credential type."""
 
 from __future__ import annotations

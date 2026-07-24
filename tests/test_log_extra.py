@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Additional tests for kerbwolf.log - _ansi, exception, stdlib bridge."""
 
 from unittest.mock import patch

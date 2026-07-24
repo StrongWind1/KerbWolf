@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Load TGTs from CCache files for pass-the-ticket authentication."""
 
 from __future__ import annotations

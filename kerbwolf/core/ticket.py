@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Ticket decryption, PAC extraction, and EncTicketPart parsing."""
 
 from __future__ import annotations

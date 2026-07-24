@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Key derivation for all Windows Kerberos encryption types.
 
 Wraps impacket's ``_enctype_table``, ``Key``, and ``string_to_key`` to

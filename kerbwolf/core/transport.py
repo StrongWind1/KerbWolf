@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """TCP and UDP transport for Kerberos KDC communication.
 
 Supports both IPv4 and IPv6.  The address family is auto-detected from

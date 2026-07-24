@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Hash formatters for all Kerberos hashcat modes across all 5 etypes.
 
 Covers 15 attack x etype combinations (3 attacks x 5 etypes):

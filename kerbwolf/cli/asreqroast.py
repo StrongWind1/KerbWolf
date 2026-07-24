@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Backward-compatibility re-export.  Use ``kerbwolf.cli.extract`` instead."""
 
 from kerbwolf.cli.extract import _build_parser as _build_parser  # noqa: PLC0414

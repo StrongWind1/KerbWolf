@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 # THIS FILE IS AUTO-GENERATED. PLEASE DO NOT MODIFY
 # version file for ldap3
 # generated on 2026-04-18 18:02:04.134987

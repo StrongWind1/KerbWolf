@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Tests for kerbwolf.hashcat - hash formatters for all 15 attack x etype combinations."""
 
 from kerbwolf.hashcat import (

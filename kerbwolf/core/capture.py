@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Extract all roastable data from pcap/pcapng files.
 
 Native pcap/pcapng parsing - no external dependencies.  Decodes Kerberos

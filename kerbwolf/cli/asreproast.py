@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """CLI entry point for ``kw-asrep`` - AS-REP Roast."""
 
 from __future__ import annotations

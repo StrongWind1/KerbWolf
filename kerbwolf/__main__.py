@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Allow ``python -m kerbwolf`` to launch the kerberoast CLI by default."""
 
 from __future__ import annotations

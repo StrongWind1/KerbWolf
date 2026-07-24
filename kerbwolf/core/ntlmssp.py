@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """NTLM hash extraction and LDAP simple-bind credential extraction from pcap.
 
 Extracts Net-NTLMv1, Net-NTLMv1-ESS, Net-NTLMv2, and Net-LMv2 hashes from

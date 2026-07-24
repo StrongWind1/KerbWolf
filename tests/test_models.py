@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Tests for kerbwolf.models - enums, dataclasses, constants, errors."""
 
 from kerbwolf.models import (

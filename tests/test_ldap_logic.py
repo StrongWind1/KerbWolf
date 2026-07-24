@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Tests for kerbwolf.core.ldap - connection, SPN resolution, search, and account parsing."""
 
 from unittest.mock import MagicMock, patch

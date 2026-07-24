@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """DNS resolution helpers for Kerberos domain controllers.
 
 Provides low-level helpers used by ``cli._common.resolve_context()``:

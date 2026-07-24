@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Tests for kerbwolf.attacks.gettgt - TGT acquisition logic."""
 
 from unittest.mock import MagicMock, patch

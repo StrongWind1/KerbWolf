@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Tests for NTLM hash extraction from pcap packets."""
 
 import struct

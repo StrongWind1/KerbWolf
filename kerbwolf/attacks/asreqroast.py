@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Backward-compatibility re-export.  Use ``kerbwolf.attacks.extract`` instead."""
 
 from kerbwolf.attacks.extract import _captured_to_result as _captured_to_result  # noqa: PLC0414

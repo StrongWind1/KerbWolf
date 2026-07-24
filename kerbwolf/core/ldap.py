@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """LDAP enumeration and Active Directory attribute modification.
 
 Uses ldap3 (dev branch) for full LDAP support including paged searches

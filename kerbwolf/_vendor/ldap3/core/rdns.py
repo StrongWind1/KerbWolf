@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """ Utilities and constants related to reverse dns lookup """
 
 # Created on 2020.09.16

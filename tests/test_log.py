@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Tests for kerbwolf.log - structured ANSI logger."""
 
 from kerbwolf.log import DEBUG, VERBOSE, Logger

@@ -93,7 +93,12 @@ ignore = [
     "S106",    # hardcoded password in arg — false positive on CLI help text metavars
 ]
 
+[tool.ruff.lint.flake8-copyright]
+notice-rgx = "(?i)# SPDX-License-Identifier"
+
 [tool.ruff.lint.per-file-ignores]
+"kerbwolf/core/ntlmssp.py" = ["PLR0917"]
+"kerbwolf/hashcat.py" = ["PLR0917"]
 "tests/**" = [
     "D",       # docstrings — tests
     "S101",    # assert — pytest idiom

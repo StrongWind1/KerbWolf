@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """AS-REQ message builder with full encryption-type control.
 
 Builds Kerberos AS-REQ messages for:

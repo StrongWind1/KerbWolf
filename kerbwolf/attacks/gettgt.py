@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """TGT acquisition with all key types (pass-the-key, pass-the-hash)."""
 
 from __future__ import annotations

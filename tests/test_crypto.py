@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Tests for kerbwolf.core.crypto - key derivation for all 5 etypes."""
 
 import pytest

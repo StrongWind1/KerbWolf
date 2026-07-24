@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Tests using real NTP traffic captured from /root/ntp.pcapng.
 
 The capture contains 120-byte ExtendedAuthenticator packets between a
