@@ -24,7 +24,7 @@ def asreproast(
     *,
     domain: str,
     dc_ip: str,
-    etype: EncryptionType = EncryptionType.RC4_HMAC,
+    etypes: tuple[EncryptionType, ...] = (EncryptionType.RC4_HMAC,),
     target_users: list[str] | None = None,
     hash_format: HashFormat = HashFormat.HASHCAT,
     transport: TransportProtocol = TransportProtocol.TCP,
@@ -35,9 +35,15 @@ def asreproast(
     Accounts that require pre-authentication (the normal case) will
     trigger a ``KDCError`` which is caught and skipped.  Only accounts
     that return a valid AS-REP produce a hash in the output.
+
+    The *etypes* tuple is sent in the AS-REQ body in the order given,
+    telling the KDC the client's preference.  The KDC picks the first
+    etype the target account supports.
     """
     if not target_users:
         return []
+
+    etype_ints = tuple(int(e) for e in etypes)
 
     results: list[RoastResult] = []
     for i, username in enumerate(target_users, 1):
@@ -47,7 +53,7 @@ def asreproast(
                 username,
                 domain,
                 dc_ip=dc_ip,
-                etypes=(int(etype),),
+                etypes=etype_ints,
                 transport=transport,
                 timeout=timeout,
             )

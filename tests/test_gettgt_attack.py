@@ -26,7 +26,7 @@ class TestGetTgt:
         assert session_key == mock_session_key
         mock_ccache.fromTGT.assert_called_once_with(b"raw_asrep", b"client_key", mock_session_key)
 
-    def test_passes_etype_and_transport(self):
+    def test_passes_etypes_and_transport(self):
         mock_session_key = MagicMock()
 
         with patch("kerbwolf.attacks.gettgt.request_tgt", return_value=(b"r", b"k", mock_session_key)) as mock_req, patch("kerbwolf.attacks.gettgt.CCache") as mock_ccache_cls:
@@ -35,12 +35,26 @@ class TestGetTgt:
             get_tgt(
                 KerberosCredential(username="u", domain="d"),
                 dc_ip="1.2.3.4",
-                etype=EncryptionType.AES256_CTS_HMAC_SHA1_96,
+                etypes=(EncryptionType.AES256_CTS_HMAC_SHA1_96,),
                 transport=TransportProtocol.UDP,
                 timeout=30.0,
             )
 
         call_kwargs = mock_req.call_args
-        assert call_kwargs.kwargs["etype"] == EncryptionType.AES256_CTS_HMAC_SHA1_96
+        assert call_kwargs.kwargs["etypes"] == (EncryptionType.AES256_CTS_HMAC_SHA1_96,)
         assert call_kwargs.kwargs["transport"] == TransportProtocol.UDP
         assert call_kwargs.kwargs["timeout"] == 30.0
+
+    def test_passes_multiple_etypes(self):
+        mock_session_key = MagicMock()
+
+        with patch("kerbwolf.attacks.gettgt.request_tgt", return_value=(b"r", b"k", mock_session_key)) as mock_req, patch("kerbwolf.attacks.gettgt.CCache") as mock_ccache_cls:
+            mock_ccache_cls.return_value = MagicMock(getData=MagicMock(return_value=b""))
+
+            get_tgt(
+                KerberosCredential(username="u", domain="d"),
+                dc_ip="1.2.3.4",
+                etypes=(EncryptionType.AES256_CTS_HMAC_SHA1_96, EncryptionType.RC4_HMAC),
+            )
+
+        assert mock_req.call_args.kwargs["etypes"] == (EncryptionType.AES256_CTS_HMAC_SHA1_96, EncryptionType.RC4_HMAC)

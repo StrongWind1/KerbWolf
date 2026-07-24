@@ -145,19 +145,58 @@ class TestKwRoastCLI:
         with pytest.raises(SystemExit):
             main(["-d", "D"])
 
-    def test_enctype_short_flag(self):
+    def test_enctype_single(self):
+        from kerbwolf.cli._common import parse_etypes
         from kerbwolf.cli.kerberoast import _build_parser
+        from kerbwolf.models import ETYPE_BY_NAME
 
         parser = _build_parser()
         for choice in ["des-cbc-crc", "des-cbc-md5", "rc4", "aes128", "aes256"]:
             args = parser.parse_args(["-d", "D", "--dc-ip", "1.2.3.4", "-e", choice])
-            assert args.enctype == choice
+            etypes = parse_etypes(args.enctype)
+            assert etypes == (ETYPE_BY_NAME[choice],)
+
+    def test_enctype_multiple_repeated(self):
+        from kerbwolf.cli._common import parse_etypes
+        from kerbwolf.cli.kerberoast import _build_parser
+        from kerbwolf.models import EncryptionType
+
+        args = _build_parser().parse_args(["-d", "D", "--dc-ip", "1.2.3.4", "-e", "rc4", "-e", "aes256"])
+        etypes = parse_etypes(args.enctype)
+        assert etypes == (EncryptionType.RC4_HMAC, EncryptionType.AES256_CTS_HMAC_SHA1_96)
+
+    def test_enctype_comma_separated(self):
+        from kerbwolf.cli._common import parse_etypes
+        from kerbwolf.cli.kerberoast import _build_parser
+        from kerbwolf.models import EncryptionType
+
+        args = _build_parser().parse_args(["-d", "D", "--dc-ip", "1.2.3.4", "-e", "aes128,rc4,aes256"])
+        etypes = parse_etypes(args.enctype)
+        assert etypes == (EncryptionType.AES128_CTS_HMAC_SHA1_96, EncryptionType.RC4_HMAC, EncryptionType.AES256_CTS_HMAC_SHA1_96)
+
+    def test_enctype_deduplicates(self):
+        from kerbwolf.cli._common import parse_etypes
+        from kerbwolf.cli.kerberoast import _build_parser
+        from kerbwolf.models import EncryptionType
+
+        args = _build_parser().parse_args(["-d", "D", "--dc-ip", "1.2.3.4", "-e", "rc4", "-e", "rc4"])
+        etypes = parse_etypes(args.enctype)
+        assert etypes == (EncryptionType.RC4_HMAC,)
+
+    def test_enctype_default_rc4(self):
+        from kerbwolf.cli._common import parse_etypes
+        from kerbwolf.cli.kerberoast import _build_parser
+        from kerbwolf.models import EncryptionType
+
+        args = _build_parser().parse_args(["-d", "D", "--dc-ip", "1.2.3.4", "-t", "spn"])
+        etypes = parse_etypes(args.enctype)
+        assert etypes == (EncryptionType.RC4_HMAC,)
 
     def test_invalid_enctype(self):
-        from kerbwolf.cli.kerberoast import _build_parser
+        from kerbwolf.cli._common import parse_etypes
 
         with pytest.raises(SystemExit):
-            _build_parser().parse_args(["-d", "D", "--dc-ip", "1.2.3.4", "-e", "blowfish"])
+            parse_etypes(["blowfish"])
 
 
 class TestKwAsrepCLI:
@@ -245,12 +284,24 @@ class TestKwTgtCLI:
         with pytest.raises(SystemExit):
             _build_parser().parse_args(["-d", "D", "-u", "u"])
 
-    def test_enctype_all_choices(self):
+    def test_enctype_single(self):
+        from kerbwolf.cli._common import parse_etypes
         from kerbwolf.cli.gettgt import _build_parser
+        from kerbwolf.models import ETYPE_BY_NAME
 
         for choice in ["des-cbc-crc", "des-cbc-md5", "rc4", "aes128", "aes256"]:
             args = _build_parser().parse_args(["-d", "D", "--dc-ip", "1.2.3.4", "-u", "u", "-p", "pass", "-e", choice])
-            assert args.enctype == choice
+            etypes = parse_etypes(args.enctype)
+            assert etypes == (ETYPE_BY_NAME[choice],)
+
+    def test_enctype_multiple(self):
+        from kerbwolf.cli._common import parse_etypes
+        from kerbwolf.cli.gettgt import _build_parser
+        from kerbwolf.models import EncryptionType
+
+        args = _build_parser().parse_args(["-d", "D", "--dc-ip", "1.2.3.4", "-u", "u", "-p", "pass", "-e", "aes256", "-e", "rc4"])
+        etypes = parse_etypes(args.enctype)
+        assert etypes == (EncryptionType.AES256_CTS_HMAC_SHA1_96, EncryptionType.RC4_HMAC)
 
 
 class TestPrintHeader:

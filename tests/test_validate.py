@@ -110,35 +110,41 @@ class TestResolveEnctype:
         return _resolve_enctype(args, Logger())
 
     def test_password_default_rc4(self):
-        assert self._resolve(["-d", "D", "-u", "u", "-p", "pass"]) == "rc4"
+        assert self._resolve(["-d", "D", "-u", "u", "-p", "pass"]) == ["rc4"]
 
     def test_password_with_explicit_enctype(self):
-        assert self._resolve(["-d", "D", "-u", "u", "-p", "pass", "-e", "aes256"]) == "aes256"
+        assert self._resolve(["-d", "D", "-u", "u", "-p", "pass", "-e", "aes256"]) == ["aes256"]
+
+    def test_password_with_multiple_etypes(self):
+        assert self._resolve(["-d", "D", "-u", "u", "-p", "pass", "-e", "aes256", "-e", "rc4"]) == ["aes256", "rc4"]
+
+    def test_password_with_comma_etypes(self):
+        assert self._resolve(["-d", "D", "-u", "u", "-p", "pass", "-e", "aes256,rc4,aes128"]) == ["aes256,rc4,aes128"]
 
     def test_hash_implies_rc4(self):
-        assert self._resolve(["-d", "D", "-u", "u", "-H", ":aabb"]) == "rc4"
+        assert self._resolve(["-d", "D", "-u", "u", "-H", ":aabb"]) == ["rc4"]
 
     def test_hash_ignores_explicit_enctype(self, capsys):
         """NT hash always means RC4, even if -e says otherwise."""
         result = self._resolve(["-d", "D", "-u", "u", "-H", ":aabb", "-e", "aes256"])
-        assert result == "rc4"
+        assert result == ["rc4"]
 
     def test_rc4_key_implies_rc4(self):
-        assert self._resolve(["-d", "D", "-u", "u", "--rc4-key", "aa" * 16]) == "rc4"
+        assert self._resolve(["-d", "D", "-u", "u", "--rc4-key", "aa" * 16]) == ["rc4"]
 
     def test_aes256_key_implies_aes256(self):
-        assert self._resolve(["-d", "D", "-u", "u", "--aes256-key", "bb" * 32]) == "aes256"
+        assert self._resolve(["-d", "D", "-u", "u", "--aes256-key", "bb" * 32]) == ["aes256"]
 
     def test_aes128_key_implies_aes128(self):
-        assert self._resolve(["-d", "D", "-u", "u", "--aes128-key", "cc" * 16]) == "aes128"
+        assert self._resolve(["-d", "D", "-u", "u", "--aes128-key", "cc" * 16]) == ["aes128"]
 
     def test_des_md5_key_implies_des_cbc_md5(self):
-        assert self._resolve(["-d", "D", "-u", "u", "--des-md5-key", "dd" * 8]) == "des-cbc-md5"
+        assert self._resolve(["-d", "D", "-u", "u", "--des-md5-key", "dd" * 8]) == ["des-cbc-md5"]
 
     def test_des_crc_key_implies_des_cbc_crc(self):
-        assert self._resolve(["-d", "D", "-u", "u", "--des-crc-key", "ee" * 8]) == "des-cbc-crc"
+        assert self._resolve(["-d", "D", "-u", "u", "--des-crc-key", "ee" * 8]) == ["des-cbc-crc"]
 
     def test_aes256_key_ignores_explicit_enctype(self, capsys):
         """Key type forces etype, -e is ignored."""
         result = self._resolve(["-d", "D", "-u", "u", "--aes256-key", "bb" * 32, "-e", "rc4"])
-        assert result == "aes256"
+        assert result == ["aes256"]

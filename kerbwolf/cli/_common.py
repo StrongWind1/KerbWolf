@@ -12,13 +12,13 @@ from kerbwolf import __version__
 from kerbwolf.core.ccache import get_ccache_info
 from kerbwolf.core.ldap import connect, find_all_users
 from kerbwolf.core.resolve import is_ip, resolve_host, resolve_srv
-from kerbwolf.models import KerberosContext, KerberosCredential, RoastResult
+from kerbwolf.models import ETYPE_BY_NAME, EncryptionType, KerberosContext, KerberosCredential, RoastResult
 
 if TYPE_CHECKING:
     from kerbwolf._vendor import ldap3
     from kerbwolf.log import Logger
 
-_ETYPE_CHOICES = ["des-cbc-crc", "des-cbc-md5", "rc4", "aes128", "aes256"]
+_ETYPE_CHOICES = sorted(ETYPE_BY_NAME)
 
 
 # ---------------------------------------------------------------------------
@@ -75,9 +75,37 @@ def add_output_args(parser: argparse.ArgumentParser, *, enctype: bool = True) ->
     """Add output flags."""
     grp = parser.add_argument_group("output")
     if enctype:
-        grp.add_argument("-e", "--enctype", choices=_ETYPE_CHOICES, default="rc4", help="Encryption type (default: rc4)")
+        grp.add_argument("-e", "--enctype", action="append", metavar="ETYPE", default=None, help="Encryption type(s) in preference order, repeatable or comma-separated (choices: %(choices)s; default: rc4)")
     grp.add_argument("-o", "--output", metavar="FILE", help="Write hashes to file")
     grp.add_argument("--format", choices=["hashcat", "john"], default="hashcat", dest="hash_format", help="Hash output format (default: hashcat)")
+
+
+def parse_etypes(raw: list[str] | None) -> tuple[EncryptionType, ...]:
+    """Parse ``-e`` flag values into an ordered, deduplicated etype tuple.
+
+    Accepts repeated flags (``-e rc4 -e aes256``) and/or comma-separated
+    lists (``-e rc4,aes256``).  Duplicates are removed, keeping the first
+    occurrence.  Returns ``(RC4_HMAC,)`` when *raw* is ``None`` or empty.
+    """
+    if not raw:
+        return (EncryptionType.RC4_HMAC,)
+
+    seen: set[EncryptionType] = set()
+    result: list[EncryptionType] = []
+    for item in raw:
+        for raw_name in item.split(","):
+            cleaned = raw_name.strip().lower()
+            if not cleaned:
+                continue
+            if cleaned not in ETYPE_BY_NAME:
+                print(f"error: unknown encryption type '{cleaned}' (choose from {', '.join(_ETYPE_CHOICES)})", file=sys.stderr)
+                sys.exit(2)
+            et = ETYPE_BY_NAME[cleaned]
+            if et not in seen:
+                seen.add(et)
+                result.append(et)
+
+    return tuple(result) if result else (EncryptionType.RC4_HMAC,)
 
 
 # ---------------------------------------------------------------------------

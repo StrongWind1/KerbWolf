@@ -140,25 +140,31 @@ def request_tgt(
     cred: KerberosCredential,
     *,
     dc_ip: str,
-    etype: EncryptionType,
+    etypes: tuple[EncryptionType, ...],
     transport: TransportProtocol = TransportProtocol.TCP,
     timeout: float = 10.0,
 ) -> tuple[bytes, Key, Key]:
     """Full TGT acquisition: salt retrieval, pre-auth, TGT extraction.
+
+    The first entry in *etypes* selects the pre-authentication key type.
+    The full tuple is placed in the AS-REQ body so the KDC knows the
+    client's etype preference for the session key and ticket.
 
     Returns:
         ``(raw_asrep_bytes, client_key, session_key)``
 
     """
     realm = cred.domain.upper()
-    etype_int = int(etype)
+    preauth_etype = etypes[0]
+    preauth_etype_int = int(preauth_etype)
+    body_etypes = tuple(int(e) for e in etypes)
 
     # If we already have a raw key, use it directly.
-    key = _resolve_key(cred, etype)
+    key = _resolve_key(cred, preauth_etype)
 
     if key is not None:
-        _log.info("Auth: pre-computed %s key for %s", etype.name, cred.username)
-        return _request_tgt_with_key(cred.username, realm, key, etype_int, dc_ip=dc_ip, transport=transport, timeout=timeout)
+        _log.info("Auth: pre-computed %s key for %s", preauth_etype.name, cred.username)
+        return _request_tgt_with_key(cred.username, realm, key, preauth_etype_int, body_etypes=body_etypes, dc_ip=dc_ip, transport=transport, timeout=timeout)
 
     # Password flow - may need salt retrieval first.
     if cred.password is None:
@@ -166,17 +172,17 @@ def request_tgt(
         raise KDCError(error_code=0, message=msg)
 
     # For RC4, derive key without salt.
-    if etype == EncryptionType.RC4_HMAC:
+    if preauth_etype == EncryptionType.RC4_HMAC:
         _log.info("Auth: deriving RC4 key (MD4) for %s", cred.username)
-        key = derive_key(etype, cred.password, "")
-        return _request_tgt_with_key(cred.username, realm, key, etype_int, dc_ip=dc_ip, transport=transport, timeout=timeout)
+        key = derive_key(preauth_etype, cred.password, "")
+        return _request_tgt_with_key(cred.username, realm, key, preauth_etype_int, body_etypes=body_etypes, dc_ip=dc_ip, transport=transport, timeout=timeout)
 
     # AES / DES need salt - send bare AS-REQ to retrieve it.
-    _log.info("Retrieving salt for %s (etype %d)", cred.username, etype_int)
-    salt = _retrieve_salt(cred.username, realm, etype_int, dc_ip=dc_ip, transport=transport, timeout=timeout)
+    _log.info("Retrieving salt for %s (etype %d)", cred.username, preauth_etype_int)
+    salt = _retrieve_salt(cred.username, realm, preauth_etype_int, dc_ip=dc_ip, transport=transport, timeout=timeout)
     _log.info("Salt: %s = %s", cred.username, salt)
-    key = derive_key(etype, cred.password, salt)
-    return _request_tgt_with_key(cred.username, realm, key, etype_int, dc_ip=dc_ip, transport=transport, timeout=timeout)
+    key = derive_key(preauth_etype, cred.password, salt)
+    return _request_tgt_with_key(cred.username, realm, key, preauth_etype_int, body_etypes=body_etypes, dc_ip=dc_ip, transport=transport, timeout=timeout)
 
 
 # ---------------------------------------------------------------------------
@@ -236,26 +242,27 @@ def _request_tgt_with_key(
     username: str,
     realm: str,
     key: Key,
-    etype_int: int,
+    preauth_etype_int: int,
     *,
+    body_etypes: tuple[int, ...],
     dc_ip: str,
     transport: TransportProtocol,
     timeout: float = 10.0,
 ) -> tuple[bytes, Key, Key]:
     """Send a pre-authenticated AS-REQ and extract the session key from the AS-REP."""
-    _log.debug("AS-REQ (pre-auth) → %s for %s@%s etype %d", dc_ip, username, realm, etype_int)
+    _log.debug("AS-REQ (pre-auth) → %s for %s@%s etype %d body_etypes=%s", dc_ip, username, realm, preauth_etype_int, body_etypes)
     message = build_asreq(
         username,
         realm,
-        etypes=(etype_int,),
+        etypes=body_etypes,
         preauth_key=key,
-        preauth_etype=etype_int,
+        preauth_etype=preauth_etype_int,
     )
     response = send_receive(message, dc_ip, protocol=transport, timeout=timeout)
     _check_krb_error(response)
 
     as_rep = decoder.decode(response, asn1Spec=AS_REP())[0]
-    cipher_cls = ENCTYPE_TABLE[etype_int]
+    cipher_cls = ENCTYPE_TABLE[preauth_etype_int]
     plaintext = cipher_cls.decrypt(key, 3, as_rep["enc-part"]["cipher"])
     enc_part = decoder.decode(plaintext, asn1Spec=EncASRepPart())[0]
     session_key = Key(int(enc_part["key"]["keytype"]), enc_part["key"]["keyvalue"].asOctets())

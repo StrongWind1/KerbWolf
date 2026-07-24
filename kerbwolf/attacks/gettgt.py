@@ -21,18 +21,20 @@ def get_tgt(
     cred: KerberosCredential,
     *,
     dc_ip: str,
-    etype: EncryptionType = EncryptionType.RC4_HMAC,
+    etypes: tuple[EncryptionType, ...] = (EncryptionType.RC4_HMAC,),
     transport: TransportProtocol = TransportProtocol.TCP,
     timeout: float = 10.0,
 ) -> tuple[bytes, Key]:
     """Request a TGT using any credential type.
 
     Supports password, NT hash (RC4), AES128/256 key, and DES key.
+    The first entry in *etypes* selects the pre-auth key type; the
+    full tuple is placed in the AS-REQ body.
     Returns ``(ccache_bytes, session_key)`` where *ccache_bytes* can
     be written directly to a ``.ccache`` file.
 
     """
-    raw_asrep, client_key, session_key = request_tgt(cred, dc_ip=dc_ip, etype=etype, transport=transport, timeout=timeout)
+    raw_asrep, client_key, session_key = request_tgt(cred, dc_ip=dc_ip, etypes=etypes, transport=transport, timeout=timeout)
 
     _log.debug("Converting TGT to ccache format (%d bytes AS-REP)", len(raw_asrep))
     ccache = CCache()

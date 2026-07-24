@@ -78,7 +78,7 @@ class TestKerberoastCcache:
 
 
 class TestKerberoastParams:
-    def test_etype_default_rc4(self):
+    def test_etypes_default_rc4(self):
         mock_sk = MagicMock()
         mock_sk.enctype = 23
 
@@ -89,6 +89,19 @@ class TestKerberoastParams:
                 target_spns=["s"],
             )
             assert mock_tgs.call_args.kwargs["etypes"] == (23,)
+
+    def test_etypes_multiple_passed_in_order(self):
+        mock_sk = MagicMock()
+        mock_sk.enctype = 23
+
+        with patch("kerbwolf.attacks.kerberoast.request_tgt", return_value=(b"t", b"k", mock_sk)), patch("kerbwolf.attacks.kerberoast.ENCTYPE_TABLE", {23: MagicMock()}), patch("kerbwolf.attacks.kerberoast.request_tgs", side_effect=KDCError(0, "")) as mock_tgs:
+            kerberoast(
+                KerberosCredential(username="u", domain="d", password="p"),
+                dc_ip="1.2.3.4",
+                target_spns=["s"],
+                etypes=(EncryptionType.AES256_CTS_HMAC_SHA1_96, EncryptionType.RC4_HMAC),
+            )
+            assert mock_tgs.call_args.kwargs["etypes"] == (18, 23)
 
     def test_timeout_passed_through(self):
         mock_sk = MagicMock()
@@ -131,7 +144,12 @@ class TestKerberoastNoPreauth:
             kerberoast_no_preauth("vuln", domain="d", dc_ip="1.2.3.4", target_users=["t"], timeout=25.0)
             assert mock.call_args.kwargs["timeout"] == 25.0
 
-    def test_etype_passed(self):
+    def test_etypes_passed(self):
         with patch("kerbwolf.attacks.kerberoast.request_asrep_no_preauth", side_effect=KDCError(0, "")) as mock:
-            kerberoast_no_preauth("vuln", domain="d", dc_ip="1.2.3.4", target_users=["t"], etype=EncryptionType.AES256_CTS_HMAC_SHA1_96)
+            kerberoast_no_preauth("vuln", domain="d", dc_ip="1.2.3.4", target_users=["t"], etypes=(EncryptionType.AES256_CTS_HMAC_SHA1_96,))
             assert mock.call_args.kwargs["etypes"] == (18,)
+
+    def test_etypes_multiple_no_preauth(self):
+        with patch("kerbwolf.attacks.kerberoast.request_asrep_no_preauth", side_effect=KDCError(0, "")) as mock:
+            kerberoast_no_preauth("vuln", domain="d", dc_ip="1.2.3.4", target_users=["t"], etypes=(EncryptionType.RC4_HMAC, EncryptionType.AES128_CTS_HMAC_SHA1_96))
+            assert mock.call_args.kwargs["etypes"] == (23, 17)

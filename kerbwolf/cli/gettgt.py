@@ -9,9 +9,9 @@ from pathlib import Path
 
 from kerbwolf import __version__
 from kerbwolf.attacks.gettgt import get_tgt
-from kerbwolf.cli._common import build_credential_full, print_header, resolve_context
+from kerbwolf.cli._common import build_credential_full, parse_etypes, print_header, resolve_context
 from kerbwolf.log import Logger
-from kerbwolf.models import ETYPE_BY_NAME, KerbWolfError, TransportProtocol
+from kerbwolf.models import KerbWolfError, TransportProtocol
 
 # Map key flags to their implied etype.
 _KEY_ETYPE_MAP = {
@@ -56,33 +56,34 @@ def _build_parser() -> argparse.ArgumentParser:
 
     # -- output --
     grp = parser.add_argument_group("output")
-    grp.add_argument("-e", "--enctype", choices=["des-cbc-crc", "des-cbc-md5", "rc4", "aes128", "aes256"], default=None, help="Encryption type (auto-detected from key, default: rc4)")
+    grp.add_argument("-e", "--enctype", action="append", metavar="ETYPE", default=None, help="Encryption type(s) in preference order, repeatable or comma-separated (choices: des-cbc-crc, des-cbc-md5, rc4, aes128, aes256; default: rc4). First etype selects pre-auth key type; full list goes in AS-REQ body.")
     grp.add_argument("-o", "--output", metavar="FILE", help="Output ccache file (default: <user>.ccache)")
 
     return parser
 
 
-def _resolve_enctype(args: argparse.Namespace, logger: Logger) -> str:
-    """Determine the encryption type from credentials.
+def _resolve_enctype(args: argparse.Namespace, logger: Logger) -> list[str]:
+    """Determine the encryption type(s) from credentials.
 
-    Keys and hashes have a fixed etype - ``-e`` is ignored if a key is provided.
-    ``-e`` only applies to password auth (selects the key derivation method).
+    Keys and hashes have a fixed pre-auth etype — ``-e`` is ignored if
+    a key is provided.  ``-e`` only applies to password auth (the first
+    entry selects key derivation; the full list goes in the AS-REQ body).
     """
     # Key flags have a fixed etype - -e is irrelevant.
     for key_attr, etype_name in _KEY_ETYPE_MAP.items():
         if getattr(args, key_attr, None):
-            if args.enctype and args.enctype != etype_name:
-                logger.warning("-e %s ignored - %s implies etype %s.", args.enctype, key_attr.replace("_", "-"), etype_name)
-            return etype_name
+            if args.enctype:
+                logger.warning("-e ignored - %s implies etype %s.", key_attr.replace("_", "-"), etype_name)
+            return [etype_name]
 
     # -H implies RC4 (NT hash IS the RC4 key).
     if args.hashes:
-        if args.enctype and args.enctype != "rc4":
-            logger.warning("-e %s ignored - NT hash implies etype rc4.", args.enctype)
-        return "rc4"
+        if args.enctype:
+            logger.warning("-e ignored - NT hash implies etype rc4.")
+        return ["rc4"]
 
     # Password - -e selects derivation method (default: rc4).
-    return args.enctype or "rc4"
+    return args.enctype or ["rc4"]
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -96,12 +97,13 @@ def main(argv: list[str] | None = None) -> None:
 
     ctx = resolve_context(args, logger)
     cred = build_credential_full(args)
-    etype = ETYPE_BY_NAME[args.enctype]
+    etypes = parse_etypes(args.enctype)
     transport = TransportProtocol(args.transport)
     output_path = args.output or f"{args.user}.ccache"
 
     # -- header --
     secret = "password" if args.password else "nt_hash" if args.hashes else "key" if any(getattr(args, k, None) for k in _KEY_ETYPE_MAP) else "-"
+    etype_desc = ", ".join(e.name for e in etypes)
     print_header(
         "kw-tgt",
         [
@@ -109,16 +111,16 @@ def main(argv: list[str] | None = None) -> None:
             ("DC", f"{ctx.dc_hostname} ({ctx.dc_ip})" if ctx.dc_hostname else ctx.dc_ip),
             ("User", ctx.username or "-"),
             ("Secret", secret),
-            ("Etype", etype.name),
+            ("Etype", etype_desc),
             ("Transport", transport.value),
             ("Output", output_path),
         ],
     )
 
-    logger.info("Requesting TGT for %s@%s (etype: %s)", args.user, ctx.realm, etype.name)
+    logger.info("Requesting TGT for %s@%s (etypes: %s)", args.user, ctx.realm, etype_desc)
 
     try:
-        ccache_bytes, session_key = get_tgt(cred, dc_ip=ctx.dc_ip, etype=etype, transport=transport, timeout=ctx.timeout)
+        ccache_bytes, session_key = get_tgt(cred, dc_ip=ctx.dc_ip, etypes=etypes, transport=transport, timeout=ctx.timeout)
     except KerbWolfError as exc:
         logger.error("%s", exc)  # noqa: TRY400
         sys.exit(1)

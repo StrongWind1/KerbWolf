@@ -76,7 +76,12 @@ class TestAsreproastParameters:
             asreproast(domain="d", dc_ip="1.2.3.4", target_users=["u"], transport=TransportProtocol.UDP)
             assert mock.call_args.kwargs["transport"] == TransportProtocol.UDP
 
-    def test_etype_passed_through(self):
+    def test_etypes_passed_through(self):
         with patch("kerbwolf.attacks.asreproast.request_asrep_no_preauth", side_effect=KDCError(0, "")) as mock:
-            asreproast(domain="d", dc_ip="1.2.3.4", target_users=["u"], etype=EncryptionType.AES256_CTS_HMAC_SHA1_96)
+            asreproast(domain="d", dc_ip="1.2.3.4", target_users=["u"], etypes=(EncryptionType.AES256_CTS_HMAC_SHA1_96,))
             assert mock.call_args.kwargs["etypes"] == (18,)
+
+    def test_etypes_multiple_passed_in_order(self):
+        with patch("kerbwolf.attacks.asreproast.request_asrep_no_preauth", side_effect=KDCError(0, "")) as mock:
+            asreproast(domain="d", dc_ip="1.2.3.4", target_users=["u"], etypes=(EncryptionType.RC4_HMAC, EncryptionType.AES256_CTS_HMAC_SHA1_96))
+            assert mock.call_args.kwargs["etypes"] == (23, 18)
