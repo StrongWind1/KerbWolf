@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "kerbwolf"
-version = "0.3.0"
+version = "0.4.0"
 description = "Kerberos roasting and TGT attack toolkit for Active Directory."
 readme = "README.md"
 license = "Apache-2.0"
