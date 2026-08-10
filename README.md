@@ -7,13 +7,13 @@
   <a href="https://pypi.org/project/kerbwolf/"><img src="https://img.shields.io/pypi/v/kerbwolf.svg" alt="PyPI"></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.11+-blue.svg" alt="Python 3.11+"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="License: Apache 2.0"></a>
-  <a href="https://strongwind1.github.io/KerbWolf/"><img src="https://img.shields.io/badge/docs-mkdocs-blue.svg" alt="Docs"></a>
+  <a href="https://strongwind.dev/KerbWolf/"><img src="https://img.shields.io/badge/docs-mkdocs-blue.svg" alt="Docs"></a>
 </p>
 
 <p align="center">
-  <a href="https://strongwind1.github.io/KerbWolf/guide/">Guide</a> &bull;
-  <a href="https://strongwind1.github.io/KerbWolf/getting-started/installation/">Installation</a> &bull;
-  <a href="https://strongwind1.github.io/KerbWolf/commands/kw-roast/">Commands</a>
+  <a href="https://strongwind.dev/KerbWolf/guide/">Guide</a> &bull;
+  <a href="https://strongwind.dev/KerbWolf/getting-started/installation/">Installation</a> &bull;
+  <a href="https://strongwind.dev/KerbWolf/commands/kw-roast/">Commands</a>
 </p>
 
 1. **Kerberos roasting** - extract crackable hashes from Kerberos authentication
