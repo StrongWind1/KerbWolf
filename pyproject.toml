@@ -9,34 +9,32 @@ description = "Kerberos roasting and TGT attack toolkit for Active Directory."
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.11,<3.15"
-authors = [
-    {name = "StrongWind1"},
-]
+authors = [{ name = "StrongWind1" }]
 keywords = [
-    "active-directory",
-    "kerberos",
-    "kerberoasting",
-    "penetration-testing",
-    "red-team",
-    "security",
+  "active-directory",
+  "kerberos",
+  "kerberoasting",
+  "penetration-testing",
+  "red-team",
+  "security",
 ]
 classifiers = [
-    "Development Status :: 4 - Beta",
-    "Environment :: Console",
-    "License :: OSI Approved :: Apache Software License",
-    "Operating System :: POSIX :: Linux",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
-    "Programming Language :: Python :: 3.14",
-    "Topic :: Security",
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "License :: OSI Approved :: Apache Software License",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Security",
 ]
 dependencies = [
-    "dnspython>=2.4",
-    "gssapi>=1.11.1",
-    "impacket>=0.13",
-    "pyasn1>=0.4.6",
-    "pycryptodomex",
+  "dnspython>=2.4",
+  "gssapi>=1.11.1",
+  "impacket>=0.13",
+  "pyasn1>=0.4.6",
+  "pycryptodomex",
 ]
 
 [project.urls]
@@ -56,14 +54,8 @@ kw-timeroast = "kerbwolf.cli.timeroast:main"
 packages = ["kerbwolf"]
 
 [dependency-groups]
-dev = [
-    "pytest>=9.0.3",
-    "ruff>=0.15",
-    "ty>=0.0.1a7",
-]
-docs = [
-    "mkdocs-material>=9.0",
-]
+dev = ["pytest>=8.0", "ruff>=0.11", "ty>=0.0.1a7", "pre-commit>=4.0"]
+docs = ["mkdocs-material>=9.0"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -76,47 +68,51 @@ extend-exclude = ["scripts", "kerbwolf/_vendor"]
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = [
-    # Formatter conflicts — cannot fix, ruff docs say to ignore these with formatter.
-    "COM812",  # trailing comma — fights with ruff formatter
-    "D203",    # blank line before class docstring — incompatible with D211
-    "D213",    # multi-line summary second line — incompatible with D212
-    # Readability — fixing these makes code harder to read.
-    "T201",    # print — CLI tools output to stdout, print is correct
-    "SIM108",  # ternary — readability loss on multi-arg calls
-    # Protocol complexity — inherent, not reducible without splitting APIs.
-    "PLR0913", # too many args — protocol functions need domain/dc_ip/etype/transport/etc.
-    "PLR0912", # too many branches — protocol state machines
-    "PLR0915", # too many statements — protocol methods
-    "PLR0911", # too many returns — early returns for readability
-    "C901",    # complexity — protocol methods
-    # False positive.
-    "S106",    # hardcoded password in arg — false positive on CLI help text metavars
+  # Formatter conflicts — cannot fix, ruff docs say to ignore these with formatter.
+  "COM812", # trailing comma — fights with ruff formatter
+  "ISC001", # implicit string concat — conflicts with ruff formatter
+  "D203",   # blank line before class docstring — incompatible with D211
+  "D213",   # multi-line summary second line — incompatible with D212
+  # Readability — fixing these makes code harder to read.
+  "T201",   # print — CLI tools output to stdout, print is correct
+  "SIM108", # ternary — readability loss on multi-arg calls
+  # Protocol complexity — inherent, not reducible without splitting APIs.
+  "PLR0913", # too many args — protocol functions need domain/dc_ip/etype/transport/etc.
+  "PLR0912", # too many branches — protocol state machines
+  "PLR0915", # too many statements — protocol methods
+  "PLR0911", # too many returns — early returns for readability
+  "C901",    # complexity — protocol methods
+  # False positive.
+  "S106", # hardcoded password in arg — false positive on CLI help text metavars
 ]
 
 [tool.ruff.lint.flake8-copyright]
 notice-rgx = "(?i)# SPDX-License-Identifier"
 
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
 [tool.ruff.lint.per-file-ignores]
 "kerbwolf/core/ntlmssp.py" = ["PLR0917"]
 "kerbwolf/hashcat.py" = ["PLR0917"]
 "tests/**" = [
-    "D",       # docstrings — tests
-    "S101",    # assert — pytest idiom
-    "S105",    # hardcoded password — test data
-    "S106",    # hardcoded password in arg — test data
-    "S108",    # /tmp paths — test fixtures
-    "PLR2004", # magic values — test assertions
-    "ANN",     # annotations — pytest fixtures / test helpers
-    "ARG",     # unused args — mock callbacks, lambda self, pytest fixtures
-    "SLF001",  # private access — testing internal methods
-    "N802",    # uppercase in function name — test names match CLI flags
-    "E741",    # ambiguous var name — DER builder uses l for length
-    "F841",    # unused local — mock setup patterns
-    "FBT",     # boolean positional — test helpers
-    "EM101",   # string literal in exception — test assertions
-    "TRY003",  # long exception message — test assertions
-    "TRY301",  # raise in try — test patterns
-    "PLC0415", # late imports — pytest pattern of importing inside test methods
+  "D",       # docstrings — tests
+  "S101",    # assert — pytest idiom
+  "S105",    # hardcoded password — test data
+  "S106",    # hardcoded password in arg — test data
+  "S108",    # /tmp paths — test fixtures
+  "PLR2004", # magic values — test assertions
+  "ANN",     # annotations — pytest fixtures / test helpers
+  "ARG",     # unused args — mock callbacks, lambda self, pytest fixtures
+  "SLF001",  # private access — testing internal methods
+  "N802",    # uppercase in function name — test names match CLI flags
+  "E741",    # ambiguous var name — DER builder uses l for length
+  "F841",    # unused local — mock setup patterns
+  "FBT",     # boolean positional — test helpers
+  "EM101",   # string literal in exception — test assertions
+  "TRY003",  # long exception message — test assertions
+  "TRY301",  # raise in try — test patterns
+  "PLC0415", # late imports — pytest pattern of importing inside test methods
 ]
 
 # ---------------------------------------------------------------------------
@@ -133,11 +129,11 @@ error-on-warning = true
 
 [tool.ty.analysis]
 # impacket has no type stubs — treat all its imports as Any.
-replace-imports-with-any = [
-    "impacket.**",
-    "kerbwolf._vendor.**",
-]
+replace-imports-with-any = ["impacket.**", "kerbwolf._vendor.**"]
 allowed-unresolved-imports = []
+strict-equality-semantics = true
+strict-generic-narrowing = true
+respect-type-ignore-comments = false
 
 [[tool.ty.overrides]]
 include = ["tests/**"]
