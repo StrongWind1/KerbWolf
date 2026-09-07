@@ -36,7 +36,7 @@ def get_ccache_info(ccache_path: str) -> tuple[str, str]:
 
     username, realm = pp.split("@", 1)
     _log.info("Ccache: %s@%s from %s", username, realm, ccache_path)
-    return username, realm.lower()
+    return str(username), str(realm.lower())
 
 
 def load_tgt_from_ccache(ccache_path: str | None = None) -> tuple[bytes, Key, type]:

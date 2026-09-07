@@ -128,7 +128,7 @@ def build_asreq(
 
     seq_set_iter(req_body, "etype", etypes)
 
-    return encoder.encode(as_req)
+    return bytes(encoder.encode(as_req))
 
 
 # ---------------------------------------------------------------------------

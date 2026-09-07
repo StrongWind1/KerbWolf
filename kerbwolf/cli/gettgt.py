@@ -83,7 +83,7 @@ def _resolve_enctype(args: argparse.Namespace, logger: Logger) -> list[str]:
         return ["rc4"]
 
     # Password - -e selects derivation method (default: rc4).
-    return args.enctype or ["rc4"]
+    return list(args.enctype) if args.enctype else ["rc4"]
 
 
 def main(argv: list[str] | None = None) -> None:

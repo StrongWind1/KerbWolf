@@ -24,7 +24,7 @@ def decrypt_ticket(cipher_bytes: bytes, key: Key, etype: int) -> bytes:
 
     """
     cipher_cls = ENCTYPE_TABLE[etype]
-    return cipher_cls.decrypt(key, 2, cipher_bytes)
+    return bytes(cipher_cls.decrypt(key, 2, cipher_bytes))
 
 
 def parse_enc_ticket_part(decrypted: bytes) -> EncTicketPart:

@@ -377,7 +377,7 @@ def main(argv: list[str] | None = None) -> None:
         rids = _load_rids_from_file(args.rids_file)
         rid_desc = f"from {args.rids_file}"
     elif args.rids is not None:
-        rids = args.rids
+        rids = [int(r) for r in args.rids]
         rid_desc = "custom range"
     else:
         rids = None

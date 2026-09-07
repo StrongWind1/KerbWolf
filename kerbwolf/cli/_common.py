@@ -169,10 +169,10 @@ def resolve_context(args: argparse.Namespace, logger: Logger) -> KerberosContext
 
     if dc_ip_arg:
         if is_ip(dc_ip_arg):
-            dc_ip = dc_ip_arg
+            dc_ip = str(dc_ip_arg)
             logger.debug("--dc-ip: using IP %s directly", dc_ip_arg)
         else:
-            dc_hostname = dc_ip_arg
+            dc_hostname = str(dc_ip_arg)
             resolved = resolve_host(dc_ip_arg)
             if resolved:
                 dc_ip = resolved
@@ -182,7 +182,7 @@ def resolve_context(args: argparse.Namespace, logger: Logger) -> KerberosContext
                 sys.exit(1)
 
     if dc_hostname_arg:
-        dc_hostname = dc_hostname_arg
+        dc_hostname = str(dc_hostname_arg)
         logger.debug("--dc-hostname: %s", dc_hostname_arg)
 
     # -- Step 4: Last resort - domain A/AAAA --------------------------------

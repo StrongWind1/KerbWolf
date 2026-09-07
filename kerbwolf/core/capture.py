@@ -407,7 +407,7 @@ def _skip_ipv6_extensions(next_header: int, data: bytes) -> tuple[int, bytes]:
             proto = data[offset]
             ext_len = (data[offset + 1] + 1) * 8
             offset += ext_len
-    return proto, data[offset:]
+    return int(proto), data[offset:]
 
 
 def _strip_ip_transport(ip_data: bytes) -> tuple[bytes | None, int, int, int]:

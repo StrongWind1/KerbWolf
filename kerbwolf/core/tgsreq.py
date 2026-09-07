@@ -146,7 +146,7 @@ def build_tgsreq(
         add_ticket = _extract_ticket_asn1(additional_ticket_bytes)
         seq_set_iter(req_body, "additional-tickets", (add_ticket,))
 
-    return encoder.encode(tgs_req)
+    return bytes(encoder.encode(tgs_req))
 
 
 # ---------------------------------------------------------------------------
