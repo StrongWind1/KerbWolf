@@ -128,7 +128,7 @@ block-beta
 | **RC4** (23) | `checksum \|\| edata2` | First 16 bytes (HMAC-MD5) | Remaining bytes | Derive NT hash → decrypt → check HMAC |
 | **AES128** (17) | `edata2 \|\| checksum` | Last 12 bytes (HMAC-SHA1 truncated) | All but last 12 bytes | PBKDF2 → AES key → decrypt → check HMAC |
 | **AES256** (18) | `edata2 \|\| checksum` | Last 12 bytes (HMAC-SHA1 truncated) | All but last 12 bytes | Same as AES128, longer key |
-| **DES** (1, 3) | `cipher` (no split) | Embedded in plaintext (CRC32 or MD5) | Full encrypted blob | Brute-force 56-bit key → decrypt → check integrity |
+| **DES** (1, 3) | `checksum \|\| edata2` | First 16 bytes (first two DES blocks) | Remaining bytes | String-to-key → DES key → decrypt → check ASN.1 header + embedded integrity |
 
 !!! tip "The etype determines the format, the attack determines the source"
     The hash format (where the checksum lives, how many bytes) is the same for all three attacks at the same etype. The only thing the attack type changes is *which ASN.1 field* the cipher is extracted from.
@@ -152,8 +152,8 @@ block-beta
 | RC4 (23) | 13100 | `$krb5tgs$23$*user$realm$spn*$checksum$edata2` |
 | AES128 (17) | 19600 | `$krb5tgs$17$user$realm$*spn*$checksum$edata2` |
 | AES256 (18) | 19700 | `$krb5tgs$18$user$realm$*spn*$checksum$edata2` |
-| DES-CBC-CRC (1) | proposed | `$krb5tgs$1$user$realm$*spn*$cipher` |
-| DES-CBC-MD5 (3) | proposed | `$krb5tgs$3$user$realm$*spn*$cipher` |
+| DES-CBC-CRC (1) | 38500 | `$krb5tgs$1$*user$realm$spn*$checksum$edata2` |
+| DES-CBC-MD5 (3) | 38500 | `$krb5tgs$3$*user$realm$spn*$checksum$edata2` |
 
 ### AS-REP Roast (`$krb5asrep$`)
 
@@ -162,8 +162,8 @@ block-beta
 | RC4 (23) | 18200 | `$krb5asrep$23$user@realm:checksum$edata2` |
 | AES128 (17) | 32100 | `$krb5asrep$17$user$realm$checksum$edata2` |
 | AES256 (18) | 32200 | `$krb5asrep$18$user$realm$checksum$edata2` |
-| DES-CBC-CRC (1) | proposed | `$krb5asrep$1$user$realm$cipher` |
-| DES-CBC-MD5 (3) | proposed | `$krb5asrep$3$user$realm$cipher` |
+| DES-CBC-CRC (1) | 38600 | `$krb5asrep$1$user@realm:checksum$edata2` |
+| DES-CBC-MD5 (3) | 38600 | `$krb5asrep$3$user@realm:checksum$edata2` |
 
 ### AS-REQ Pre-Auth (`$krb5pa$`)
 

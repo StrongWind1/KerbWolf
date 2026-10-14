@@ -73,10 +73,10 @@ Domain controllers respond to authenticated NTP requests from computer, gMSA, an
 |  | DES-CBC-CRC (1) | DES-CBC-MD5 (3) | AES128 (17) | AES256 (18) | RC4 (23) |
 |---|---|---|---|---|---|
 | **AS-REQ** | `$krb5pa$1$` | `$krb5pa$3$` | `$krb5pa$17$` (19800) | `$krb5pa$18$` (19900) | `$krb5pa$23$` (7500) |
-| **AS-REP** | `$krb5asrep$1$` | `$krb5asrep$3$` | `$krb5asrep$17$` (32100) | `$krb5asrep$18$` (32200) | `$krb5asrep$23$` (18200) |
-| **TGS-REP** | `$krb5tgs$1$` | `$krb5tgs$3$` | `$krb5tgs$17$` (19600) | `$krb5tgs$18$` (19700) | `$krb5tgs$23$` (13100) |
+| **AS-REP** | `$krb5asrep$1$` (38600) | `$krb5asrep$3$` (38600) | `$krb5asrep$17$` (32100) | `$krb5asrep$18$` (32200) | `$krb5asrep$23$` (18200) |
+| **TGS-REP** | `$krb5tgs$1$` (38500) | `$krb5tgs$3$` (38500) | `$krb5tgs$17$` (19600) | `$krb5tgs$18$` (19700) | `$krb5tgs$23$` (13100) |
 
-Numbers in parentheses are hashcat mode numbers. The 9 RC4/AES modes work in hashcat and John today. The 6 DES modes are proposed hashcat modules that would brute-force the 56-bit key directly.
+Numbers in parentheses are hashcat mode numbers. All 13 RC4/AES/DES modes work in hashcat today (DES TGS-REP = 38500, DES AS-REP = 38600). The 2 DES AS-REQ modes have no hashcat module yet.
 
 ### Timeroasting matrix
 

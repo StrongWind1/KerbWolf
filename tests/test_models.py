@@ -171,16 +171,18 @@ class TestHashcatMode:
     def test_pa_aes256(self):
         assert HashcatMode.KRB5_PA_AES256 == 19900
 
-    def test_des_modes_are_negative(self):
-        assert HashcatMode.KRB5_TGS_DES_CBC_CRC < 0
-        assert HashcatMode.KRB5_TGS_DES_CBC_MD5 < 0
-        assert HashcatMode.KRB5_ASREP_DES_CBC_CRC < 0
-        assert HashcatMode.KRB5_ASREP_DES_CBC_MD5 < 0
+    def test_des_tgs_mode(self):
+        assert HashcatMode.KRB5_TGS_DES == 38500
+
+    def test_des_asrep_mode(self):
+        assert HashcatMode.KRB5_ASREP_DES == 38600
+
+    def test_des_pa_modes_are_negative(self):
         assert HashcatMode.KRB5_PA_DES_CBC_CRC < 0
         assert HashcatMode.KRB5_PA_DES_CBC_MD5 < 0
 
     def test_total_modes(self):
-        assert len(HashcatMode) == 18
+        assert len(HashcatMode) == 16
 
 
 # ---------------------------------------------------------------------------

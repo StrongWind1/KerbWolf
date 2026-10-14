@@ -98,7 +98,7 @@ def parse_etypes(raw: list[str] | None) -> tuple[EncryptionType, ...]:
             if not cleaned:
                 continue
             if cleaned not in ETYPE_BY_NAME:
-                print(f"error: unknown encryption type '{cleaned}' (choose from {', '.join(_ETYPE_CHOICES)})", file=sys.stderr)
+                print(f"[!] Unknown encryption type '{cleaned}' (choose from {', '.join(_ETYPE_CHOICES)})", file=sys.stderr)
                 sys.exit(2)
             et = ETYPE_BY_NAME[cleaned]
             if et not in seen:

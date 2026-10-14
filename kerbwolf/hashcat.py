@@ -27,16 +27,16 @@ from kerbwolf.models import HashcatMode, HashFormat
 # ---------------------------------------------------------------------------
 
 _TGS_MODE: dict[int, int] = {
-    1: HashcatMode.KRB5_TGS_DES_CBC_CRC,
-    3: HashcatMode.KRB5_TGS_DES_CBC_MD5,
+    1: HashcatMode.KRB5_TGS_DES,
+    3: HashcatMode.KRB5_TGS_DES,
     17: HashcatMode.KRB5_TGS_AES128,
     18: HashcatMode.KRB5_TGS_AES256,
     23: HashcatMode.KRB5_TGS_RC4,
 }
 
 _ASREP_MODE: dict[int, int] = {
-    1: HashcatMode.KRB5_ASREP_DES_CBC_CRC,
-    3: HashcatMode.KRB5_ASREP_DES_CBC_MD5,
+    1: HashcatMode.KRB5_ASREP_DES,
+    3: HashcatMode.KRB5_ASREP_DES,
     17: HashcatMode.KRB5_ASREP_AES128,
     18: HashcatMode.KRB5_ASREP_AES256,
     23: HashcatMode.KRB5_ASREP_RC4,
@@ -316,13 +316,18 @@ def _format_krb5_hash(
         # krb5tgs
         return f"${prefix}${etype}${username}${realm}$*{safe_spn}*${checksum}${edata2}"
 
-    # DES (1, 3) - full cipher, no checksum/edata2 split.
+    # DES (1, 3) - split first 16 bytes as "checksum" (first two DES
+    # blocks) and remainder as edata2.  The integrity check lives inside
+    # the plaintext, not in a separate MAC, but hashcat's kernel needs the
+    # split for early-reject ASN.1 checks (modes 38500, 38600).
+    checksum = cipher_hex[:32]
+    edata2 = cipher_hex[32:]
     if prefix == "krb5pa":
         return f"${prefix}${etype}${username}${realm}${cipher_hex}"
     if prefix == "krb5asrep":
-        return f"${prefix}${etype}${username}${realm}${cipher_hex}"
+        return f"${prefix}${etype}${username}@{realm}:{checksum}${edata2}"
     # krb5tgs
-    return f"${prefix}${etype}${username}${realm}$*{safe_spn}*${cipher_hex}"
+    return f"${prefix}${etype}$*{username}${realm}${safe_spn}*${checksum}${edata2}"
 
 
 def _john_format(prefix: str, etype: int, username: str, realm: str, cipher: bytes, spn: str | None) -> str:

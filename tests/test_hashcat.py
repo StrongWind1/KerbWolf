@@ -18,10 +18,10 @@ from kerbwolf.models import HashcatMode, HashFormat
 
 class TestTgsHashcatMode:
     def test_des_cbc_crc(self):
-        assert tgs_hashcat_mode(1) == HashcatMode.KRB5_TGS_DES_CBC_CRC
+        assert tgs_hashcat_mode(1) == HashcatMode.KRB5_TGS_DES
 
     def test_des_cbc_md5(self):
-        assert tgs_hashcat_mode(3) == HashcatMode.KRB5_TGS_DES_CBC_MD5
+        assert tgs_hashcat_mode(3) == HashcatMode.KRB5_TGS_DES
 
     def test_aes128(self):
         assert tgs_hashcat_mode(17) == HashcatMode.KRB5_TGS_AES128
@@ -43,10 +43,10 @@ class TestTgsHashcatMode:
 
 class TestAsrepHashcatMode:
     def test_des_cbc_crc(self):
-        assert asrep_hashcat_mode(1) == HashcatMode.KRB5_ASREP_DES_CBC_CRC
+        assert asrep_hashcat_mode(1) == HashcatMode.KRB5_ASREP_DES
 
     def test_des_cbc_md5(self):
-        assert asrep_hashcat_mode(3) == HashcatMode.KRB5_ASREP_DES_CBC_MD5
+        assert asrep_hashcat_mode(3) == HashcatMode.KRB5_ASREP_DES
 
     def test_aes128(self):
         assert asrep_hashcat_mode(17) == HashcatMode.KRB5_ASREP_AES128
@@ -156,10 +156,14 @@ class TestFormatTgsDES:
         h = format_tgs_hash_raw(self.CIPHER, 1, "u", "R", "s")
         assert h.startswith("$krb5tgs$1$")
 
-    def test_des_full_cipher_no_split(self):
+    def test_des_checksum_edata2_split(self):
         h = format_tgs_hash_raw(self.CIPHER, 3, "u", "R", "s")
-        # DES has the full cipher as one blob (128 hex chars for 64 bytes)
-        assert "ee" * 64 in h
+        parts = h.split("$")
+        checksum = parts[-2]
+        edata2 = parts[-1]
+        assert len(checksum) == 32
+        assert len(edata2) == 96
+        assert checksum + edata2 == "ee" * 64
 
 
 # ---------------------------------------------------------------------------

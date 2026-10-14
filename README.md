@@ -16,9 +16,14 @@
   <a href="https://strongwind.dev/KerbWolf/commands/kw-roast/">Commands</a>
 </p>
 
-1. **Kerberos roasting** - extract crackable hashes from Kerberos authentication
-2. **Timeroasting** - unauthenticated MS-SNTP hash extraction for computer and gMSA accounts
-3. **Pcap extraction** - offline Kerberos, NTLM, and SNTP hash extraction from network captures
+4 attack types, 5 encryption types, 19 hashcat-compatible output formats.
+
+1. **TGS-REP Roast (Kerberoast)** - request service tickets and crack the service account's password
+2. **AS-REP Roast** - extract hashes from accounts without Kerberos pre-authentication
+3. **AS-REQ Pre-Auth** - extract encrypted timestamps from network captures (passive)
+4. **Timeroasting** - unauthenticated MS-SNTP hash extraction for computer and gMSA accounts
+
+Plus pcap extraction of NTLM hashes (NTLMv1/v2 from 8 transports) and LDAP simple bind credentials.
 
 ## Example
 
@@ -129,10 +134,10 @@ tcpdump -i eth0 -w - 'port 88 or port 123 or port 445' | kw-extract -
 |  | DES-CBC-CRC (1) | DES-CBC-MD5 (3) | AES128 (17) | AES256 (18) | RC4 (23) |
 |---|---|---|---|---|---|
 | **AS-REQ** | `$krb5pa$1$` | `$krb5pa$3$` | `$krb5pa$17$` (19800) | `$krb5pa$18$` (19900) | `$krb5pa$23$` (7500) |
-| **AS-REP** | `$krb5asrep$1$` | `$krb5asrep$3$` | `$krb5asrep$17$` (32100) | `$krb5asrep$18$` (32200) | `$krb5asrep$23$` (18200) |
-| **TGS-REP** | `$krb5tgs$1$` | `$krb5tgs$3$` | `$krb5tgs$17$` (19600) | `$krb5tgs$18$` (19700) | `$krb5tgs$23$` (13100) |
+| **AS-REP** | `$krb5asrep$1$` (38600) | `$krb5asrep$3$` (38600) | `$krb5asrep$17$` (32100) | `$krb5asrep$18$` (32200) | `$krb5asrep$23$` (18200) |
+| **TGS-REP** | `$krb5tgs$1$` (38500) | `$krb5tgs$3$` (38500) | `$krb5tgs$17$` (19600) | `$krb5tgs$18$` (19700) | `$krb5tgs$23$` (13100) |
 
-Numbers in parentheses are hashcat mode numbers. The 9 RC4/AES modes work in hashcat and John today.
+Numbers in parentheses are hashcat mode numbers. All 13 RC4/AES/DES modes work in hashcat today. The 2 DES AS-REQ modes have no hashcat module yet.
 
 ### Timeroasting (MS-SNTP)
 

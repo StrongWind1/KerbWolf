@@ -10,7 +10,7 @@
 
 ```bash
 git clone https://github.com/StrongWind1/KerbWolf.git
-cd kerbwolf
+cd KerbWolf
 pip install .
 ```
 
@@ -38,7 +38,7 @@ kw-tgt --version
 kw-timeroast --version
 ```
 
-All five commands should print `kw-<tool> 0.1.0`.
+All five commands should print `kw-<tool> 0.4.0`.
 
 ## Run checks
 
@@ -50,10 +50,10 @@ make docs     # build documentation
 Or individually:
 
 ```bash
-uv run ruff check            # linter (all rules enabled)
-uv run ruff format --check   # formatter
-uv run ty check              # type checker (strictest settings)
-uv run pytest                # 693 unit tests
+uvx ruff check               # linter (all rules enabled)
+uvx ruff format --check      # formatter
+uvx ty check                 # type checker (strictest settings)
+uv run pytest                # unit tests
 ```
 
 ## Dependencies
