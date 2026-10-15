@@ -27,7 +27,7 @@ from kerbwolf.models import HashcatMode, HashFormat
 # ---------------------------------------------------------------------------
 
 _TGS_MODE: dict[int, int] = {
-    1: HashcatMode.KRB5_TGS_DES,
+    1: HashcatMode.KRB5_TGS_DES_CBC_CRC,
     3: HashcatMode.KRB5_TGS_DES,
     17: HashcatMode.KRB5_TGS_AES128,
     18: HashcatMode.KRB5_TGS_AES256,
@@ -35,7 +35,7 @@ _TGS_MODE: dict[int, int] = {
 }
 
 _ASREP_MODE: dict[int, int] = {
-    1: HashcatMode.KRB5_ASREP_DES,
+    1: HashcatMode.KRB5_ASREP_DES_CBC_CRC,
     3: HashcatMode.KRB5_ASREP_DES,
     17: HashcatMode.KRB5_ASREP_AES128,
     18: HashcatMode.KRB5_ASREP_AES256,
@@ -289,7 +289,7 @@ def _format_krb5_hash(
         No separate checksum field - the integrity check is embedded.
     """
     cipher_hex = hexlify(cipher).decode()
-    safe_spn = spn.replace(":", "~") if spn else None
+    safe_spn = spn.replace(":", "~") if spn is not None else None
 
     if fmt == HashFormat.JOHN:
         return _john_format(prefix, etype, username, realm, cipher, safe_spn)

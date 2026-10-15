@@ -18,7 +18,7 @@ from kerbwolf.models import HashcatMode, HashFormat
 
 class TestTgsHashcatMode:
     def test_des_cbc_crc(self):
-        assert tgs_hashcat_mode(1) == HashcatMode.KRB5_TGS_DES
+        assert tgs_hashcat_mode(1) == HashcatMode.KRB5_TGS_DES_CBC_CRC
 
     def test_des_cbc_md5(self):
         assert tgs_hashcat_mode(3) == HashcatMode.KRB5_TGS_DES
@@ -43,7 +43,7 @@ class TestTgsHashcatMode:
 
 class TestAsrepHashcatMode:
     def test_des_cbc_crc(self):
-        assert asrep_hashcat_mode(1) == HashcatMode.KRB5_ASREP_DES
+        assert asrep_hashcat_mode(1) == HashcatMode.KRB5_ASREP_DES_CBC_CRC
 
     def test_des_cbc_md5(self):
         assert asrep_hashcat_mode(3) == HashcatMode.KRB5_ASREP_DES

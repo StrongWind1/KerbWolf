@@ -134,10 +134,10 @@ tcpdump -i eth0 -w - 'port 88 or port 123 or port 445' | kw-extract -
 |  | DES-CBC-CRC (1) | DES-CBC-MD5 (3) | AES128 (17) | AES256 (18) | RC4 (23) |
 |---|---|---|---|---|---|
 | **AS-REQ** | `$krb5pa$1$` | `$krb5pa$3$` | `$krb5pa$17$` (19800) | `$krb5pa$18$` (19900) | `$krb5pa$23$` (7500) |
-| **AS-REP** | `$krb5asrep$1$` (38600) | `$krb5asrep$3$` (38600) | `$krb5asrep$17$` (32100) | `$krb5asrep$18$` (32200) | `$krb5asrep$23$` (18200) |
-| **TGS-REP** | `$krb5tgs$1$` (38500) | `$krb5tgs$3$` (38500) | `$krb5tgs$17$` (19600) | `$krb5tgs$18$` (19700) | `$krb5tgs$23$` (13100) |
+| **AS-REP** | `$krb5asrep$1$` | `$krb5asrep$3$` (38600) | `$krb5asrep$17$` (32100) | `$krb5asrep$18$` (32200) | `$krb5asrep$23$` (18200) |
+| **TGS-REP** | `$krb5tgs$1$` | `$krb5tgs$3$` (38500) | `$krb5tgs$17$` (19600) | `$krb5tgs$18$` (19700) | `$krb5tgs$23$` (13100) |
 
-Numbers in parentheses are hashcat mode numbers. All 13 RC4/AES/DES modes work in hashcat today. The 2 DES AS-REQ modes have no hashcat module yet.
+Numbers in parentheses are hashcat mode numbers. 11 RC4/AES/DES-CBC-MD5 modes work in hashcat today. Hashcat 38500/38600 implement etype 3 (MD5 integrity) only; etype 1 (CRC32) has different plaintext offsets and needs separate kernel code. The 4 DES-CBC-CRC message modes and 2 DES AS-REQ modes have no hashcat module.
 
 ### Timeroasting (MS-SNTP)
 

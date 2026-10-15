@@ -19,11 +19,11 @@ flowchart TD
 
     E -->|"RC4 (23)"| F["Split: first 16 bytes = checksum<br/>remaining = edata2"]
     E -->|"AES (17/18)"| G["Split: last 12 bytes = checksum<br/>remaining = edata2"]
-    E -->|"DES (1/3)"| H["No split: full cipher blob"]
+    E -->|"DES (3)"| H["Split: first 16 bytes = checksum<br/>remaining = edata2"]
 
     F --> I["Format: $krb5tgs$23$*user$realm$spn*$checksum$edata2"]
     G --> J["Format: $krb5tgs$18$user$realm$*spn*$checksum$edata2"]
-    H --> K["Format: $krb5tgs$3$user$realm$*spn*$cipher"]
+    H --> K["Format: $krb5tgs$3$*user$realm$spn*$checksum$edata2"]
 
     I & J & K --> L["hashcat / john"]
     L --> M["Cracked password or DES key"]
@@ -152,7 +152,7 @@ block-beta
 | RC4 (23) | 13100 | `$krb5tgs$23$*user$realm$spn*$checksum$edata2` |
 | AES128 (17) | 19600 | `$krb5tgs$17$user$realm$*spn*$checksum$edata2` |
 | AES256 (18) | 19700 | `$krb5tgs$18$user$realm$*spn*$checksum$edata2` |
-| DES-CBC-CRC (1) | 38500 | `$krb5tgs$1$*user$realm$spn*$checksum$edata2` |
+| DES-CBC-CRC (1) | — | `$krb5tgs$1$*user$realm$spn*$checksum$edata2` |
 | DES-CBC-MD5 (3) | 38500 | `$krb5tgs$3$*user$realm$spn*$checksum$edata2` |
 
 ### AS-REP Roast (`$krb5asrep$`)
@@ -162,7 +162,7 @@ block-beta
 | RC4 (23) | 18200 | `$krb5asrep$23$user@realm:checksum$edata2` |
 | AES128 (17) | 32100 | `$krb5asrep$17$user$realm$checksum$edata2` |
 | AES256 (18) | 32200 | `$krb5asrep$18$user$realm$checksum$edata2` |
-| DES-CBC-CRC (1) | 38600 | `$krb5asrep$1$user@realm:checksum$edata2` |
+| DES-CBC-CRC (1) | — | `$krb5asrep$1$user@realm:checksum$edata2` |
 | DES-CBC-MD5 (3) | 38600 | `$krb5asrep$3$user@realm:checksum$edata2` |
 
 ### AS-REQ Pre-Auth (`$krb5pa$`)
