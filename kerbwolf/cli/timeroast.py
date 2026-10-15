@@ -331,7 +331,7 @@ def _write_results(
 
     Files are only created when they contain at least one hash.
     """
-    if not output:
+    if output is None:
         return
 
     base = Path(output)
@@ -385,7 +385,7 @@ def main(argv: list[str] | None = None) -> None:
 
     # -- Wordlist (requires LDAP accounts) ------------------------------------
     if args.wordlist:
-        if not accounts:
+        if accounts is None:
             logger.error("--wordlist requires --ldap (needs account names)")
             return
         _write_wordlist(accounts, args.wordlist, logger)

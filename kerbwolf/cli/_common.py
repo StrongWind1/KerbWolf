@@ -87,7 +87,7 @@ def parse_etypes(raw: list[str] | None) -> tuple[EncryptionType, ...]:
     lists (``-e rc4,aes256``).  Duplicates are removed, keeping the first
     occurrence.  Returns ``(RC4_HMAC,)`` when *raw* is ``None`` or empty.
     """
-    if not raw:
+    if raw is None or len(raw) == 0:
         return (EncryptionType.RC4_HMAC,)
 
     seen: set[EncryptionType] = set()
@@ -130,10 +130,10 @@ def resolve_context(args: argparse.Namespace, logger: Logger) -> KerberosContext
     use_kerberos = getattr(args, "kerberos", False)
     ccache_path = getattr(args, "ccache", None) or _env_ccache()
 
-    if ccache_path and not use_kerberos:
+    if ccache_path is not None and not use_kerberos:
         logger.warning("-c/--ccache provided without -k/--kerberos. Add -k to use Kerberos auth.")
 
-    if use_kerberos and ccache_path:
+    if use_kerberos and ccache_path is not None:
         try:
             ccache_user, ccache_domain = get_ccache_info(ccache_path)
             domain = domain or ccache_domain
@@ -149,7 +149,7 @@ def resolve_context(args: argparse.Namespace, logger: Logger) -> KerberosContext
 
     # Write back so downstream code (build_credential, etc.) sees them.
     args.domain = domain
-    if username:
+    if username is not None:
         args.user = username
 
     # -- Step 2: SRV lookup first (gives hostname + IP) ---------------------
@@ -157,9 +157,9 @@ def resolve_context(args: argparse.Namespace, logger: Logger) -> KerberosContext
     dc_hostname: str | None = None
 
     srv_target = resolve_srv(f"_kerberos._tcp.{domain}")
-    if srv_target:
+    if srv_target is not None:
         srv_ip = resolve_host(srv_target)
-        if srv_ip:
+        if srv_ip is not None:
             dc_ip, dc_hostname = srv_ip, srv_target
             logger.verbose("SRV: %s → %s (%s)", domain, dc_hostname, dc_ip)
 
@@ -174,10 +174,10 @@ def resolve_context(args: argparse.Namespace, logger: Logger) -> KerberosContext
         else:
             dc_hostname = str(dc_ip_arg)
             resolved = resolve_host(dc_ip_arg)
-            if resolved:
+            if resolved is not None:
                 dc_ip = resolved
                 logger.verbose("--dc-ip: resolved %s → %s", dc_ip_arg, resolved)
-            elif not dc_ip:
+            elif dc_ip is None:
                 logger.error("Cannot resolve --dc-ip hostname '%s'.", dc_ip_arg)
                 sys.exit(1)
 
@@ -186,12 +186,12 @@ def resolve_context(args: argparse.Namespace, logger: Logger) -> KerberosContext
         logger.debug("--dc-hostname: %s", dc_hostname_arg)
 
     # -- Step 4: Last resort - domain A/AAAA --------------------------------
-    if not dc_ip:
+    if dc_ip is None:
         dc_ip = resolve_host(domain)
-        if dc_ip:
+        if dc_ip is not None:
             logger.verbose("DNS A/AAAA: %s → %s", domain, dc_ip)
 
-    if not dc_ip:
+    if dc_ip is None:
         logger.error("Cannot resolve DC for '%s'.  Use --dc-ip.", domain)
         sys.exit(1)
 
@@ -379,7 +379,7 @@ def output_results(results: list[RoastResult], output: str | None, logger: Logge
     for line in lines:
         print(line)
 
-    if output:
+    if output is not None:
         out_path = safe_output_path(output)
         out_path.parent.mkdir(parents=True, exist_ok=True)
         out_path.write_text("\n".join(lines) + "\n")

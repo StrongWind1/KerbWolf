@@ -91,7 +91,7 @@ def _responses_to_results(
     results: list[RoastResult] = []
 
     for resp in responses:
-        label = rid_to_name.get(resp.rid, str(resp.rid)) if rid_to_name else str(resp.rid)
+        label = rid_to_name.get(resp.rid, str(resp.rid)) if rid_to_name is not None else str(resp.rid)
 
         if resp.is_md5:
             # 68-byte Authenticator: MD5(NTOWFv1 || salt)

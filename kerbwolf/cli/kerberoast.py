@@ -139,7 +139,7 @@ def main(argv: list[str] | None = None) -> None:
         [
             ("Attack", "TGS-REP Roast"),
             ("Domain", ctx.domain),
-            ("DC", f"{ctx.dc_hostname} ({ctx.dc_ip})" if ctx.dc_hostname else ctx.dc_ip),
+            ("DC", f"{ctx.dc_hostname} ({ctx.dc_ip})" if ctx.dc_hostname is not None else ctx.dc_ip),
             ("Auth", auth),
             ("Etype", etype_desc),
             ("Targets", target_desc),

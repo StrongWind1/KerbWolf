@@ -40,7 +40,7 @@ def asreproast(
     telling the KDC the client's preference.  The KDC picks the first
     etype the target account supports.
     """
-    if not target_users:
+    if target_users is None or len(target_users) == 0:
         return []
 
     etype_ints = tuple(int(e) for e in etypes)

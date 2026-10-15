@@ -99,7 +99,7 @@ def try_extract_ntlm(
 
     payload, src_ip, src_port, dst_ip, dst_port, proto = result
 
-    if proto != _IP_PROTO_TCP or payload is None:
+    if proto != _IP_PROTO_TCP:
         return []
 
     # Check if either port is an NTLM-carrying port.
@@ -135,7 +135,7 @@ def try_extract_ntlm(
     # SMB1 raw auth (no NTLMSSP wrapper) - only on SMB ports.
     if ntlm_port in _SMB_PORTS:
         raw = _extract_smb1_raw_auth(payload, sessions, src_ip, src_port, dst_ip, dst_port)
-        if raw:
+        if raw is not None:
             results.extend(raw)
 
     return results
@@ -200,7 +200,7 @@ def _extract_ntlm_from_smb_message(
     # Try SMB1 raw auth (WordCount=13).
     if len(smb_data) >= 33 and smb_data[:4] == _SMB1_SIGNATURE and smb_data[4] == _SMB1_SESSION_SETUP and smb_data[32] == 13:  # noqa: PLR2004
         raw = _extract_smb1_raw_auth_from_data(smb_data, sessions, src_ip, src_port, dst_ip, dst_port)
-        if raw:
+        if raw is not None:
             results.extend(raw)
 
     return results

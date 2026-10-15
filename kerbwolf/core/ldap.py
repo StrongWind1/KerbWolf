@@ -85,7 +85,7 @@ def connect(
 
     try:
         if use_kerberos:
-            if ccache:
+            if ccache is not None:
                 os.environ["KRB5CCNAME"] = ccache
             sasl_target = (_resolve_spn_target(server, domain, dc_hostname),) if is_ip(dc_ip) else None
             _log.info("LDAP GSSAPI bind (SPN: ldap/%s)", sasl_target[0] if sasl_target else dc_ip)
@@ -112,7 +112,7 @@ def _resolve_spn_target(server: ldap3.Server, domain: str, dc_hostname: str | No
     2. RootDSE ``dnsHostName`` via anonymous bind (most reliable auto-detection)
     3. Domain name from ``-d`` (last resort)
     """
-    if dc_hostname:
+    if dc_hostname is not None:
         _log.info("SPN target: %s (--dc-hostname)", dc_hostname)
         return dc_hostname
     try:

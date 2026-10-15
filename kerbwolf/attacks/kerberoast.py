@@ -58,7 +58,7 @@ def kerberoast(
     is sent in the TGS-REQ in order, letting the KDC pick the first one
     the service account supports.
     """
-    if not target_spns:
+    if target_spns is None or len(target_spns) == 0:
         return []
 
     etype_ints = tuple(int(e) for e in etypes)
@@ -140,7 +140,7 @@ def kerberoast_no_preauth(
     No credentials needed - the *no_preauth_user* account is used as the
     client; *target_users* are placed in the sname field.
     """
-    if not target_users:
+    if target_users is None or len(target_users) == 0:
         return []
 
     etype_ints = tuple(int(e) for e in etypes)

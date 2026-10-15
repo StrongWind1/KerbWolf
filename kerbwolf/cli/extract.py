@@ -126,7 +126,7 @@ def _output_results(results: list[RoastResult], output: str | None, logger: Logg
     summary = ", ".join(f"{count} {attack}" for attack, count in sorted(by_attack.items()))
     logger.success("Extracted %d hash(es): %s", len(lines), summary)
 
-    if output:
+    if output is not None:
         Path(output).parent.mkdir(parents=True, exist_ok=True)
         Path(output).write_text("\n".join(lines) + "\n")
         logger.success("Wrote to %s", output)

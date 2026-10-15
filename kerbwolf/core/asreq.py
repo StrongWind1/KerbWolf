@@ -9,7 +9,7 @@ Builds Kerberos AS-REQ messages for:
 
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 import logging
 import secrets
 
@@ -82,7 +82,7 @@ def build_asreq(
 
     if preauth_key is not None and preauth_etype is not None:
         # PA-ENC-TIMESTAMP - encrypted timestamp for pre-authentication.
-        now = datetime.datetime.now(datetime.UTC)
+        now = dt.datetime.now(dt.UTC)
         enc_ts = PA_ENC_TS_ENC()
         enc_ts["patimestamp"] = KerberosTime.to_asn1(now)
         enc_ts["pausec"] = now.microsecond
@@ -121,7 +121,7 @@ def build_asreq(
     seq_set(req_body, "sname", server_principal.components_to_asn1)
     req_body["realm"] = realm
 
-    tomorrow = datetime.datetime.now(datetime.UTC) + datetime.timedelta(days=1)
+    tomorrow = dt.datetime.now(dt.UTC) + dt.timedelta(days=1)
     req_body["till"] = KerberosTime.to_asn1(tomorrow)
     req_body["rtime"] = KerberosTime.to_asn1(tomorrow)
     req_body["nonce"] = secrets.randbits(31)

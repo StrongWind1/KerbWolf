@@ -9,7 +9,7 @@ Builds Kerberos TGS-REQ messages for:
 
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 import logging
 import secrets
 from typing import Any
@@ -92,7 +92,7 @@ def build_tgsreq(
     authenticator["crealm"] = str(decoded_tgt["crealm"])
     seq_set(authenticator, "cname", client_name.components_to_asn1)
 
-    now = datetime.datetime.now(datetime.UTC)
+    now = dt.datetime.now(dt.UTC)
     authenticator["cusec"] = now.microsecond
     authenticator["ctime"] = KerberosTime.to_asn1(now)
 
@@ -135,7 +135,7 @@ def build_tgsreq(
     seq_set(req_body, "sname", server_principal.components_to_asn1)
     req_body["realm"] = realm
 
-    tomorrow = datetime.datetime.now(datetime.UTC) + datetime.timedelta(days=1)
+    tomorrow = dt.datetime.now(dt.UTC) + dt.timedelta(days=1)
     req_body["till"] = KerberosTime.to_asn1(tomorrow)
     req_body["nonce"] = secrets.randbits(31)
 
