@@ -110,17 +110,21 @@ block-beta
     end
 
     block:deslabel:1
-        dest["DES<br/>(etype 1/3)"]
+        dest["DES<br/>(etype 3)"]
     end
-    block:desdata:5
-        desd["Full cipher blob (confounder + integrity + data)<br/>No split — brute-force the 56-bit key"]
+    block:descheck:2
+        desc["Checksum (16 bytes)<br/>first two DES blocks"]
+    end
+    block:desdata:3
+        desd["Edata2 (remaining bytes)<br/>DES-CBC encrypted data"]
     end
 
     style rc4check fill:#4a2020,stroke:#ff6b6b
     style rc4data fill:#1a3a3a,stroke:#6bcbcb
     style aesdata fill:#1a3a3a,stroke:#6bcbcb
     style aescheck fill:#4a2020,stroke:#ff6b6b
-    style desdata fill:#3a3a1a,stroke:#ffd93d
+    style descheck fill:#4a2020,stroke:#ff6b6b
+    style desdata fill:#1a3a3a,stroke:#6bcbcb
 ```
 
 | Etype | Cipher layout | Checksum | Edata2 | Hashcat verification |
@@ -128,7 +132,7 @@ block-beta
 | **RC4** (23) | `checksum \|\| edata2` | First 16 bytes (HMAC-MD5) | Remaining bytes | Derive NT hash → decrypt → check HMAC |
 | **AES128** (17) | `edata2 \|\| checksum` | Last 12 bytes (HMAC-SHA1 truncated) | All but last 12 bytes | PBKDF2 → AES key → decrypt → check HMAC |
 | **AES256** (18) | `edata2 \|\| checksum` | Last 12 bytes (HMAC-SHA1 truncated) | All but last 12 bytes | Same as AES128, longer key |
-| **DES** (1, 3) | `checksum \|\| edata2` | First 16 bytes (first two DES blocks) | Remaining bytes | String-to-key → DES key → decrypt → check ASN.1 header + embedded integrity |
+| **DES-CBC-MD5** (3) | `checksum \|\| edata2` | First 16 bytes (first two DES blocks) | Remaining bytes | String-to-key → DES key → decrypt → ASN.1 at byte 24 → MD5 integrity |
 
 !!! tip "The etype determines the format, the attack determines the source"
     The hash format (where the checksum lives, how many bytes) is the same for all three attacks at the same etype. The only thing the attack type changes is *which ASN.1 field* the cipher is extracted from.
@@ -172,8 +176,8 @@ block-beta
 | RC4 (23) | 7500 | `$krb5pa$23$user$realm$$edata2checksum` |
 | AES128 (17) | 19800 | `$krb5pa$17$user$realm$edata2checksum` |
 | AES256 (18) | 19900 | `$krb5pa$18$user$realm$edata2checksum` |
-| DES-CBC-CRC (1) | proposed | `$krb5pa$1$user$realm$cipher` |
-| DES-CBC-MD5 (3) | proposed | `$krb5pa$3$user$realm$cipher` |
+| DES-CBC-CRC (1) | — | `$krb5pa$1$user$realm$cipher` |
+| DES-CBC-MD5 (3) | — | `$krb5pa$3$user$realm$cipher` |
 
 !!! note "The double-dollar in RC4 AS-REQ"
     The RC4 AS-REQ hash (mode 7500) has an empty salt field between `realm` and the hash data, producing `$$`. The hash data is edata2 (72 hex chars) followed by checksum (32 hex chars) as one concatenated field.

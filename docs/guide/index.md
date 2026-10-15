@@ -37,7 +37,7 @@ The three encrypted blobs in this flow (AS-REQ timestamp, AS-REP response, TGS-R
 
 ## Attacks
 
-Three attacks, three different Kerberos messages. Full protocol details and diagrams are on the [Attacks in Depth](attacks.md) page.
+Three Kerberos attacks, three different message types. Full protocol details and diagrams are on the [Attacks in Depth](attacks.md) page.
 
 ### TGS-REP Roast (Kerberoast)
 

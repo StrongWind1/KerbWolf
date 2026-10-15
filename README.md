@@ -16,7 +16,7 @@
   <a href="https://strongwind.dev/KerbWolf/commands/kw-roast/">Commands</a>
 </p>
 
-4 attack types, 5 encryption types, 19 hashcat-compatible output formats.
+4 attack types, 5 encryption types, 19 output formats (15 Kerberos + 2 SNTP + 2 NTLM).
 
 1. **TGS-REP Roast (Kerberoast)** - request service tickets and crack the service account's password
 2. **AS-REP Roast** - extract hashes from accounts without Kerberos pre-authentication
@@ -32,7 +32,7 @@ Kerberoast every SPN account discovered over LDAP and write hashcat-ready hashes
 ```console
 $ kw-roast -k -c admin.ccache --ldap
 [+] sql_svc      $krb5tgs$23$*sql_svc$CORP.LOCAL$MSSQLSvc/db01*<...>   (hashcat 13100)
-[+] backup_svc   $krb5tgs$18$*backup_svc$CORP.LOCAL$cifs/fs01*<...>    (hashcat 19700)
+[+] backup_svc   $krb5tgs$18$backup_svc$CORP.LOCAL$*cifs/fs01*$<...>  (hashcat 19700)
 [*] 2 SPN accounts roasted -> hashes.txt
 ```
 
