@@ -103,14 +103,14 @@ class TestDeriveKey:
 
 
 class TestDeriveAllKeys:
-    def test_returns_all_five(self):
+    def test_returns_derivable_etypes(self):
         keys = derive_all_keys("password", "DOMAIN.LOCALuser")
         assert len(keys) == 5
 
-    def test_all_etypes_present(self):
+    def test_sha2_etypes_excluded(self):
         keys = derive_all_keys("password", "DOMAIN.LOCALuser")
-        for etype in EncryptionType:
-            assert etype in keys
+        assert EncryptionType.AES128_CTS_HMAC_SHA256_128 not in keys
+        assert EncryptionType.AES256_CTS_HMAC_SHA384_192 not in keys
 
     def test_key_sizes_correct(self):
         keys = derive_all_keys("password", "DOMAIN.LOCALuser")

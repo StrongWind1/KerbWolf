@@ -1,13 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
 """Hash formatters for all crackable hash types KerbWolf extracts.
 
-Kerberos (15 combinations: 3 attacks x 5 etypes):
+Kerberos (21 combinations: 3 attacks x 7 etypes):
 
-    etype 1  (DES-CBC-CRC)   - $krb5tgs$1$, $krb5asrep$1$, $krb5pa$1$
-    etype 3  (DES-CBC-MD5)   - $krb5tgs$3$, $krb5asrep$3$, $krb5pa$3$
-    etype 17 (AES128)        - $krb5tgs$17$, $krb5asrep$17$, $krb5pa$17$
-    etype 18 (AES256)        - $krb5tgs$18$, $krb5asrep$18$, $krb5pa$18$
-    etype 23 (RC4-HMAC)      - $krb5tgs$23$, $krb5asrep$23$, $krb5pa$23$
+    etype 1  (DES-CBC-CRC)      - $krb5tgs$1$, $krb5asrep$1$, $krb5pa$1$
+    etype 3  (DES-CBC-MD5)      - $krb5tgs$3$, $krb5asrep$3$, $krb5pa$3$
+    etype 17 (AES128-SHA1)      - $krb5tgs$17$, $krb5asrep$17$, $krb5pa$17$
+    etype 18 (AES256-SHA1)      - $krb5tgs$18$, $krb5asrep$18$, $krb5pa$18$
+    etype 19 (AES128-SHA256)    - $krb5tgs$19$, $krb5asrep$19$, $krb5pa$19$
+    etype 20 (AES256-SHA384)    - $krb5tgs$20$, $krb5asrep$20$, $krb5pa$20$
+    etype 23 (RC4-HMAC)         - $krb5tgs$23$, $krb5asrep$23$, $krb5pa$23$
 
 Timeroasting (MS-SNTP):      - $sntp-ms$  (mode 31300, MD5)
                               - $sntp-ms-sha512$  (no hashcat module yet)
@@ -274,6 +276,25 @@ def format_pa_hash(
 # ---------------------------------------------------------------------------
 
 
+_CHECKSUM_BYTES: dict[int, tuple[int, bool]] = {
+    1: (16, False),
+    3: (16, False),
+    17: (12, True),
+    18: (12, True),
+    19: (16, True),
+    20: (24, True),
+    23: (16, False),
+}
+
+
+def _split_cipher(etype: int, cipher: bytes) -> tuple[str, str]:
+    """Split cipher into ``(checksum_hex, edata2_hex)`` per etype."""
+    size, at_end = _CHECKSUM_BYTES.get(etype, (16, False))
+    if at_end:
+        return hexlify(cipher[-size:]).decode(), hexlify(cipher[:-size]).decode()
+    return hexlify(cipher[:size]).decode(), hexlify(cipher[size:]).decode()
+
+
 def _format_krb5_hash(
     prefix: str,
     etype: int,
@@ -286,60 +307,21 @@ def _format_krb5_hash(
 ) -> str:
     """Format a Kerberos hash string for any attack type and etype.
 
-    Hash structure by etype:
+    Canonical output (hashcat always emits; also accepted on input):
 
-    RC4 (23):
-        Checksum = first 16 bytes (HMAC-MD5).
-        Edata2   = remaining bytes.
-
-    AES (17, 18):
-        Checksum = last 12 bytes (HMAC-SHA1 truncated).
-        Edata2   = everything except last 12 bytes.
-
-    DES (1, 3):
-        Cipher   = full encrypted blob (confounder + checksum + data).
-        No separate checksum field - the integrity check is embedded.
+        $krb5tgs$E$user$realm$checksum$edata2
+        $krb5asrep$E$user$realm$checksum$edata2
+        $krb5pa$E$user$realm$data
     """
-    cipher_hex = hexlify(cipher).decode()
-    safe_spn = spn.replace(":", "~") if spn is not None else None
-
     if fmt == HashFormat.JOHN:
+        safe_spn = spn.replace(":", "~") if spn is not None else None
         return _john_format(prefix, etype, username, realm, cipher, safe_spn)
 
-    # -- Hashcat format -------------------------------------------------------
-
-    if etype == 23:  # noqa: PLR2004 - RC4
-        checksum = cipher_hex[:32]
-        edata2 = cipher_hex[32:]
-        if prefix == "krb5pa":
-            return f"${prefix}${etype}${username}${realm}$${edata2}{checksum}"
-        if prefix == "krb5asrep":
-            return f"${prefix}${etype}${username}@{realm}:{checksum}${edata2}"
-        # krb5tgs
-        return f"${prefix}${etype}$*{username}${realm}${safe_spn}*${checksum}${edata2}"
-
-    if etype in {17, 18}:  # AES
-        checksum = hexlify(cipher[-12:]).decode()
-        edata2 = hexlify(cipher[:-12]).decode()
-        if prefix == "krb5pa":
-            return f"${prefix}${etype}${username}${realm}${edata2}{checksum}"
-        if prefix == "krb5asrep":
-            return f"${prefix}${etype}${username}${realm}${checksum}${edata2}"
-        # krb5tgs
-        return f"${prefix}${etype}${username}${realm}$*{safe_spn}*${checksum}${edata2}"
-
-    # DES (1, 3) - split first 16 bytes as "checksum" (first two DES
-    # blocks) and remainder as edata2.  The integrity check lives inside
-    # the plaintext, not in a separate MAC, but hashcat's kernel needs the
-    # split for early-reject ASN.1 checks (modes 38500, 38600).
-    checksum = cipher_hex[:32]
-    edata2 = cipher_hex[32:]
     if prefix == "krb5pa":
-        return f"${prefix}${etype}${username}${realm}${cipher_hex}"
-    if prefix == "krb5asrep":
-        return f"${prefix}${etype}${username}${realm}${checksum}${edata2}"
-    # krb5tgs
-    return f"${prefix}${etype}$*{username}${realm}${safe_spn}*${checksum}${edata2}"
+        return f"${prefix}${etype}${username}${realm}${hexlify(cipher).decode()}"
+
+    checksum, edata2 = _split_cipher(etype, cipher)
+    return f"${prefix}${etype}${username}${realm}${checksum}${edata2}"
 
 
 def _john_format(prefix: str, etype: int, username: str, realm: str, cipher: bytes, spn: str | None) -> str:

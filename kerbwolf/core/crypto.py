@@ -61,8 +61,8 @@ def derive_key(etype: EncryptionType, password: str, salt: str) -> Key:
 
 
 def derive_all_keys(password: str, salt: str) -> dict[EncryptionType, Key]:
-    """Derive Kerberos keys for all 5 Windows encryption types."""
-    return {etype: derive_key(etype, password, salt) for etype in EncryptionType}
+    """Derive Kerberos keys for all Windows encryption types that impacket supports."""
+    return {etype: derive_key(etype, password, salt) for etype in EncryptionType if etype in _IMPACKET_ETYPE}
 
 
 def key_from_hex(etype: EncryptionType, hex_key: str) -> Key:

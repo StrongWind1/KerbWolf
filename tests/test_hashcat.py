@@ -98,11 +98,10 @@ class TestFormatTgsRC4:
         h = format_tgs_hash_raw(self.CIPHER, 23, "svc", "DOMAIN.LOCAL", "http/web", fmt=HashFormat.HASHCAT)
         assert h.startswith("$krb5tgs$23$")
 
-    def test_hashcat_contains_user_realm_spn(self):
+    def test_hashcat_contains_user_realm(self):
         h = format_tgs_hash_raw(self.CIPHER, 23, "svc", "DOMAIN.LOCAL", "http/web")
-        assert "svc" in h
-        assert "DOMAIN.LOCAL" in h
-        assert "http/web" in h
+        assert "$svc$" in h
+        assert "$DOMAIN.LOCAL$" in h
 
     def test_hashcat_checksum_is_first_32_hex(self):
         h = format_tgs_hash_raw(self.CIPHER, 23, "u", "R", "s")
@@ -111,9 +110,10 @@ class TestFormatTgsRC4:
         checksum_part = parts[-2]
         assert len(checksum_part) == 32
 
-    def test_spn_colon_escaped(self):
+    def test_spn_not_in_canonical_output(self):
         h = format_tgs_hash_raw(self.CIPHER, 23, "u", "R", "svc:1433")
-        assert "svc~1433" in h
+        assert "svc:1433" not in h
+        assert "*" not in h
 
 
 # ---------------------------------------------------------------------------
@@ -135,7 +135,6 @@ class TestFormatTgsAES:
     def test_aes_checksum_is_last_24_hex(self):
         h = format_tgs_hash_raw(self.CIPHER, 17, "u", "R", "s")
         parts = h.split("$")
-        # After *spn* comes checksum then edata2
         checksum_part = parts[-2]
         assert len(checksum_part) == 24  # 12 bytes = 24 hex
 
@@ -175,8 +174,7 @@ class TestFormatAsrepHash:
     def test_rc4_prefix(self):
         cipher = b"\x11" * 48
         h = format_asrep_hash_raw(cipher, 23, "user", "REALM")
-        assert h.startswith("$krb5asrep$23$")
-        assert "user@REALM" in h
+        assert h.startswith("$krb5asrep$23$user$REALM$")
 
     def test_aes256_prefix(self):
         cipher = b"\x22" * 60

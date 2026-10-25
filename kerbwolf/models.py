@@ -16,13 +16,16 @@ class EncryptionType(enum.IntEnum):
 
     DES types are disabled by default since Server 2008 but can be
     re-enabled via GPO.  RC4 is deprecated since Server 2016 and
-    disabled in Server 2025.
+    disabled in Server 2025.  AES-SHA2 types (RFC 8009) require
+    Server 2025.
     """
 
     DES_CBC_CRC = 1
     DES_CBC_MD5 = 3
     AES128_CTS_HMAC_SHA1_96 = 17
     AES256_CTS_HMAC_SHA1_96 = 18
+    AES128_CTS_HMAC_SHA256_128 = 19
+    AES256_CTS_HMAC_SHA384_192 = 20
     RC4_HMAC = 23
 
     @property
@@ -32,8 +35,18 @@ class EncryptionType(enum.IntEnum):
 
     @property
     def is_aes(self) -> bool:
-        """Return True if this is an AES encryption type."""
-        return self in {EncryptionType.AES128_CTS_HMAC_SHA1_96, EncryptionType.AES256_CTS_HMAC_SHA1_96}
+        """Return True if this is an AES encryption type (SHA1 or SHA2)."""
+        return self in {
+            EncryptionType.AES128_CTS_HMAC_SHA1_96,
+            EncryptionType.AES256_CTS_HMAC_SHA1_96,
+            EncryptionType.AES128_CTS_HMAC_SHA256_128,
+            EncryptionType.AES256_CTS_HMAC_SHA384_192,
+        }
+
+    @property
+    def is_aes_sha2(self) -> bool:
+        """Return True if this is an AES-SHA2 (RFC 8009) encryption type."""
+        return self in {EncryptionType.AES128_CTS_HMAC_SHA256_128, EncryptionType.AES256_CTS_HMAC_SHA384_192}
 
 
 # Friendly CLI name → EncryptionType mapping.
@@ -43,6 +56,8 @@ ETYPE_BY_NAME: dict[str, EncryptionType] = {
     "rc4": EncryptionType.RC4_HMAC,
     "aes128": EncryptionType.AES128_CTS_HMAC_SHA1_96,
     "aes256": EncryptionType.AES256_CTS_HMAC_SHA1_96,
+    "aes128-sha2": EncryptionType.AES128_CTS_HMAC_SHA256_128,
+    "aes256-sha2": EncryptionType.AES256_CTS_HMAC_SHA384_192,
 }
 
 

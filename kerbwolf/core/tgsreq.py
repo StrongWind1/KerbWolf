@@ -18,6 +18,7 @@ from impacket.krb5 import constants as krb_constants
 from impacket.krb5.asn1 import (
     AP_REQ,
     AS_REP,
+    KRB_ERROR,
     TGS_REP,
     TGS_REQ,
     Authenticator,
@@ -34,7 +35,7 @@ from pyasn1.codec.der import decoder, encoder
 from pyasn1.type.univ import noValue
 
 from kerbwolf.core.transport import send_receive
-from kerbwolf.models import TransportProtocol
+from kerbwolf.models import KDCError, TransportProtocol
 
 _log = logging.getLogger(__name__)
 
@@ -182,6 +183,7 @@ def request_tgs(
         etypes=etypes,
     )
     response = send_receive(message, dc_ip, protocol=transport, timeout=timeout)
+    _check_tgs_error(response)
     new_session_key = _extract_tgs_session_key(response, session_key, cipher_cls)
     _log.debug("TGS-REP ← ticket for %s, session key etype %d", service, new_session_key.enctype)
     return response, new_session_key
@@ -248,6 +250,22 @@ def _extract_ticket_asn1(rep_bytes: bytes) -> TicketAsn1:
     ticket = Ticket()
     ticket.from_asn1(decoded["ticket"])
     return ticket.to_asn1(TicketAsn1())
+
+
+def _check_tgs_error(response: bytes) -> None:
+    """Raise ``KDCError`` if *response* is a KRB_ERROR."""
+    try:
+        krb_error = decoder.decode(response, asn1Spec=KRB_ERROR())[0]
+        error_code = int(krb_error["error-code"])
+    except Exception:  # noqa: BLE001
+        _log.debug("TGS response is not a KRB_ERROR (normal for TGS-REP)")
+        return
+    error_name = "UNKNOWN"
+    for e in krb_constants.ErrorCodes:
+        if e.value == error_code:
+            error_name = e.name
+            break
+    raise KDCError(error_code=error_code, message=f"KDC error: {error_name} ({error_code})")
 
 
 def _extract_tgs_session_key(tgs_rep_bytes: bytes, session_key: Key, cipher_cls: Any) -> Key:  # noqa: ANN401

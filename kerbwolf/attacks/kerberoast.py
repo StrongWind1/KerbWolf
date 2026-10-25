@@ -68,9 +68,7 @@ def kerberoast(
     if tgt is not None and tgt_session_key is not None and tgt_cipher_cls is not None:
         raw_tgt, session_key, cipher_cls = tgt, tgt_session_key, tgt_cipher_cls
     elif cred is not None:
-        # Authenticate with RC4 for the TGT (always supported).
-        # The target etype is used for the TGS request, not the TGT.
-        tgt_etypes = (EncryptionType.RC4_HMAC,)
+        tgt_etypes = _pick_tgt_etypes(cred)
         raw_tgt, _client_key, session_key = request_tgt(cred, dc_ip=dc_ip, etypes=tgt_etypes, transport=transport, timeout=timeout)
         cipher_cls = ENCTYPE_TABLE[session_key.enctype]
     else:
@@ -186,6 +184,19 @@ def kerberoast_no_preauth(
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _pick_tgt_etypes(cred: KerberosCredential) -> tuple[EncryptionType, ...]:
+    """Pick the strongest etype for TGT authentication based on available credentials."""
+    if cred.aes256_key:
+        return (EncryptionType.AES256_CTS_HMAC_SHA1_96,)
+    if cred.aes128_key:
+        return (EncryptionType.AES128_CTS_HMAC_SHA1_96,)
+    if cred.nthash:
+        return (EncryptionType.RC4_HMAC,)
+    if cred.password is not None:
+        return (EncryptionType.AES256_CTS_HMAC_SHA1_96, EncryptionType.RC4_HMAC)
+    return (EncryptionType.RC4_HMAC,)
 
 
 def _target_to_display_name(target: str) -> str:

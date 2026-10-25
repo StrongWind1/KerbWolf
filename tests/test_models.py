@@ -74,7 +74,7 @@ class TestEncryptionType:
         assert EncryptionType.DES_CBC_MD5.is_aes is False
 
     def test_total_enum_members(self):
-        assert len(EncryptionType) == 5
+        assert len(EncryptionType) == 7
 
     def test_int_conversion(self):
         assert int(EncryptionType.RC4_HMAC) == 23
@@ -111,7 +111,7 @@ class TestEtypeByName:
             ETYPE_BY_NAME["invalid"]
 
     def test_all_names_count(self):
-        assert len(ETYPE_BY_NAME) == 5
+        assert len(ETYPE_BY_NAME) == 7
 
 
 # ---------------------------------------------------------------------------

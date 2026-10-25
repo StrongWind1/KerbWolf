@@ -15,7 +15,6 @@ class TestJohnTgsStructure:
     def test_rc4_has_star_delimiters(self):
         cipher = b"\xaa" * 16 + b"\xbb" * 32
         h = format_tgs_hash_raw(cipher, 23, "svc", "REALM", "http/web", fmt=HashFormat.JOHN)
-        # $krb5tgs$23$*user$realm$spn*$checksum$edata2
         assert "$*svc$REALM$http/web*$" in h
 
     def test_aes_no_star_delimiters(self):
@@ -54,11 +53,13 @@ class TestJohnAsrepStructure:
 class TestJohnPaStructure:
     """Verify John PA hash structure - same as hashcat for both RC4 and AES."""
 
-    def test_rc4_same_as_hashcat(self):
+    def test_rc4_john_differs_from_hashcat(self):
         cipher = b"\xaa" * 16 + b"\xbb" * 36
         john = format_pa_hash(cipher, 23, "user", "REALM", fmt=HashFormat.JOHN)
         hashcat = format_pa_hash(cipher, 23, "user", "REALM", fmt=HashFormat.HASHCAT)
-        assert john == hashcat
+        assert john.startswith("$krb5pa$23$user$REALM$$")
+        assert hashcat.startswith("$krb5pa$23$user$REALM$")
+        assert "$$" not in hashcat
 
     def test_aes_has_user_realm_edata_checksum(self):
         cipher = b"\xcc" * 44 + b"\xdd" * 12
@@ -126,9 +127,9 @@ class TestHashcatChecksumSplit:
         edata2 = b"\x66" * 32
         cipher = checksum + edata2
         h = format_asrep_hash_raw(cipher, 23, "u", "R")
-        # $krb5asrep$23$user@REALM:checksum$edata2
-        assert "55" * 16 in h
-        assert "66" * 32 in h
+        parts = h.split("$")
+        assert parts[-2] == "55" * 16
+        assert parts[-1] == "66" * 32
 
     def test_asrep_aes_checksum_last(self):
         edata2 = b"\x77" * 40
@@ -147,22 +148,23 @@ class TestHashcatChecksumSplit:
 
 
 class TestSpnColonEscaping:
-    def test_hashcat_tgs_rc4(self):
+    def test_hashcat_canonical_omits_spn(self):
         cipher = b"\xaa" * 48
         h = format_tgs_hash_raw(cipher, 23, "u", "R", "MSSQLSvc/db01:1433")
-        assert "MSSQLSvc/db01~1433" in h
+        assert "MSSQLSvc" not in h
 
-    def test_hashcat_tgs_aes(self):
+    def test_hashcat_canonical_omits_spn_aes(self):
         cipher = b"\xbb" * 62
         h = format_tgs_hash_raw(cipher, 18, "u", "R", "MSSQLSvc/db01:1433")
-        assert "MSSQLSvc/db01~1433" in h
+        assert "MSSQLSvc" not in h
 
-    def test_hashcat_tgs_des(self):
+    def test_hashcat_canonical_omits_spn_des(self):
         cipher = b"\xcc" * 40
         h = format_tgs_hash_raw(cipher, 3, "u", "R", "svc:port")
-        assert "svc~port" in h
+        assert "svc:port" not in h
+        assert "svc~port" not in h
 
-    def test_john_tgs_rc4(self):
+    def test_john_tgs_rc4_escapes_colon(self):
         cipher = b"\xdd" * 48
         h = format_tgs_hash_raw(cipher, 23, "u", "R", "svc:1433", fmt=HashFormat.JOHN)
         assert "svc~1433" in h
