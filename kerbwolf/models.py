@@ -73,10 +73,9 @@ class HashFormat(enum.StrEnum):
 # ---------------------------------------------------------------------------
 # Hashcat mode numbers
 #
-# DES modes brute-force the 56-bit DES key via string-to-key
-# (RFC 3961 6.2).  Hashcat 38500/38600 implement etype 3 (MD5
-# integrity) only.  Etype 1 (CRC32) has different plaintext offsets
-# and integrity, so it needs separate kernel code that does not exist.
+# Hashcat mode numbers for every Kerberos hash type KerbWolf
+# generates, plus SNTP and NTLM.  Mode numbers match the
+# feat/kerberos-complete branch of hashcat.
 # ---------------------------------------------------------------------------
 
 
@@ -85,23 +84,29 @@ class HashcatMode(enum.IntEnum):
 
     # TGS-REP Roast (Kerberoast)
     KRB5_TGS_DES_CBC_MD5 = 38500
-    KRB5_TGS_DES_CBC_CRC = -7  # no hashcat module (etype 1 needs CRC32 kernel)
+    KRB5_TGS_DES_CBC_CRC = 39100
     KRB5_TGS_AES128 = 19600
     KRB5_TGS_AES256 = 19700
+    KRB5_TGS_AES128_SHA256 = 39400
+    KRB5_TGS_AES256_SHA384 = 39500
     KRB5_TGS_RC4 = 13100
 
     # AS-REP Roast
     KRB5_ASREP_DES_CBC_MD5 = 38600
-    KRB5_ASREP_DES_CBC_CRC = -8  # no hashcat module (etype 1 needs CRC32 kernel)
+    KRB5_ASREP_DES_CBC_CRC = 39200
     KRB5_ASREP_AES128 = 32100
     KRB5_ASREP_AES256 = 32200
+    KRB5_ASREP_AES128_SHA256 = 39600
+    KRB5_ASREP_AES256_SHA384 = 39700
     KRB5_ASREP_RC4 = 18200
 
     # AS-REQ Pre-Auth
-    KRB5_PA_DES_CBC_CRC = -5  # no hashcat module
-    KRB5_PA_DES_CBC_MD5 = -6  # no hashcat module
+    KRB5_PA_DES_CBC_CRC = 39300
+    KRB5_PA_DES_CBC_MD5 = 39000
     KRB5_PA_AES128 = 19800
     KRB5_PA_AES256 = 19900
+    KRB5_PA_AES128_SHA256 = 39800
+    KRB5_PA_AES256_SHA384 = 39900
     KRB5_PA_RC4 = 7500
 
     # Timeroasting (MS-SNTP)  # noqa: ERA001

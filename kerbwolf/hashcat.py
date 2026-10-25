@@ -37,6 +37,8 @@ _TGS_MODE: dict[int, int] = {
     3: HashcatMode.KRB5_TGS_DES_CBC_MD5,
     17: HashcatMode.KRB5_TGS_AES128,
     18: HashcatMode.KRB5_TGS_AES256,
+    19: HashcatMode.KRB5_TGS_AES128_SHA256,
+    20: HashcatMode.KRB5_TGS_AES256_SHA384,
     23: HashcatMode.KRB5_TGS_RC4,
 }
 
@@ -45,6 +47,8 @@ _ASREP_MODE: dict[int, int] = {
     3: HashcatMode.KRB5_ASREP_DES_CBC_MD5,
     17: HashcatMode.KRB5_ASREP_AES128,
     18: HashcatMode.KRB5_ASREP_AES256,
+    19: HashcatMode.KRB5_ASREP_AES128_SHA256,
+    20: HashcatMode.KRB5_ASREP_AES256_SHA384,
     23: HashcatMode.KRB5_ASREP_RC4,
 }
 
@@ -53,6 +57,8 @@ _PA_MODE: dict[int, int] = {
     3: HashcatMode.KRB5_PA_DES_CBC_MD5,
     17: HashcatMode.KRB5_PA_AES128,
     18: HashcatMode.KRB5_PA_AES256,
+    19: HashcatMode.KRB5_PA_AES128_SHA256,
+    20: HashcatMode.KRB5_PA_AES256_SHA384,
     23: HashcatMode.KRB5_PA_RC4,
 }
 

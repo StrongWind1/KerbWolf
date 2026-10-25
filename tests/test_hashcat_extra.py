@@ -206,31 +206,49 @@ class TestDesAsrepCanonicalFormat:
 # ---------------------------------------------------------------------------
 
 
-class TestNegativeSentinelModes:
-    """Verify modes without hashcat modules are negative (not crackable)."""
+class TestNewModeMappings:
+    """Verify all etype → mode mappings return valid positive mode numbers."""
 
-    def test_tgs_des_cbc_crc_negative(self):
+    def test_tgs_des_cbc_crc(self):
         from kerbwolf.hashcat import tgs_hashcat_mode
 
-        assert tgs_hashcat_mode(1) < 0
+        assert tgs_hashcat_mode(1) == 39100
 
-    def test_asrep_des_cbc_crc_negative(self):
+    def test_asrep_des_cbc_crc(self):
         from kerbwolf.hashcat import asrep_hashcat_mode
 
-        assert asrep_hashcat_mode(1) < 0
+        assert asrep_hashcat_mode(1) == 39200
 
-    def test_pa_des_cbc_crc_negative(self):
+    def test_pa_des_cbc_crc(self):
         from kerbwolf.hashcat import pa_hashcat_mode
 
-        assert pa_hashcat_mode(1) < 0
+        assert pa_hashcat_mode(1) == 39300
 
-    def test_pa_des_cbc_md5_negative(self):
+    def test_pa_des_cbc_md5(self):
         from kerbwolf.hashcat import pa_hashcat_mode
 
-        assert pa_hashcat_mode(3) < 0
+        assert pa_hashcat_mode(3) == 39000
 
-    def test_all_negative_modes_are_distinct(self):
+    def test_tgs_sha2(self):
+        from kerbwolf.hashcat import tgs_hashcat_mode
+
+        assert tgs_hashcat_mode(19) == 39400
+        assert tgs_hashcat_mode(20) == 39500
+
+    def test_asrep_sha2(self):
+        from kerbwolf.hashcat import asrep_hashcat_mode
+
+        assert asrep_hashcat_mode(19) == 39600
+        assert asrep_hashcat_mode(20) == 39700
+
+    def test_pa_sha2(self):
+        from kerbwolf.hashcat import pa_hashcat_mode
+
+        assert pa_hashcat_mode(19) == 39800
+        assert pa_hashcat_mode(20) == 39900
+
+    def test_all_modes_are_positive(self):
         from kerbwolf.models import HashcatMode
 
-        negatives = [m for m in HashcatMode if m.value < 0]
-        assert len(negatives) == len({m.value for m in negatives})
+        for m in HashcatMode:
+            assert m.value > 0, f"{m.name} has non-positive mode {m.value}"
