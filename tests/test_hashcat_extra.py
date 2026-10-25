@@ -166,3 +166,71 @@ class TestSpnColonEscaping:
         cipher = b"\xdd" * 48
         h = format_tgs_hash_raw(cipher, 23, "u", "R", "svc:1433", fmt=HashFormat.JOHN)
         assert "svc~1433" in h
+
+
+# ---------------------------------------------------------------------------
+# DES AS-REP canonical split format (mode 38600)
+# ---------------------------------------------------------------------------
+
+
+class TestDesAsrepCanonicalFormat:
+    """Verify DES AS-REP emits the canonical split format matching hashcat's ST_HASH."""
+
+    CIPHER = b"\xaa" * 64
+
+    def test_des_md5_uses_split_format(self):
+        h = format_asrep_hash_raw(self.CIPHER, 3, "user", "REALM")
+        assert h.startswith("$krb5asrep$3$user$REALM$")
+        assert "@" not in h
+        assert ":" not in h.split("$", 4)[-1]
+
+    def test_des_crc_uses_split_format(self):
+        h = format_asrep_hash_raw(self.CIPHER, 1, "user", "REALM")
+        assert h.startswith("$krb5asrep$1$user$REALM$")
+        assert "@" not in h
+
+    def test_des_md5_full_structure(self):
+        h = format_asrep_hash_raw(self.CIPHER, 3, "svc", "EVIL.CORP")
+        parts = h.split("$")
+        assert parts[1] == "krb5asrep"
+        assert parts[2] == "3"
+        assert parts[3] == "svc"
+        assert parts[4] == "EVIL.CORP"
+        assert len(parts[5]) == 32
+        assert len(parts[6]) == 96
+        assert parts[5] + parts[6] == "aa" * 64
+
+
+# ---------------------------------------------------------------------------
+# Negative sentinel mode numbers
+# ---------------------------------------------------------------------------
+
+
+class TestNegativeSentinelModes:
+    """Verify modes without hashcat modules are negative (not crackable)."""
+
+    def test_tgs_des_cbc_crc_negative(self):
+        from kerbwolf.hashcat import tgs_hashcat_mode
+
+        assert tgs_hashcat_mode(1) < 0
+
+    def test_asrep_des_cbc_crc_negative(self):
+        from kerbwolf.hashcat import asrep_hashcat_mode
+
+        assert asrep_hashcat_mode(1) < 0
+
+    def test_pa_des_cbc_crc_negative(self):
+        from kerbwolf.hashcat import pa_hashcat_mode
+
+        assert pa_hashcat_mode(1) < 0
+
+    def test_pa_des_cbc_md5_negative(self):
+        from kerbwolf.hashcat import pa_hashcat_mode
+
+        assert pa_hashcat_mode(3) < 0
+
+    def test_all_negative_modes_are_distinct(self):
+        from kerbwolf.models import HashcatMode
+
+        negatives = [m for m in HashcatMode if m.value < 0]
+        assert len(negatives) == len({m.value for m in negatives})

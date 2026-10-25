@@ -84,14 +84,14 @@ class HashcatMode(enum.IntEnum):
     """Hashcat mode numbers for Kerberos hash types."""
 
     # TGS-REP Roast (Kerberoast)
-    KRB5_TGS_DES = 38500
+    KRB5_TGS_DES_CBC_MD5 = 38500
     KRB5_TGS_DES_CBC_CRC = -7  # no hashcat module (etype 1 needs CRC32 kernel)
     KRB5_TGS_AES128 = 19600
     KRB5_TGS_AES256 = 19700
     KRB5_TGS_RC4 = 13100
 
     # AS-REP Roast
-    KRB5_ASREP_DES = 38600
+    KRB5_ASREP_DES_CBC_MD5 = 38600
     KRB5_ASREP_DES_CBC_CRC = -8  # no hashcat module (etype 1 needs CRC32 kernel)
     KRB5_ASREP_AES128 = 32100
     KRB5_ASREP_AES256 = 32200

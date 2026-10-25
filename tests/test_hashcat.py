@@ -21,7 +21,7 @@ class TestTgsHashcatMode:
         assert tgs_hashcat_mode(1) == HashcatMode.KRB5_TGS_DES_CBC_CRC
 
     def test_des_cbc_md5(self):
-        assert tgs_hashcat_mode(3) == HashcatMode.KRB5_TGS_DES
+        assert tgs_hashcat_mode(3) == HashcatMode.KRB5_TGS_DES_CBC_MD5
 
     def test_aes128(self):
         assert tgs_hashcat_mode(17) == HashcatMode.KRB5_TGS_AES128
@@ -46,7 +46,7 @@ class TestAsrepHashcatMode:
         assert asrep_hashcat_mode(1) == HashcatMode.KRB5_ASREP_DES_CBC_CRC
 
     def test_des_cbc_md5(self):
-        assert asrep_hashcat_mode(3) == HashcatMode.KRB5_ASREP_DES
+        assert asrep_hashcat_mode(3) == HashcatMode.KRB5_ASREP_DES_CBC_MD5
 
     def test_aes128(self):
         assert asrep_hashcat_mode(17) == HashcatMode.KRB5_ASREP_AES128

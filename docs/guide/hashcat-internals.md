@@ -11,12 +11,19 @@ Some modes accept multiple input formats. Format 1 is the canonical hashcat form
 | [13100](#mode-13100-rc4) | TGS-REP Roast (Kerberoast) | RC4 | `$krb5tgs$23$*user$realm$spn*$chk$edata2` | [2](#mode-13100-rc4-format-2-no-account-info), [3](#mode-13100-rc4-format-3-colon-delimited-spn) | no |
 | [19600](#mode-19600-aes128) | TGS-REP Roast (Kerberoast) | AES128 | `$krb5tgs$17$user$realm$chk$edata2` | (+optional SPN) | **yes** |
 | [19700](#mode-19700-aes256) | TGS-REP Roast (Kerberoast) | AES256 | `$krb5tgs$18$user$realm$chk$edata2` | (+optional SPN) | **yes** |
+| [38500](#mode-38500-des) | TGS-REP Roast (Kerberoast) | DES-CBC-MD5 | `$krb5tgs$3$*user$realm$spn*$chk$edata2` | | **yes** |
 | [18200](#mode-18200-rc4) | AS-REP Roast | RC4 | `$krb5asrep$23$user@realm:chk$edata2` | [2](#mode-18200-rc4-format-2-no-etype) | no |
 | [32100](#mode-32100-aes128) | AS-REP Roast | AES128 | `$krb5asrep$17$user$realm$chk$edata2` | [2](#mode-32100-aes128-format-2-checksum-after-edata2) | **yes** |
 | [32200](#mode-32200-aes256) | AS-REP Roast | AES256 | `$krb5asrep$18$user$realm$chk$edata2` | [2](#mode-32200-aes256-format-2-checksum-after-edata2) | **yes** |
+| [38600](#mode-38600-des) | AS-REP Roast | DES-CBC-MD5 | `$krb5asrep$3$user$realm$chk$edata2` | (+joined `user@realm:`) | **yes** |
 | [7500](#mode-7500-rc4) | AS-REQ Pre-Auth | RC4 | `$krb5pa$23$user$realm$salt$edata2checksum` | | no |
 | [19800](#mode-19800-aes128) | AS-REQ Pre-Auth | AES128 | `$krb5pa$17$user$realm$data` | | **yes** |
 | [19900](#mode-19900-aes256) | AS-REQ Pre-Auth | AES256 | `$krb5pa$18$user$realm$data` | | **yes** |
+| [28800](#mode-28800-aes128-db) | DB Key | AES128 | `$krb5db$17$user$realm$key` | (+optional SPN) | **yes** |
+| [28900](#mode-28900-aes256-db) | DB Key | AES256 | `$krb5db$18$user$realm$key` | (+optional SPN) | **yes** |
+| [38400](#mode-38400-des-db) | DB Key | DES 1/2/3 | `$krb5db$<1\|2\|3>$user$realm$key` | (+optional SPN) | **yes** |
+| [35300](#mode-35300-rc4-nt) | TGS-REP (NT hash) | RC4 | same as 13100 | same as 13100 | no |
+| [35400](#mode-35400-rc4-nt) | AS-REP (NT hash) | RC4 | same as 18200 | same as 18200 | no |
 | [31300](#mode-31300-ms-sntp-68-byte-authenticator) | Timeroasting | MD5 | `$sntp-ms$RID$digest$salt` | | no |
 
 ---
@@ -341,3 +348,161 @@ derived_key = KDF(SP800-108, PRF=HMAC-SHA512, Key=NTOWFv1,
     data = counter(4,BE) || "sntp-ms\0" || 0x00 || RID(4,LE) || 512(4,BE))
 checksum = HMAC-SHA512(derived_key, salt)
 ```
+
+---
+
+## DES Kerberoast / AS-REP Roast
+
+### Mode 38500: DES TGS-REP {: #mode-38500-des }
+
+**Module:** `module_38500.c`
+
+```
+$krb5tgs$3$*user$realm$spn*$checksum$edata2
+```
+
+| Field | Delimiter | Length | Required | Used for cracking |
+|-------|-----------|--------|----------|-------------------|
+| signature `$krb5tgs$3$` | | 11 chars | yes | |
+| account info `*user$realm$spn*` | `$` | variable | yes | **yes** (user+realm form the DES string-to-key salt) |
+| checksum | `$` | 32 hex (16 bytes) | yes | yes |
+| edata2 | `$` | 64+ hex | yes | yes |
+
+Unlike RC4 mode 13100 where user/realm/spn are pure metadata, DES requires them. The salt for DES string-to-key is `REALM + user`, same as AES. The "checksum" field is the first 2 DES blocks of ciphertext, not a MAC — the real integrity check (MD5) is embedded in the plaintext after decryption.
+
+Verification: decrypt block 3 (bytes 16-23) with zero IV, check for ASN.1 tag `0x63` (EncTicketPart). On match, decrypt full ciphertext, zero the embedded MD5 at plaintext bytes 8-24, recompute MD5, compare.
+
+### Mode 38600: DES AS-REP {: #mode-38600-des }
+
+**Module:** `module_38600.c`
+
+```
+$krb5asrep$3$user$realm$checksum$edata2
+```
+
+| Field | Delimiter | Length | Required | Used for cracking |
+|-------|-----------|--------|----------|-------------------|
+| signature `$krb5asrep$3$` | | 13 chars | yes | |
+| user | `$` | 1-128 chars | **yes** | **yes** (DES string-to-key salt) |
+| realm | `$` | 1-128 chars | **yes** | **yes** (DES string-to-key salt, uppercased) |
+| checksum | `$` | 32 hex (16 bytes) | yes | yes |
+| edata2 | `$` | 64+ hex | yes | yes |
+
+Also accepts joined format: `$krb5asrep$3$user@realm:checksum$edata2`. Same kernel as 38500 but checks for ASN.1 tags `0x79`/`0x7a` (application 25/26 = EncASRepPart/EncTGSRepPart) instead of `0x63`.
+
+---
+
+## DB Key (extracted from NTDS.dit)
+
+### Mode 28800: AES128 DB Key {: #mode-28800-aes128-db }
+
+**Module:** `module_28800.c`
+
+```
+$krb5db$17$user$realm$<32hex_key>
+```
+
+| Field | Delimiter | Length | Required | Used for cracking |
+|-------|-----------|--------|----------|-------------------|
+| signature `$krb5db$17$` | | 11 chars | yes | |
+| user | `$` | 1-512 chars | **yes** | **yes** (PBKDF2 salt) |
+| realm | `$` | 1-512 chars | **yes** | **yes** (PBKDF2 salt, uppercased) |
+| stored key | `$` | 32 hex (16 bytes) | yes | yes |
+
+No ciphertext — derives the AES-128 key from the candidate password via PBKDF2-HMAC-SHA1 (4096 iterations) and compares directly to the stored key. Also accepts an optional `*spn*$` block before the key (stripped on output).
+
+### Mode 28900: AES256 DB Key {: #mode-28900-aes256-db }
+
+**Module:** `module_28900.c`
+
+Same as 28800 with `$krb5db$18$` signature and 64 hex (32 bytes) for the stored key.
+
+### Mode 38400: DES DB Key {: #mode-38400-des-db }
+
+**Module:** `module_38400.c`
+
+```
+$krb5db$<1|2|3>$user$realm$<16hex_key>
+```
+
+| Field | Delimiter | Length | Required | Used for cracking |
+|-------|-----------|--------|----------|-------------------|
+| signature `$krb5db$<1\|2\|3>$` | | 10-11 chars | yes | |
+| user | `$` | 1-128 chars | **yes** | **yes** (DES string-to-key salt) |
+| realm | `$` | 1-128 chars | **yes** | **yes** (DES string-to-key salt) |
+| stored key | `$` | 16 hex (8 bytes) | yes | yes |
+
+Accepts etypes 1, 2, and 3. The etype digit is stored for round-trip encoding but has no effect on cracking — DES string-to-key produces the same 8-byte key for all three. Also accepts an optional `*spn*$` block before the key.
+
+---
+
+## NT Hash Input (pass-the-hash Kerberoasting)
+
+### Mode 35300: RC4 TGS-REP, NT hash input {: #mode-35300-rc4-nt }
+
+**Module:** `module_35300.c`
+
+Identical hash format to mode 13100. The difference is the input: the wordlist contains 32-hex NT hashes instead of passwords. Hashcat skips the MD4 key derivation and uses the NT hash directly as the RC4 key. Use this for pass-the-hash Kerberoasting when you have NT hashes from a dump but not the plaintext passwords.
+
+### Mode 35400: RC4 AS-REP, NT hash input {: #mode-35400-rc4-nt }
+
+**Module:** `module_35400.c`
+
+Same relationship to mode 18200. Identical hash format, NT hash as input.
+
+---
+
+## What hashcat actually needs to crack each hash
+
+The hash line carries both cryptographic inputs (required) and display metadata (ignored during cracking). Getting a metadata field wrong doesn't break anything. Getting a cryptographic input wrong means zero results with no error.
+
+### RC4 modes (7500, 13100, 18200, 35300, 35400)
+
+| Field | Role | Wrong value breaks cracking? |
+|-------|------|------------------------------|
+| checksum | Cryptographic — HMAC-MD5 verification target | Yes |
+| edata2 | Cryptographic — encrypted ciphertext | Yes |
+| user | Display metadata | No |
+| realm | Display metadata | No |
+| spn | Display metadata | No |
+| salt (7500 only) | Display metadata | No |
+
+RC4 key derivation is `MD4(UTF-16LE(password))` — no salt, no username, no realm. The metadata fields exist so cracked results can be attributed back to accounts. You can leave them empty or wrong and cracking still works.
+
+### AES modes (19600, 19700, 19800, 19900, 28800, 28900, 32100, 32200)
+
+| Field | Role | Wrong value breaks cracking? |
+|-------|------|------------------------------|
+| checksum / stored key | Cryptographic — verification target | Yes |
+| edata2 / enc_timestamp | Cryptographic — encrypted ciphertext | Yes |
+| user | **Cryptographic** — PBKDF2 salt component (case-sensitive) | **Yes** |
+| realm | **Cryptographic** — PBKDF2 salt component (uppercased by hashcat) | **Yes** |
+| spn | Display metadata | No |
+
+AES key derivation is `PBKDF2-HMAC-SHA1(password, REALM + user, 4096)`. The salt is the uppercase realm concatenated with the case-preserved username. Wrong username case = wrong salt = wrong key = silent failure.
+
+### DES modes (38400, 38500, 38600)
+
+| Field | Role | Wrong value breaks cracking? |
+|-------|------|------------------------------|
+| checksum / stored key | Cryptographic — first 2 DES blocks (38500/38600) or stored key (38400) | Yes |
+| edata2 | Cryptographic — remaining ciphertext | Yes (38500/38600) |
+| user | **Cryptographic** — DES string-to-key salt component | **Yes** |
+| realm | **Cryptographic** — DES string-to-key salt component | **Yes** |
+| spn | Display metadata | No |
+| etype digit (38400) | Display metadata — string-to-key is identical for 1/2/3 | No |
+
+DES string-to-key uses `REALM + user` as salt, same as AES. The etype digit in mode 38400 (`$krb5db$1$` vs `$krb5db$3$`) does not affect cracking.
+
+### Timeroast (31300)
+
+| Field | Role | Wrong value breaks cracking? |
+|-------|------|------------------------------|
+| MD5 digest | Cryptographic — verification target | Yes |
+| salt | Cryptographic — NTP response header fed to MD5 | Yes |
+| RID | Display metadata (68-byte format) | No |
+
+### Summary rule
+
+**RC4: only the ciphertext matters.** Everything else is a label.
+**AES and DES: the ciphertext AND the username+realm matter.** They're cryptographic salt inputs. Get them wrong and hashcat silently produces nothing.

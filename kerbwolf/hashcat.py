@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Hash formatters for all Kerberos hashcat modes across all 5 etypes.
+"""Hash formatters for all crackable hash types KerbWolf extracts.
 
-Covers 15 attack x etype combinations (3 attacks x 5 etypes):
+Kerberos (15 combinations: 3 attacks x 5 etypes):
 
     etype 1  (DES-CBC-CRC)   - $krb5tgs$1$, $krb5asrep$1$, $krb5pa$1$
     etype 3  (DES-CBC-MD5)   - $krb5tgs$3$, $krb5asrep$3$, $krb5pa$3$
@@ -9,7 +9,13 @@ Covers 15 attack x etype combinations (3 attacks x 5 etypes):
     etype 18 (AES256)        - $krb5tgs$18$, $krb5asrep$18$, $krb5pa$18$
     etype 23 (RC4-HMAC)      - $krb5tgs$23$, $krb5asrep$23$, $krb5pa$23$
 
-RC4/AES hashes crack to the account password.
+Timeroasting (MS-SNTP):      - $sntp-ms$  (mode 31300, MD5)
+                              - $sntp-ms-sha512$  (no hashcat module yet)
+
+NTLM:                         - Net-NTLMv1/ESS  (mode 5500)
+                              - Net-NTLMv2      (mode 5600)
+
+RC4/AES Kerberos hashes crack to the account password.
 DES hashes crack to the 56-bit DES key.
 """
 
@@ -28,7 +34,7 @@ from kerbwolf.models import HashcatMode, HashFormat
 
 _TGS_MODE: dict[int, int] = {
     1: HashcatMode.KRB5_TGS_DES_CBC_CRC,
-    3: HashcatMode.KRB5_TGS_DES,
+    3: HashcatMode.KRB5_TGS_DES_CBC_MD5,
     17: HashcatMode.KRB5_TGS_AES128,
     18: HashcatMode.KRB5_TGS_AES256,
     23: HashcatMode.KRB5_TGS_RC4,
@@ -36,7 +42,7 @@ _TGS_MODE: dict[int, int] = {
 
 _ASREP_MODE: dict[int, int] = {
     1: HashcatMode.KRB5_ASREP_DES_CBC_CRC,
-    3: HashcatMode.KRB5_ASREP_DES,
+    3: HashcatMode.KRB5_ASREP_DES_CBC_MD5,
     17: HashcatMode.KRB5_ASREP_AES128,
     18: HashcatMode.KRB5_ASREP_AES256,
     23: HashcatMode.KRB5_ASREP_RC4,
@@ -325,7 +331,7 @@ def _format_krb5_hash(
     if prefix == "krb5pa":
         return f"${prefix}${etype}${username}${realm}${cipher_hex}"
     if prefix == "krb5asrep":
-        return f"${prefix}${etype}${username}@{realm}:{checksum}${edata2}"
+        return f"${prefix}${etype}${username}${realm}${checksum}${edata2}"
     # krb5tgs
     return f"${prefix}${etype}$*{username}${realm}${safe_spn}*${checksum}${edata2}"
 

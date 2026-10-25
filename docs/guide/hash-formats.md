@@ -166,8 +166,8 @@ block-beta
 | RC4 (23) | 18200 | `$krb5asrep$23$user@realm:checksum$edata2` |
 | AES128 (17) | 32100 | `$krb5asrep$17$user$realm$checksum$edata2` |
 | AES256 (18) | 32200 | `$krb5asrep$18$user$realm$checksum$edata2` |
-| DES-CBC-CRC (1) | — | `$krb5asrep$1$user@realm:checksum$edata2` |
-| DES-CBC-MD5 (3) | 38600 | `$krb5asrep$3$user@realm:checksum$edata2` |
+| DES-CBC-CRC (1) | — | `$krb5asrep$1$user$realm$checksum$edata2` |
+| DES-CBC-MD5 (3) | 38600 | `$krb5asrep$3$user$realm$checksum$edata2` |
 
 ### AS-REQ Pre-Auth (`$krb5pa$`)
 
