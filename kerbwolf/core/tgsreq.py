@@ -155,6 +155,38 @@ def build_tgsreq(
 # ---------------------------------------------------------------------------
 
 
+def request_tgs_raw(
+    tgt_bytes: bytes,
+    session_key: Key,
+    cipher_cls: Any,  # noqa: ANN401
+    *,
+    service: str,
+    domain: str,
+    dc_ip: str,
+    etypes: tuple[int, ...] | None = None,
+    transport: TransportProtocol = TransportProtocol.TCP,
+    timeout: float = 10.0,
+) -> bytes:
+    """Request a service ticket and return the raw TGS-REP bytes.
+
+    Unlike ``request_tgs``, this does not decrypt the enc-part or
+    extract the session key — safe for etypes impacket cannot handle.
+    """
+    _log.debug("TGS-REQ → %s for %s@%s", dc_ip, service, domain.upper())
+    message = build_tgsreq(
+        tgt_bytes,
+        session_key,
+        cipher_cls,
+        service=service,
+        domain=domain,
+        etypes=etypes,
+    )
+    response = send_receive(message, dc_ip, protocol=transport, timeout=timeout)
+    _check_tgs_error(response)
+    _log.debug("TGS-REP ← raw response for %s (%d bytes)", service, len(response))
+    return response
+
+
 def request_tgs(
     tgt_bytes: bytes,
     session_key: Key,
@@ -173,17 +205,17 @@ def request_tgs(
         ``(raw_tgsrep_bytes, new_session_key)``
 
     """
-    _log.debug("TGS-REQ → %s for %s@%s", dc_ip, service, domain.upper())
-    message = build_tgsreq(
+    response = request_tgs_raw(
         tgt_bytes,
         session_key,
         cipher_cls,
         service=service,
         domain=domain,
+        dc_ip=dc_ip,
         etypes=etypes,
+        transport=transport,
+        timeout=timeout,
     )
-    response = send_receive(message, dc_ip, protocol=transport, timeout=timeout)
-    _check_tgs_error(response)
     new_session_key = _extract_tgs_session_key(response, session_key, cipher_cls)
     _log.debug("TGS-REP ← ticket for %s, session key etype %d", service, new_session_key.enctype)
     return response, new_session_key

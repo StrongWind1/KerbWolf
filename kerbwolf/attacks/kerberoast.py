@@ -22,7 +22,7 @@ from pyasn1.codec.der import decoder
 
 from kerbwolf.core.asreq import request_asrep_no_preauth, request_tgt
 from kerbwolf.core.crypto import ENCTYPE_TABLE
-from kerbwolf.core.tgsreq import request_tgs
+from kerbwolf.core.tgsreq import request_tgs_raw
 from kerbwolf.hashcat import format_tgs_hash, tgs_hashcat_mode
 from kerbwolf.models import EncryptionType, HashFormat, KDCError, KerberosCredential, RoastResult, TransportProtocol
 
@@ -79,7 +79,7 @@ def kerberoast(
     for i, target in enumerate(target_spns, 1):
         _log.info("[%d/%d] %s", i, len(target_spns), target)
         try:
-            raw_tgs, _new_sk = request_tgs(
+            raw_tgs = request_tgs_raw(
                 raw_tgt,
                 session_key,
                 cipher_cls,
