@@ -1,10 +1,10 @@
 # Encryption Types
 
-Five Kerberos encryption types have been used in Active Directory. How each one derives its key determines what you're cracking and how fast.
+Seven Kerberos encryption types have been used in Active Directory. How each one derives its key determines what you're cracking and how fast.
 
 ```mermaid
 flowchart LR
-    P["Password"] --> DES_PATH & RC4_PATH & AES_PATH
+    P["Password"] --> DES_PATH & RC4_PATH & AES_PATH & SHA2_PATH
 
     subgraph DES_PATH["DES (etype 1, 3)"]
         direction TB
@@ -22,7 +22,7 @@ flowchart LR
         R1 --> R2 --> R3
     end
 
-    subgraph AES_PATH["AES (etype 17, 18)"]
+    subgraph AES_PATH["AES-SHA1 (etype 17, 18)"]
         direction TB
         A1["+ Salt: REALMusername"]
         A2["PBKDF2-SHA1<br/>4096 iterations"]
@@ -30,9 +30,19 @@ flowchart LR
         A1 --> A2 --> A3
     end
 
+    subgraph SHA2_PATH["AES-SHA2 (etype 19, 20)"]
+        direction TB
+        S1["+ Salt: etype_name + \\x00 + REALMusername"]
+        S2["PBKDF2-SHA256/384<br/>4096 iterations"]
+        S3["KDF-HMAC-SHA2"]
+        S4["128 or 256-bit AES key"]
+        S1 --> S2 --> S3 --> S4
+    end
+
     style RC4_PATH fill:#4a2020,stroke:#ff6b6b
     style DES_PATH fill:#4a4a20,stroke:#ffd93d
     style AES_PATH fill:#1a3a1a,stroke:#6bcb77
+    style SHA2_PATH fill:#1a2a3a,stroke:#6b9bcb
 ```
 
 RC4 has **no salt** and uses a single fast hash (MD4). AES uses a salt and 4096 PBKDF2 iterations. DES uses a salt but has a tiny 56-bit keyspace.

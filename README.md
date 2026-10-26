@@ -16,7 +16,7 @@
   <a href="https://strongwind.dev/KerbWolf/commands/kw-roast/">Commands</a>
 </p>
 
-4 attack types, 5 encryption types, 19 output formats (15 Kerberos + 2 SNTP + 2 NTLM).
+4 attack types, 7 encryption types (including RFC 8009 SHA2), 25 output formats (21 Kerberos + 2 SNTP + 2 NTLM).
 
 1. **TGS-REP Roast (Kerberoast)** - request service tickets and crack the service account's password
 2. **AS-REP Roast** - extract hashes from accounts without Kerberos pre-authentication
@@ -55,7 +55,7 @@ See the [installation guide](docs/getting-started/installation.md) for developme
 
 ## Kerberos roasting
 
-Request encrypted tickets from domain controllers and crack them offline. Supports all 5 Windows encryption types.
+Request encrypted tickets from domain controllers and crack them offline. Supports all 7 Windows encryption types including RFC 8009 AES-SHA2 (etypes 19/20).
 
 | Command | Attack | Auth required |
 |---------|--------|---------------|
@@ -74,7 +74,7 @@ kw-roast -k -c admin.ccache --ldap
 kw-asrep -d CORP.LOCAL --dc-ip 10.0.0.1 -t jsmith
 ```
 
-**Features:** LDAP enumeration, hashcat + John output, all 5 etypes (DES/RC4/AES128/AES256), ccache auto-detection, DNS SRV resolution, TCP/UDP with auto-fallback.
+**Features:** LDAP enumeration, hashcat + John output, all 7 etypes (DES/RC4/AES128/AES256/AES128-SHA2/AES256-SHA2), ccache auto-detection, DNS SRV resolution, TCP/UDP with auto-fallback.
 
 ## Timeroasting
 
@@ -110,7 +110,7 @@ kw-extract capture.pcap -o hashes.txt
 tcpdump -i eth0 -w - 'port 88 or port 123 or port 445' | kw-extract -
 ```
 
-**Kerberos** (port 88): AS-REQ pre-auth timestamps, AS-REP encrypted parts, TGS-REP service tickets. All 5 etypes, 15 hash formats.
+**Kerberos** (port 88): AS-REQ pre-auth timestamps, AS-REP encrypted parts, TGS-REP service tickets. All 7 etypes (including RFC 8009 SHA2), 21 hash formats.
 
 **SNTP** (port 123): 68-byte MD5 and 120-byte KDF+HMAC-SHA512 timeroast responses.
 
@@ -129,15 +129,15 @@ tcpdump -i eth0 -w - 'port 88 or port 123 or port 445' | kw-extract -
 
 ## Attack matrix
 
-### Kerberos (15 hash types)
+### Kerberos (21 hash types)
 
-|  | DES-CBC-CRC (1) | DES-CBC-MD5 (3) | AES128 (17) | AES256 (18) | RC4 (23) |
-|---|---|---|---|---|---|
-| **AS-REQ** | `$krb5pa$1$` | `$krb5pa$3$` | `$krb5pa$17$` (19800) | `$krb5pa$18$` (19900) | `$krb5pa$23$` (7500) |
-| **AS-REP** | `$krb5asrep$1$` | `$krb5asrep$3$` (38600) | `$krb5asrep$17$` (32100) | `$krb5asrep$18$` (32200) | `$krb5asrep$23$` (18200) |
-| **TGS-REP** | `$krb5tgs$1$` | `$krb5tgs$3$` (38500) | `$krb5tgs$17$` (19600) | `$krb5tgs$18$` (19700) | `$krb5tgs$23$` (13100) |
+|  | DES-CBC-CRC (1) | DES-CBC-MD5 (3) | AES128-SHA1 (17) | AES256-SHA1 (18) | AES128-SHA2 (19) | AES256-SHA2 (20) | RC4 (23) |
+|---|---|---|---|---|---|---|---|
+| **AS-REQ** | `$krb5pa$1$` (39300) | `$krb5pa$3$` (39000) | `$krb5pa$17$` (19800) | `$krb5pa$18$` (19900) | `$krb5pa$19$` (39800) | `$krb5pa$20$` (39900) | `$krb5pa$23$` (7500) |
+| **AS-REP** | `$krb5asrep$1$` (39200) | `$krb5asrep$3$` (38600) | `$krb5asrep$17$` (32100) | `$krb5asrep$18$` (32200) | `$krb5asrep$19$` (39600) | `$krb5asrep$20$` (39700) | `$krb5asrep$23$` (18200) |
+| **TGS-REP** | `$krb5tgs$1$` (39100) | `$krb5tgs$3$` (38500) | `$krb5tgs$17$` (19600) | `$krb5tgs$18$` (19700) | `$krb5tgs$19$` (39400) | `$krb5tgs$20$` (39500) | `$krb5tgs$23$` (13100) |
 
-Numbers in parentheses are hashcat mode numbers. 11 RC4/AES/DES-CBC-MD5 modes work in hashcat today. Hashcat 38500/38600 implement etype 3 (MD5 integrity) only; etype 1 (CRC32) has different plaintext offsets and needs separate kernel code. The 4 DES-CBC-CRC message modes and 2 DES AS-REQ modes have no hashcat module.
+Numbers in parentheses are hashcat mode numbers. AES-SHA2 etypes 19/20 (RFC 8009) are supported on Windows Server 2025. KerbWolf implements the Windows-specific string-to-key (PBKDF2 with 4096 iterations + KDF-HMAC-SHA2 second pass).
 
 ### Timeroasting (MS-SNTP)
 

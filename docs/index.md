@@ -11,15 +11,15 @@
 
 Kerberos roasting and TGT attack toolkit for Active Directory.
 
-KerbWolf extracts crackable hashes from Active Directory. 5 Kerberos encryption types, 4 attack types, 19 hashcat-compatible output formats including NTLM.
+KerbWolf extracts crackable hashes from Active Directory. 7 Kerberos encryption types (including RFC 8009 AES-SHA2), 4 attack types, 25 hashcat-compatible output formats including NTLM.
 
 **[Read the Guide](guide/index.md)**
 
 ## Features
 
-- **All 5 encryption types** — DES-CBC-CRC (1), DES-CBC-MD5 (3), RC4-HMAC (23), AES128 (17), AES256 (18)
+- **All 7 encryption types** — DES-CBC-CRC (1), DES-CBC-MD5 (3), RC4-HMAC (23), AES128-SHA1 (17), AES256-SHA1 (18), AES128-SHA2 (19), AES256-SHA2 (20)
 - **4 attack types** — TGS-REP Roast (Kerberoast), AS-REP Roast, AS-REQ Pre-Auth, Timeroasting (MS-SNTP)
-- **19 hash formats** — 15 Kerberos + 2 MS-SNTP + 2 NTLM (NTLMv1 mode 5500, NTLMv2 mode 5600)
+- **25 hash formats** — 21 Kerberos + 2 MS-SNTP + 2 NTLM (NTLMv1 mode 5500, NTLMv2 mode 5600)
 - **LDAP enumeration** — auto-discover roastable accounts with paged search, or spray all domain users
 - **Every auth method** — password, NT hash (`LM:NT`, `:NT`, `NT`), Kerberos ccache (pass-the-ticket), per-etype keys (pass-the-key)
 - **Ccache auto-detection** — `-d` and `-u` are optional when using `-k -c` (domain and username extracted from ccache)

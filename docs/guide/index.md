@@ -4,7 +4,7 @@
 
 When a user or service authenticates in Active Directory, the KDC hands out encrypted tickets. These tickets are encrypted with a key derived from the account's password. Get your hands on one of those encrypted blobs and you can try to crack the encryption offline by guessing passwords until one produces a key that decrypts correctly. That is roasting.
 
-KerbWolf covers 4 attack types and 5 encryption types, producing 19 hash formats compatible with hashcat and John the Ripper. In addition to Kerberos, it extracts NTLM and MS-SNTP (timeroast) hashes from pcap captures.
+KerbWolf covers 4 attack types and 7 encryption types (including RFC 8009 AES-SHA2), producing 25 hash formats compatible with hashcat and John the Ripper. In addition to Kerberos, it extracts NTLM and MS-SNTP (timeroast) hashes from pcap captures.
 
 The Kerberos authentication flow that we are targeting:
 
@@ -70,13 +70,13 @@ Domain controllers respond to authenticated NTP requests from computer, gMSA, an
 
 ## Attack matrix
 
-|  | DES-CBC-CRC (1) | DES-CBC-MD5 (3) | AES128 (17) | AES256 (18) | RC4 (23) |
-|---|---|---|---|---|---|
-| **AS-REQ** | `$krb5pa$1$` | `$krb5pa$3$` | `$krb5pa$17$` (19800) | `$krb5pa$18$` (19900) | `$krb5pa$23$` (7500) |
-| **AS-REP** | `$krb5asrep$1$` | `$krb5asrep$3$` (38600) | `$krb5asrep$17$` (32100) | `$krb5asrep$18$` (32200) | `$krb5asrep$23$` (18200) |
-| **TGS-REP** | `$krb5tgs$1$` | `$krb5tgs$3$` (38500) | `$krb5tgs$17$` (19600) | `$krb5tgs$18$` (19700) | `$krb5tgs$23$` (13100) |
+|  | DES-CBC-CRC (1) | DES-CBC-MD5 (3) | AES128-SHA1 (17) | AES256-SHA1 (18) | AES128-SHA2 (19) | AES256-SHA2 (20) | RC4 (23) |
+|---|---|---|---|---|---|---|---|
+| **AS-REQ** | `$krb5pa$1$` (39300) | `$krb5pa$3$` (39000) | `$krb5pa$17$` (19800) | `$krb5pa$18$` (19900) | `$krb5pa$19$` (39800) | `$krb5pa$20$` (39900) | `$krb5pa$23$` (7500) |
+| **AS-REP** | `$krb5asrep$1$` (39200) | `$krb5asrep$3$` (38600) | `$krb5asrep$17$` (32100) | `$krb5asrep$18$` (32200) | `$krb5asrep$19$` (39600) | `$krb5asrep$20$` (39700) | `$krb5asrep$23$` (18200) |
+| **TGS-REP** | `$krb5tgs$1$` (39100) | `$krb5tgs$3$` (38500) | `$krb5tgs$17$` (19600) | `$krb5tgs$18$` (19700) | `$krb5tgs$19$` (39400) | `$krb5tgs$20$` (39500) | `$krb5tgs$23$` (13100) |
 
-Numbers in parentheses are hashcat mode numbers. 11 RC4/AES/DES-CBC-MD5 modes work in hashcat today. Hashcat 38500/38600 implement etype 3 (MD5 integrity) only; etype 1 (CRC32) has different plaintext offsets and needs separate kernel code. The 4 DES-CBC-CRC message modes and 2 DES AS-REQ modes have no hashcat module.
+Numbers in parentheses are hashcat mode numbers. AES-SHA2 etypes 19/20 (RFC 8009) are supported on Windows Server 2025. KerbWolf implements the Windows-specific string-to-key (PBKDF2 with 4096 iterations + KDF-HMAC-SHA2 second pass).
 
 ### Timeroasting matrix
 

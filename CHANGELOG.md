@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.1] - 2026-10-26
+
+### Added
+
+- RFC 8009 AES-SHA2 encryption types (etype 19: AES128-CTS-HMAC-SHA256-128, etype 20: AES256-CTS-HMAC-SHA384-192) for all three attack types: TGS-REP roast, AS-REP roast, and TGT acquisition.
+- `-e aes128-sha2` and `-e aes256-sha2` etype flags for `kw-roast`, `kw-asrep`, and `kw-tgt`.
+- Windows Server 2025 string-to-key implementation: PBKDF2 with 4096 iterations (not RFC 8009 default 32768) + KDF-HMAC-SHA2 second pass with etype name salt prefix.
+- 6 new hashcat-compatible hash formats: `$krb5tgs$19/$20`, `$krb5asrep$19/$20`, `$krb5pa$19/$20` (hashcat modes 39400/39500/39600/39700/39800/39900).
+- Total hash format count: 21 Kerberos + 2 SNTP + 2 NTLM = 25 formats.
+
+### Fixed
+
+- TGT etype for kerberoast now auto-negotiates independently of the `-e` attack etype. Previously `-e des-cbc-crc` or `-e aes256-sha2` would fail because the TGT also tried that etype.
+- TGT acquisition offers AES256, AES128, and RC4 to the KDC so it picks the strongest it supports, instead of only AES256+RC4.
+
 ## [0.1.0] - 2026-04-03
 
 Initial release.
