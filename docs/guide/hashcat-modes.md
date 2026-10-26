@@ -6,10 +6,10 @@ All 29 hashcat modes for Windows Kerberos encryption types. Mode numbers and has
 
 |  | DES-CBC-CRC (1) | DES-CBC-MD5 (3) | AES128-SHA1 (17) | AES256-SHA1 (18) | AES128-SHA2 (19) | AES256-SHA2 (20) | RC4 (23) |
 |---|---|---|---|---|---|---|---|
-| **TGS-REP** | 39100 | 38500 | 19600 | 19700 | 39400 | 39500 | 13100 |
-| **AS-REP** | 39200 | 38600 | 32100 | 32200 | 39600 | 39700 | 18200 |
-| **Pre-Auth** | 39300 | 39000 | 19800 | 19900 | 39800 | 39900 | 7500 |
-| **DB Key** | 38400 | 38400 | 28800 | 28900 | 39010 | 39020 | -- |
+| **TGS-REP** | 39100 `$krb5tgs$1$` | 38500 `$krb5tgs$3$` | 19600 `$krb5tgs$17$` | 19700 `$krb5tgs$18$` | 39400 `$krb5tgs$19$` | 39500 `$krb5tgs$20$` | 13100 `$krb5tgs$23$` |
+| **AS-REP** | 39200 `$krb5asrep$1$` | 38600 `$krb5asrep$3$` | 32100 `$krb5asrep$17$` | 32200 `$krb5asrep$18$` | 39600 `$krb5asrep$19$` | 39700 `$krb5asrep$20$` | 18200 `$krb5asrep$23$` |
+| **Pre-Auth** | 39300 `$krb5pa$1$` | 39000 `$krb5pa$3$` | 19800 `$krb5pa$17$` | 19900 `$krb5pa$18$` | 39800 `$krb5pa$19$` | 39900 `$krb5pa$20$` | 7500 `$krb5pa$23$` |
+| **DB Key** | 38400 `$krb5db$1$` | 38400 `$krb5db$3$` | 28800 `$krb5db$17$` | 28900 `$krb5db$18$` | 39010 `$krb5db$19$` | 39020 `$krb5db$20$` | -- |
 
 ### NT-Hash Variants (etype 23 only)
 
@@ -67,6 +67,34 @@ $krb5db$<etype>$<user>$<realm>$<key_hex>
 | `edata2` | Required | Required |
 
 The SPN is not in the canonical format. It is operational metadata that does not feed any crypto. KerbWolf emits it in log output alongside the hash.
+
+### Legacy Accepted Formats
+
+hashcat accepts these on input and silently converts to canonical on output.
+
+| Etype | TGS-REP legacy | AS-REP legacy |
+|---|---|---|
+| 23 | `$krb5tgs$23$*user$realm$spn*$checksum$edata2` (Rubeus) | `$krb5asrep$23$user@realm:checksum$edata2` (Impacket) |
+| 23 | `$krb5tgs$23$checksum$edata2` (bare) | `$krb5asrep$user@realm:checksum$edata2` (no etype) |
+| 23 | `$krb5tgs$spn:checksum$edata2` (JtR) | |
+| 17, 18 | `$krb5tgs$E$user$realm$*spn*$checksum$edata2` | `$krb5asrep$E$salt$edata2$checksum` (JtR, fields reordered) |
+| 19, 20 | `$krb5tgs$E$user$realm$*spn*$checksum$edata2` | (none) |
+
+Pre-Auth legacy: `$krb5pa$E$user$realm$$data` (empty salt field) and `$krb5pa$E$user$realm$salt$data` (JtR explicit salt).
+
+DB Key legacy: `$krb5db$E$user$realm$*spn*$key` (with SPN).
+
+## Attack Types
+
+| Attack | Source | Description |
+|---|---|---|
+| **TGS-REP** (Kerberoast) | TGS-REP `enc-part` | Service ticket encrypted with the service account's long-term key |
+| **AS-REP** (AS-REP Roast) | AS-REP `enc-part` | Response to accounts with pre-auth disabled, encrypted with the client's key |
+| **Pre-Auth** (AS-REQ) | `PA-ENC-TIMESTAMP` | Encrypted timestamp from pre-authentication, captured from network traffic |
+| **DB Key** | `supplementalCredentials` / NTDS.dit | Long-term key stored in the KDC database |
+| **NT-Hash variants** | Same ciphertext as RC4 modes | Cracks the NT hash directly instead of the password (etype 23 only) |
+
+Mode 38400 handles etypes 1 and 3 in one module (same DES string-to-key). RC4 DB key is the NT hash itself (mode 1000).
 
 ## Encryption Type Details
 
