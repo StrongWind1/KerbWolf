@@ -45,7 +45,7 @@ flowchart LR
     style SHA2_PATH fill:#1a2a3a,stroke:#6b9bcb
 ```
 
-RC4 has **no salt** and uses a single fast hash (MD4). AES uses a salt and 4096 PBKDF2 iterations. DES uses a salt but has a tiny 56-bit keyspace.
+RC4 has **no salt** and uses a single fast hash (MD4). AES-SHA1 uses a salt and 4096 PBKDF2 iterations. AES-SHA2 adds an etype name prefix to the salt and applies a KDF-HMAC-SHA2 second pass after PBKDF2. DES uses a salt but has a tiny 56-bit keyspace.
 
 ---
 
