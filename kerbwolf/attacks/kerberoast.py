@@ -186,12 +186,20 @@ def kerberoast_no_preauth(
 # ---------------------------------------------------------------------------
 
 
-def _pick_tgt_etypes(cred: KerberosCredential) -> tuple[EncryptionType, ...]:
-    """Pick the strongest etype for TGT authentication based on credentials.
+_TGT_ETYPES_ALL: tuple[EncryptionType, ...] = (
+    EncryptionType.AES256_CTS_HMAC_SHA1_96,
+    EncryptionType.AES128_CTS_HMAC_SHA1_96,
+    EncryptionType.RC4_HMAC,
+)
 
-    The TGT etype is independent of the attack etype (``-e``).  The
-    TGT just needs to authenticate the caller; the ``-e`` etype list
-    goes only into the TGS-REQ body to control what the KDC returns.
+
+def _pick_tgt_etypes(cred: KerberosCredential) -> tuple[EncryptionType, ...]:
+    """Pick TGT etypes that let the DC auto-negotiate the strongest it supports.
+
+    The TGT etype is independent of the attack etype (``-e``).  We
+    offer AES256, AES128, and RC4 so the DC picks whatever it and the
+    caller both support.  When a raw key is supplied, only that etype
+    is offered (the caller already committed to it).
     """
     if cred.aes256_key:
         return (EncryptionType.AES256_CTS_HMAC_SHA1_96,)
@@ -199,9 +207,7 @@ def _pick_tgt_etypes(cred: KerberosCredential) -> tuple[EncryptionType, ...]:
         return (EncryptionType.AES128_CTS_HMAC_SHA1_96,)
     if cred.nthash:
         return (EncryptionType.RC4_HMAC,)
-    if cred.password is not None:
-        return (EncryptionType.AES256_CTS_HMAC_SHA1_96, EncryptionType.RC4_HMAC)
-    return (EncryptionType.RC4_HMAC,)
+    return _TGT_ETYPES_ALL
 
 
 def _target_to_display_name(target: str) -> str:
