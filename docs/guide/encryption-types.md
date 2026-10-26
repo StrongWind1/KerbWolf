@@ -99,6 +99,28 @@ Same derivation for both, just different output length (16 bytes for AES128, 32 
 !!! note "AES is slower to crack, not impossible"
     The 4096 PBKDF2 iterations make AES roughly 600x slower to crack than RC4 per candidate password. But weak passwords are still weak. `Password1!` falls in seconds even with AES.
 
+## AES128-SHA2 and AES256-SHA2 (etypes 19 and 20)
+
+AES128-CTS-HMAC-SHA256-128 (etype 19) and AES256-CTS-HMAC-SHA384-192 (etype 20) are defined in RFC 8009 and first implemented in Windows Server 2025. They replace SHA1 with SHA2 in both key derivation and integrity checks.
+
+Key derivation is a three-step process:
+
+1. **Salt prefix**: prepend the full IANA etype name + `\x00` to the standard salt (e.g., `aes256-cts-hmac-sha384-192\x00CONTOSO.COMAdmin`)
+2. **PBKDF2**: `PBKDF2-HMAC-SHA256` (etype 19) or `PBKDF2-HMAC-SHA384` (etype 20) with 4096 iterations (Windows default; RFC 8009 default is 32768)
+3. **KDF-HMAC-SHA2**: SP 800-108 Counter Mode KDF with label `kerberos` to produce the final key
+
+| Property | AES128-SHA2 (etype 19) | AES256-SHA2 (etype 20) |
+|----------|------------------------|------------------------|
+| **Key size** | 16 bytes (128 bits) | 32 bytes (256 bits) |
+| **Key derivation** | PBKDF2-HMAC-SHA256, 4096 iterations + KDF | PBKDF2-HMAC-SHA384, 4096 iterations + KDF |
+| **Salt** | `aes128-cts-hmac-sha256-128\x00REALM` + `username` | `aes256-cts-hmac-sha384-192\x00REALM` + `username` |
+| **Integrity** | HMAC-SHA256-128 (16 bytes) | HMAC-SHA384-192 (24 bytes) |
+| **Introduced** | Server 2025 |  Same |
+| **RFC** | 8009 | Same |
+
+!!! warning "Windows uses 4096 iterations, not 32768"
+    RFC 8009 specifies a default of 32768 PBKDF2 iterations. Windows Server 2025 uses 4096 instead, matching the AES-SHA1 iteration count. Hashcat modules for etypes 19/20 must use 4096 to crack Windows-generated hashes.
+
 ---
 
 ## Salt computation
@@ -108,7 +130,9 @@ Salt gets concatenated with the password during key derivation. Same password on
 ```mermaid
 flowchart TD
     A{Which etype?} -->|"RC4 (23)"| B["No salt needed<br/>Key = MD4(UTF-16LE(password))"]
-    A -->|"DES (1, 3) or AES (17, 18)"| C{Account type?}
+    A -->|"DES (1, 3) or AES-SHA1 (17, 18)"| C{Account type?}
+    A -->|"AES-SHA2 (19, 20)"| S["Salt = etype_name + \\x00 + REALM + username"]
+    S --> F
 
     C -->|"User account<br/>(e.g., Admin)"| D["Salt = REALM + username<br/>CONTOSO.COMAdmin"]
     C -->|"Machine account<br/>(e.g., DC01$)"| E["Salt = REALM + host + hostname.realm<br/>CONTOSO.COMhostdc01.contoso.com"]
@@ -125,7 +149,8 @@ flowchart TD
 |-------|------|---------|
 | **DES** (1, 3) | `REALM` (uppercase) + `username` (case-preserved) | `CONTOSO.COMAdmin` |
 | **RC4** (23) | **None** — the key is just `MD4(UTF-16LE(password))` | — |
-| **AES** (17, 18) | `REALM` (uppercase) + `username` (case-preserved) | `CONTOSO.COMAdmin` |
+| **AES-SHA1** (17, 18) | `REALM` (uppercase) + `username` (case-preserved) | `CONTOSO.COMAdmin` |
+| **AES-SHA2** (19, 20) | `etype_name` + `\x00` + `REALM` + `username` | `aes256-cts-hmac-sha384-192\x00CONTOSO.COMAdmin` |
 
 For **machine accounts** (sAMAccountName ending with `$`), the salt changes:
 
@@ -164,8 +189,11 @@ block-beta
 | 0 | 0x01 | DES-CBC-CRC |
 | 1 | 0x02 | DES-CBC-MD5 |
 | 2 | 0x04 | RC4-HMAC |
-| 3 | 0x08 | AES128 |
-| 4 | 0x10 | AES256 |
+| 3 | 0x08 | AES128-SHA1 |
+| 4 | 0x10 | AES256-SHA1 |
+| 5 | 0x20 | AES-SK (future) |
+| 6 | 0x40 | AES128-SHA2 |
+| 7 | 0x80 | AES256-SHA2 |
 
 Common values you'll see:
 
@@ -173,9 +201,11 @@ Common values you'll see:
 |-------|---------|
 | **0** (not set) | KDC uses domain default — historically RC4+AES, now AES-only on newer DCs |
 | **0x04** | RC4 only |
-| **0x18** | AES128 + AES256 (the "AES required" checkbox in ADUC) |
-| **0x1C** | RC4 + AES128 + AES256 |
-| **0x1F** | All five encryption types |
+| **0x18** | AES128 + AES256 SHA1 (the "AES required" checkbox in ADUC) |
+| **0x1C** | RC4 + AES128 + AES256 SHA1 |
+| **0x1F** | All five legacy encryption types |
+| **0xF8** | AES128 + AES256 SHA1 + RC4 + AES128-SHA2 + AES256-SHA2 (Server 2025 with SHA2) |
+| **0xFF** | All seven encryption types |
 
 `kw-roast --ldap` queries for accounts with `servicePrincipalName` set. The KDC picks the etype for the ticket based on this bitmask. On Server 2019+, the DC uses the strongest etype the service supports and ignores your RC4 request, so you might pass `-e rc4` and still get an AES256 ticket back.
 
@@ -213,4 +243,4 @@ gantt
 | **Server 2012 R2** | 2013 | RC4, AES | Protected Users group forces AES-only. |
 | **Server 2019** | 2018 | RC4, AES | **Kerberoast mitigation**: DC honors service's strongest etype, not attacker's request. |
 | **Server 2022** | 2021 | RC4, AES | CVE-2022-37966: default session key changed from RC4 to AES. |
-| **Server 2025** | 2024 | AES (RC4 being phased out) | **DES removed entirely.** RC4 phase-out begins (AES-only default planned for 2026). |
+| **Server 2025** | 2024 | AES-SHA1, AES-SHA2 (RC4 being phased out) | **DES removed entirely.** AES-SHA2 (RFC 8009, etypes 19/20) introduced. RC4 phase-out begins. |

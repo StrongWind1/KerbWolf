@@ -46,8 +46,12 @@ connection:
   --timeout TIMEOUT     Network timeout in seconds (default: 10)
 
 output:
-  -e {des-cbc-crc,des-cbc-md5,rc4,aes128,aes256}, --enctype {des-cbc-crc,des-cbc-md5,rc4,aes128,aes256}
-                        Encryption type (auto-detected from key, default: rc4)
+  -e ETYPE, --enctype ETYPE
+                        Encryption type(s), comma-separated or repeatable
+                        (choices: des-cbc-crc, des-cbc-md5, rc4, aes128,
+                        aes256, aes128-sha2, aes256-sha2; default: rc4).
+                        First etype selects pre-auth key type; full list
+                        goes in AS-REQ body.
   -o FILE, --output FILE
                         Output ccache file (default: <user>.ccache)
 ```

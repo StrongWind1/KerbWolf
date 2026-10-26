@@ -64,8 +64,10 @@ connection:
   --timeout TIMEOUT     Network timeout in seconds (default: 10)
 
 output:
-  -e {des-cbc-crc,des-cbc-md5,rc4,aes128,aes256}, --enctype {des-cbc-crc,des-cbc-md5,rc4,aes128,aes256}
-                        Encryption type (default: rc4)
+  -e ETYPE, --enctype ETYPE
+                        Encryption type(s), comma-separated or repeatable
+                        (choices: des-cbc-crc, des-cbc-md5, rc4, aes128,
+                        aes256, aes128-sha2, aes256-sha2; default: rc4)
   -o FILE, --output FILE
                         Write hashes to file
   --format {hashcat,john}

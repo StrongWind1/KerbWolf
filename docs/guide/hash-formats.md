@@ -18,8 +18,12 @@ flowchart TD
     D --> E{Which etype?}
 
     E -->|"RC4 (23)"| F["Split: first 16 bytes = checksum<br/>remaining = edata2"]
-    E -->|"AES (17/18)"| G["Split: last 12 bytes = checksum<br/>remaining = edata2"]
+    E -->|"AES-SHA1 (17/18)"| G["Split: last 12 bytes = checksum<br/>remaining = edata2"]
+    E -->|"AES-SHA2 (19)"| G2["Split: last 16 bytes = checksum<br/>remaining = edata2"]
+    E -->|"AES-SHA2 (20)"| G3["Split: last 24 bytes = checksum<br/>remaining = edata2"]
     E -->|"DES (3)"| H["Split: first 16 bytes = checksum<br/>remaining = edata2"]
+    G2 --> J
+    G3 --> J
 
     F --> I["Format: $krb5tgs$23$*user$realm$spn*$checksum$edata2"]
     G --> J["Format: $krb5tgs$18$user$realm$*spn*$checksum$edata2"]
@@ -130,8 +134,10 @@ block-beta
 | Etype | Cipher layout | Checksum | Edata2 | Hashcat verification |
 |-------|--------------|----------|--------|---------------------|
 | **RC4** (23) | `checksum \|\| edata2` | First 16 bytes (HMAC-MD5) | Remaining bytes | Derive NT hash → decrypt → check HMAC |
-| **AES128** (17) | `edata2 \|\| checksum` | Last 12 bytes (HMAC-SHA1 truncated) | All but last 12 bytes | PBKDF2 → AES key → decrypt → check HMAC |
-| **AES256** (18) | `edata2 \|\| checksum` | Last 12 bytes (HMAC-SHA1 truncated) | All but last 12 bytes | Same as AES128, longer key |
+| **AES128-SHA1** (17) | `edata2 \|\| checksum` | Last 12 bytes (HMAC-SHA1 truncated) | All but last 12 bytes | PBKDF2 → AES key → decrypt → check HMAC |
+| **AES256-SHA1** (18) | `edata2 \|\| checksum` | Last 12 bytes (HMAC-SHA1 truncated) | All but last 12 bytes | Same as AES128-SHA1, longer key |
+| **AES128-SHA2** (19) | `edata2 \|\| checksum` | Last 16 bytes (HMAC-SHA256-128) | All but last 16 bytes | PBKDF2-SHA256 + KDF → AES key → decrypt → check HMAC |
+| **AES256-SHA2** (20) | `edata2 \|\| checksum` | Last 24 bytes (HMAC-SHA384-192) | All but last 24 bytes | PBKDF2-SHA384 + KDF → AES key → decrypt → check HMAC |
 | **DES-CBC-MD5** (3) | `checksum \|\| edata2` | First 16 bytes (first two DES blocks) | Remaining bytes | String-to-key → DES key → decrypt → ASN.1 at byte 24 → MD5 integrity |
 
 !!! tip "The etype determines the format, the attack determines the source"
@@ -154,9 +160,11 @@ block-beta
 | Etype | Mode | Format |
 |-------|------|--------|
 | RC4 (23) | 13100 | `$krb5tgs$23$*user$realm$spn*$checksum$edata2` |
-| AES128 (17) | 19600 | `$krb5tgs$17$user$realm$*spn*$checksum$edata2` |
-| AES256 (18) | 19700 | `$krb5tgs$18$user$realm$*spn*$checksum$edata2` |
-| DES-CBC-CRC (1) | — | `$krb5tgs$1$*user$realm$spn*$checksum$edata2` |
+| AES128-SHA1 (17) | 19600 | `$krb5tgs$17$user$realm$*spn*$checksum$edata2` |
+| AES256-SHA1 (18) | 19700 | `$krb5tgs$18$user$realm$*spn*$checksum$edata2` |
+| AES128-SHA2 (19) | 39400 | `$krb5tgs$19$user$realm$checksum$edata2` |
+| AES256-SHA2 (20) | 39500 | `$krb5tgs$20$user$realm$checksum$edata2` |
+| DES-CBC-CRC (1) | 39100 | `$krb5tgs$1$user$realm$checksum$edata2` |
 | DES-CBC-MD5 (3) | 38500 | `$krb5tgs$3$*user$realm$spn*$checksum$edata2` |
 
 ### AS-REP Roast (`$krb5asrep$`)
@@ -164,9 +172,11 @@ block-beta
 | Etype | Mode | Format |
 |-------|------|--------|
 | RC4 (23) | 18200 | `$krb5asrep$23$user@realm:checksum$edata2` |
-| AES128 (17) | 32100 | `$krb5asrep$17$user$realm$checksum$edata2` |
-| AES256 (18) | 32200 | `$krb5asrep$18$user$realm$checksum$edata2` |
-| DES-CBC-CRC (1) | — | `$krb5asrep$1$user$realm$checksum$edata2` |
+| AES128-SHA1 (17) | 32100 | `$krb5asrep$17$user$realm$checksum$edata2` |
+| AES256-SHA1 (18) | 32200 | `$krb5asrep$18$user$realm$checksum$edata2` |
+| AES128-SHA2 (19) | 39600 | `$krb5asrep$19$user$realm$checksum$edata2` |
+| AES256-SHA2 (20) | 39700 | `$krb5asrep$20$user$realm$checksum$edata2` |
+| DES-CBC-CRC (1) | 39200 | `$krb5asrep$1$user$realm$checksum$edata2` |
 | DES-CBC-MD5 (3) | 38600 | `$krb5asrep$3$user$realm$checksum$edata2` |
 
 ### AS-REQ Pre-Auth (`$krb5pa$`)
@@ -174,10 +184,12 @@ block-beta
 | Etype | Mode | Format |
 |-------|------|--------|
 | RC4 (23) | 7500 | `$krb5pa$23$user$realm$$edata2checksum` |
-| AES128 (17) | 19800 | `$krb5pa$17$user$realm$edata2checksum` |
-| AES256 (18) | 19900 | `$krb5pa$18$user$realm$edata2checksum` |
-| DES-CBC-CRC (1) | — | `$krb5pa$1$user$realm$cipher` |
-| DES-CBC-MD5 (3) | — | `$krb5pa$3$user$realm$cipher` |
+| AES128-SHA1 (17) | 19800 | `$krb5pa$17$user$realm$edata2checksum` |
+| AES256-SHA1 (18) | 19900 | `$krb5pa$18$user$realm$edata2checksum` |
+| AES128-SHA2 (19) | 39800 | `$krb5pa$19$user$realm$data` |
+| AES256-SHA2 (20) | 39900 | `$krb5pa$20$user$realm$data` |
+| DES-CBC-CRC (1) | 39300 | `$krb5pa$1$user$realm$cipher` |
+| DES-CBC-MD5 (3) | 39000 | `$krb5pa$3$user$realm$cipher` |
 
 !!! note "The double-dollar in RC4 AS-REQ"
     The RC4 AS-REQ hash (mode 7500) has an empty salt field between `realm` and the hash data, producing `$$`. The hash data is edata2 (72 hex chars) followed by checksum (32 hex chars) as one concatenated field.
@@ -206,18 +218,24 @@ Use `--format john` to output hashes for John. All 9 RC4/AES modes are verified 
 ```bash
 # Hashcat — TGS-REP Roast
 hashcat -m 13100 hashes.txt wordlist.txt    # RC4
-hashcat -m 19600 hashes.txt wordlist.txt    # AES128
-hashcat -m 19700 hashes.txt wordlist.txt    # AES256
+hashcat -m 19600 hashes.txt wordlist.txt    # AES128-SHA1
+hashcat -m 19700 hashes.txt wordlist.txt    # AES256-SHA1
+hashcat -m 39400 hashes.txt wordlist.txt    # AES128-SHA2
+hashcat -m 39500 hashes.txt wordlist.txt    # AES256-SHA2
 
 # Hashcat — AS-REP Roast
 hashcat -m 18200 hashes.txt wordlist.txt    # RC4
-hashcat -m 32100 hashes.txt wordlist.txt    # AES128
-hashcat -m 32200 hashes.txt wordlist.txt    # AES256
+hashcat -m 32100 hashes.txt wordlist.txt    # AES128-SHA1
+hashcat -m 32200 hashes.txt wordlist.txt    # AES256-SHA1
+hashcat -m 39600 hashes.txt wordlist.txt    # AES128-SHA2
+hashcat -m 39700 hashes.txt wordlist.txt    # AES256-SHA2
 
 # Hashcat — AS-REQ Pre-Auth
 hashcat -m 7500  hashes.txt wordlist.txt    # RC4
-hashcat -m 19800 hashes.txt wordlist.txt    # AES128
-hashcat -m 19900 hashes.txt wordlist.txt    # AES256
+hashcat -m 19800 hashes.txt wordlist.txt    # AES128-SHA1
+hashcat -m 19900 hashes.txt wordlist.txt    # AES256-SHA1
+hashcat -m 39800 hashes.txt wordlist.txt    # AES128-SHA2
+hashcat -m 39900 hashes.txt wordlist.txt    # AES256-SHA2
 
 # John the Ripper
 john --format=krb5tgs hashes.txt --wordlist=wordlist.txt           # TGS RC4
