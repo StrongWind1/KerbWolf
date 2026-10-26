@@ -75,7 +75,7 @@ def add_output_args(parser: argparse.ArgumentParser, *, enctype: bool = True) ->
     """Add output flags."""
     grp = parser.add_argument_group("output")
     if enctype:
-        grp.add_argument("-e", "--enctype", action="append", metavar="ETYPE", default=None, help="Encryption type(s) in preference order, repeatable or comma-separated (choices: %(choices)s; default: rc4)")
+        grp.add_argument("-e", "--enctype", action="append", metavar="ETYPE", default=None, help=f"Encryption type(s) in preference order, repeatable or comma-separated (choices: {', '.join(_ETYPE_CHOICES)}; default: rc4)")
     grp.add_argument("-o", "--output", metavar="FILE", help="Write hashes to file")
     grp.add_argument("--format", choices=["hashcat", "john"], default="hashcat", dest="hash_format", help="Hash output format (default: hashcat)")
 
