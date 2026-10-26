@@ -68,7 +68,7 @@ def kerberoast(
     if tgt is not None and tgt_session_key is not None and tgt_cipher_cls is not None:
         raw_tgt, session_key, cipher_cls = tgt, tgt_session_key, tgt_cipher_cls
     elif cred is not None:
-        tgt_etypes = _pick_tgt_etypes(cred, requested=etypes)
+        tgt_etypes = _pick_tgt_etypes(cred)
         raw_tgt, _client_key, session_key = request_tgt(cred, dc_ip=dc_ip, etypes=tgt_etypes, transport=transport, timeout=timeout)
         cipher_cls = ENCTYPE_TABLE[session_key.enctype]
     else:
@@ -186,30 +186,12 @@ def kerberoast_no_preauth(
 # ---------------------------------------------------------------------------
 
 
-_SHA2_ETYPES: frozenset[EncryptionType] = frozenset(
-    {
-        EncryptionType.AES128_CTS_HMAC_SHA256_128,
-        EncryptionType.AES256_CTS_HMAC_SHA384_192,
-    }
-)
+def _pick_tgt_etypes(cred: KerberosCredential) -> tuple[EncryptionType, ...]:
+    """Pick the strongest etype for TGT authentication based on credentials.
 
-_SHA1_FALLBACKS: tuple[EncryptionType, ...] = (
-    EncryptionType.AES256_CTS_HMAC_SHA1_96,
-    EncryptionType.AES128_CTS_HMAC_SHA1_96,
-    EncryptionType.RC4_HMAC,
-)
-
-
-def _pick_tgt_etypes(cred: KerberosCredential, requested: tuple[EncryptionType, ...] = ()) -> tuple[EncryptionType, ...]:
-    """Pick TGT etypes based on credentials and the user's requested etypes.
-
-    The first etype in the list selects the pre-auth key type.  SHA2
-    etypes (19/20) cannot be first because impacket lacks SHA2 cipher
-    implementations for PA-ENC-TIMESTAMP encryption.  SHA1 fallbacks
-    are always included because krbtgt typically lacks SHA2 keys.
-
-    SHA2 etypes from *requested* are placed after the SHA1 pre-auth
-    etype so they appear in the AS-REQ body for session key negotiation.
+    The TGT etype is independent of the attack etype (``-e``).  The
+    TGT just needs to authenticate the caller; the ``-e`` etype list
+    goes only into the TGS-REQ body to control what the KDC returns.
     """
     if cred.aes256_key:
         return (EncryptionType.AES256_CTS_HMAC_SHA1_96,)
@@ -217,24 +199,9 @@ def _pick_tgt_etypes(cred: KerberosCredential, requested: tuple[EncryptionType, 
         return (EncryptionType.AES128_CTS_HMAC_SHA1_96,)
     if cred.nthash:
         return (EncryptionType.RC4_HMAC,)
-    if cred.password is None:
-        return (EncryptionType.RC4_HMAC,)
-
-    if not requested:
+    if cred.password is not None:
         return (EncryptionType.AES256_CTS_HMAC_SHA1_96, EncryptionType.RC4_HMAC)
-
-    seen: set[EncryptionType] = set()
-    result: list[EncryptionType] = []
-
-    sha1_from_request = [et for et in requested if et not in _SHA2_ETYPES]
-    sha2_from_request = [et for et in requested if et in _SHA2_ETYPES]
-
-    for et in (*sha1_from_request, *_SHA1_FALLBACKS, *sha2_from_request):
-        if et not in seen:
-            seen.add(et)
-            result.append(et)
-
-    return tuple(result)
+    return (EncryptionType.RC4_HMAC,)
 
 
 def _target_to_display_name(target: str) -> str:
