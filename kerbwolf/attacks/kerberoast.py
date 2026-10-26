@@ -186,6 +186,13 @@ def kerberoast_no_preauth(
 # ---------------------------------------------------------------------------
 
 
+_SHA2_ETYPES: frozenset[EncryptionType] = frozenset(
+    {
+        EncryptionType.AES128_CTS_HMAC_SHA256_128,
+        EncryptionType.AES256_CTS_HMAC_SHA384_192,
+    }
+)
+
 _SHA1_FALLBACKS: tuple[EncryptionType, ...] = (
     EncryptionType.AES256_CTS_HMAC_SHA1_96,
     EncryptionType.AES128_CTS_HMAC_SHA1_96,
@@ -196,12 +203,13 @@ _SHA1_FALLBACKS: tuple[EncryptionType, ...] = (
 def _pick_tgt_etypes(cred: KerberosCredential, requested: tuple[EncryptionType, ...] = ()) -> tuple[EncryptionType, ...]:
     """Pick TGT etypes based on credentials and the user's requested etypes.
 
-    The TGT etype list is sent in the AS-REQ body.  It determines which
-    etype the KDC uses for pre-authentication and the TGT ticket.
+    The first etype in the list selects the pre-auth key type.  SHA2
+    etypes (19/20) cannot be first because impacket lacks SHA2 cipher
+    implementations for PA-ENC-TIMESTAMP encryption.  SHA1 fallbacks
+    are always included because krbtgt typically lacks SHA2 keys.
 
-    When the caller requests SHA2 etypes, those are included first (for
-    pre-auth key derivation) with SHA1 fallbacks appended (since krbtgt
-    may lack SHA2 keys, the KDC needs a fallback for the TGT ticket).
+    SHA2 etypes from *requested* are placed after the SHA1 pre-auth
+    etype so they appear in the AS-REQ body for session key negotiation.
     """
     if cred.aes256_key:
         return (EncryptionType.AES256_CTS_HMAC_SHA1_96,)
@@ -212,16 +220,21 @@ def _pick_tgt_etypes(cred: KerberosCredential, requested: tuple[EncryptionType, 
     if cred.password is None:
         return (EncryptionType.RC4_HMAC,)
 
-    if requested:
-        seen: set[EncryptionType] = set()
-        result: list[EncryptionType] = []
-        for et in (*requested, *_SHA1_FALLBACKS):
-            if et not in seen:
-                seen.add(et)
-                result.append(et)
-        return tuple(result)
+    if not requested:
+        return (EncryptionType.AES256_CTS_HMAC_SHA1_96, EncryptionType.RC4_HMAC)
 
-    return (EncryptionType.AES256_CTS_HMAC_SHA1_96, EncryptionType.RC4_HMAC)
+    seen: set[EncryptionType] = set()
+    result: list[EncryptionType] = []
+
+    sha1_from_request = [et for et in requested if et not in _SHA2_ETYPES]
+    sha2_from_request = [et for et in requested if et in _SHA2_ETYPES]
+
+    for et in (*sha1_from_request, *_SHA1_FALLBACKS, *sha2_from_request):
+        if et not in seen:
+            seen.add(et)
+            result.append(et)
+
+    return tuple(result)
 
 
 def _target_to_display_name(target: str) -> str:
