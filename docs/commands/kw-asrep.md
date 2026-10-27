@@ -12,7 +12,7 @@ usage: kw-asrep [-h] [--version] [-v] [-t USER] [-T FILE] [--ldap]
                 [--ldap-all] [--ldap-ssl] [-u USER] [-p PASS] [-H HASH] [-k]
                 [-c FILE] [-d DOMAIN] [--dc-ip IP] [--dc-hostname HOST]
                 [--transport {tcp,udp}] [--timeout TIMEOUT]
-                [-e {des-cbc-crc,des-cbc-md5,rc4,aes128,aes256}] [-o FILE]
+                [-e ETYPE] [-o FILE]
                 [--format {hashcat,john}]
 
 AS-REP Roast — extract hashes from accounts without Kerberos

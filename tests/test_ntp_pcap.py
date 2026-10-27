@@ -197,14 +197,14 @@ class TestHashFormatFromPcap:
 
         assert h.startswith("$sntp-ms$")
         parts = h.split("$")
-        assert parts[2] == "1103"  # RID
-        assert len(parts[3]) == 32  # MD5 digest
-        assert len(parts[4]) == 96  # salt
-        assert parts[3] == "a9eacddef103c3a366fc28acb2519c1e"
-        assert parts[4] == salt.hex()
+        assert len(parts) == 4  # ['', 'sntp-ms', digest, salt]
+        assert len(parts[2]) == 32  # MD5 digest
+        assert len(parts[3]) == 96  # salt
+        assert parts[2] == "a9eacddef103c3a366fc28acb2519c1e"
+        assert parts[3] == salt.hex()
 
-    def test_format_with_rid_in_hash(self):
+    def test_rid_not_in_hash(self):
         salt = PCAP_RESP_2[:48]
         md5_mac = PCAP_RESP_2[56:72]
         h = format_sntp_hash(md5_mac, salt, 1103)
-        assert "$sntp-ms$1103$" in h
+        assert "1103" not in h

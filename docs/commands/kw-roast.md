@@ -13,7 +13,7 @@ usage: kw-roast [-h] [--version] [-v] [--no-preauth USER] [-u USER] [-p PASS]
                 [--dc-hostname HOST] [--transport {tcp,udp}]
                 [--timeout TIMEOUT] [-t SPN/USER] [-T FILE] [--ldap]
                 [--ldap-all] [--ldap-ssl]
-                [-e {des-cbc-crc,des-cbc-md5,rc4,aes128,aes256}] [-o FILE]
+                [-e ETYPE] [-o FILE]
                 [--format {hashcat,john}]
 
 TGS-REP Roast (Kerberoast) — request service tickets and extract hashes.

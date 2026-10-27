@@ -175,10 +175,10 @@ Only files with at least one hash are created.
 **68-byte MD5** (hashcat mode 31300):
 
 ```
-$sntp-ms$<RID>$<32hex_digest>$<96hex_salt>
+$sntp-ms$<32hex_digest>$<96hex_salt>
 ```
 
-Hashcat expects `$sntp-ms$<digest>$<salt>` (no RID). KerbWolf includes the RID for account mapping; strip it before feeding to hashcat.
+The RID is not part of the hash string. It is preserved in the output line prefix (e.g., `1103:$sntp-ms$...`) for account mapping.
 
 **120-byte KDF+HMAC-SHA512** (no hashcat module yet):
 

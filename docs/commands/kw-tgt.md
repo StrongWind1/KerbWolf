@@ -13,7 +13,7 @@ usage: kw-tgt [-h] [--version] [-v] -d DOMAIN -u USER
                --aes128-key HEX | --des-md5-key HEX | --des-crc-key HEX)
               [--dc-ip IP] [--dc-hostname HOST] [--transport {tcp,udp}]
               [--timeout TIMEOUT]
-              [-e {des-cbc-crc,des-cbc-md5,rc4,aes128,aes256}] [-o FILE]
+              [-e ETYPE] [-o FILE]
 
 Request a Kerberos TGT using password, hash, or key (pass-the-key).
 

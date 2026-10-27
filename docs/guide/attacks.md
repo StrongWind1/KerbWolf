@@ -253,10 +253,10 @@ Tested against Windows Server 2022 (Build 20348) and Server 2025 (Build 26100). 
 **68-byte MD5** (hashcat 31300):
 
 ```
-$sntp-ms$<RID>$<32hex_MD5_digest>$<96hex_salt>
+$sntp-ms$<32hex_MD5_digest>$<96hex_salt>
 ```
 
-The RID is metadata -- not used in the MD5 computation but preserved so cracked passwords can be mapped back to accounts. Hashcat mode 31300 expects `$sntp-ms$<digest>$<salt>` (no RID); strip the RID field before feeding to hashcat.
+The RID is not part of the hash string. It is preserved in the output line prefix for account mapping.
 
 **120-byte KDF+HMAC-SHA512** (no hashcat module):
 

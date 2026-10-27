@@ -18,29 +18,28 @@ class TestFormatSntpHash:
     def test_format_structure(self):
         h = format_sntp_hash(b"\xaa" * 16, b"\xbb" * 48, 1000)
         assert h.startswith("$sntp-ms$")
-        assert h.count("$") == 4
+        assert h.count("$") == 3
 
-    def test_rid_field(self):
+    def test_rid_not_in_hash(self):
         h = format_sntp_hash(b"\xaa" * 16, b"\xbb" * 48, 1234)
-        parts = h.split("$")
-        assert parts[2] == "1234"
+        assert "1234" not in h
 
     def test_digest_32_hex(self):
         parts = format_sntp_hash(b"\xcc" * 16, b"\xdd" * 48, 1000).split("$")
-        assert len(parts[3]) == 32
+        assert len(parts[2]) == 32
 
     def test_salt_96_hex(self):
         parts = format_sntp_hash(b"\xee" * 16, b"\xff" * 48, 1000).split("$")
-        assert len(parts[4]) == 96
+        assert len(parts[3]) == 96
 
     def test_regex(self):
         h = format_sntp_hash(b"\x12\x34" * 8, b"\x56\x78" * 24, 500)
-        assert re.match(r"^\$sntp-ms\$\d+\$[a-f0-9]{32}\$[a-f0-9]{96}$", h)
+        assert re.match(r"^\$sntp-ms\$[a-f0-9]{32}\$[a-f0-9]{96}$", h)
 
     def test_known_values(self):
         md5 = bytes.fromhex("cfc7023381cf6bb474cdcbeb0a67bdb3")
         salt = bytes.fromhex("907733697536811342962140955567108526489624716566696971338784438986103976327367763739445744705380")
-        assert format_sntp_hash(md5, salt, 1103) == "$sntp-ms$1103$cfc7023381cf6bb474cdcbeb0a67bdb3$907733697536811342962140955567108526489624716566696971338784438986103976327367763739445744705380"
+        assert format_sntp_hash(md5, salt, 1103) == "$sntp-ms$cfc7023381cf6bb474cdcbeb0a67bdb3$907733697536811342962140955567108526489624716566696971338784438986103976327367763739445744705380"
 
 
 # ---------------------------------------------------------------------------

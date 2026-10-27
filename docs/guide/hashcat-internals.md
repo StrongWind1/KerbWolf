@@ -9,18 +9,30 @@ Some modes accept multiple input formats. Format 1 is the canonical hashcat form
 | Mode | Attack | Etype | Canonical format | Alt formats | User/realm required? |
 |------|--------|-------|-----------------|-------------|---------------------|
 | [13100](#mode-13100-rc4) | TGS-REP Roast (Kerberoast) | RC4 | `$krb5tgs$23$user$realm$chk$edata2` | [2](#mode-13100-rc4-format-2-no-account-info), [3](#mode-13100-rc4-format-3-colon-delimited-spn) | no |
-| [19600](#mode-19600-aes128) | TGS-REP Roast (Kerberoast) | AES128 | `$krb5tgs$17$user$realm$chk$edata2` | (+optional SPN) | **yes** |
-| [19700](#mode-19700-aes256) | TGS-REP Roast (Kerberoast) | AES256 | `$krb5tgs$18$user$realm$chk$edata2` | (+optional SPN) | **yes** |
+| [19600](#mode-19600-aes128) | TGS-REP Roast (Kerberoast) | AES128-SHA1 | `$krb5tgs$17$user$realm$chk$edata2` | (+optional SPN) | **yes** |
+| [19700](#mode-19700-aes256) | TGS-REP Roast (Kerberoast) | AES256-SHA1 | `$krb5tgs$18$user$realm$chk$edata2` | (+optional SPN) | **yes** |
+| [39400](#mode-39400-aes128-sha2) | TGS-REP Roast (Kerberoast) | AES128-SHA2 | `$krb5tgs$19$user$realm$chk$edata2` | | **yes** |
+| [39500](#mode-39500-aes256-sha2) | TGS-REP Roast (Kerberoast) | AES256-SHA2 | `$krb5tgs$20$user$realm$chk$edata2` | | **yes** |
 | [38500](#mode-38500-des) | TGS-REP Roast (Kerberoast) | DES-CBC-MD5 | `$krb5tgs$3$user$realm$chk$edata2` | | **yes** |
+| [39100](#mode-39100-des-crc) | TGS-REP Roast (Kerberoast) | DES-CBC-CRC | `$krb5tgs$1$user$realm$chk$edata2` | | **yes** |
 | [18200](#mode-18200-rc4) | AS-REP Roast | RC4 | `$krb5asrep$23$user$realm$chk$edata2` | [2](#mode-18200-rc4-format-2-no-etype) | no |
-| [32100](#mode-32100-aes128) | AS-REP Roast | AES128 | `$krb5asrep$17$user$realm$chk$edata2` | [2](#mode-32100-aes128-format-2-checksum-after-edata2) | **yes** |
-| [32200](#mode-32200-aes256) | AS-REP Roast | AES256 | `$krb5asrep$18$user$realm$chk$edata2` | [2](#mode-32200-aes256-format-2-checksum-after-edata2) | **yes** |
+| [32100](#mode-32100-aes128) | AS-REP Roast | AES128-SHA1 | `$krb5asrep$17$user$realm$chk$edata2` | [2](#mode-32100-aes128-format-2-checksum-after-edata2) | **yes** |
+| [32200](#mode-32200-aes256) | AS-REP Roast | AES256-SHA1 | `$krb5asrep$18$user$realm$chk$edata2` | [2](#mode-32200-aes256-format-2-checksum-after-edata2) | **yes** |
+| [39600](#mode-39600-asrep-sha2) | AS-REP Roast | AES128-SHA2 | `$krb5asrep$19$user$realm$chk$edata2` | | **yes** |
+| [39700](#mode-39700-asrep-sha2) | AS-REP Roast | AES256-SHA2 | `$krb5asrep$20$user$realm$chk$edata2` | | **yes** |
 | [38600](#mode-38600-des) | AS-REP Roast | DES-CBC-MD5 | `$krb5asrep$3$user$realm$chk$edata2` | (+joined `user@realm:`) | **yes** |
+| [39200](#mode-39200-asrep-des-crc) | AS-REP Roast | DES-CBC-CRC | `$krb5asrep$1$user$realm$chk$edata2` | | **yes** |
 | [7500](#mode-7500-rc4) | AS-REQ Pre-Auth | RC4 | `$krb5pa$23$user$realm$data` | | no |
-| [19800](#mode-19800-aes128) | AS-REQ Pre-Auth | AES128 | `$krb5pa$17$user$realm$data` | | **yes** |
-| [19900](#mode-19900-aes256) | AS-REQ Pre-Auth | AES256 | `$krb5pa$18$user$realm$data` | | **yes** |
-| [28800](#mode-28800-aes128-db) | DB Key | AES128 | `$krb5db$17$user$realm$key` | (+optional SPN) | **yes** |
-| [28900](#mode-28900-aes256-db) | DB Key | AES256 | `$krb5db$18$user$realm$key` | (+optional SPN) | **yes** |
+| [19800](#mode-19800-aes128) | AS-REQ Pre-Auth | AES128-SHA1 | `$krb5pa$17$user$realm$data` | | **yes** |
+| [19900](#mode-19900-aes256) | AS-REQ Pre-Auth | AES256-SHA1 | `$krb5pa$18$user$realm$data` | | **yes** |
+| [39800](#mode-39800-pa-sha2) | AS-REQ Pre-Auth | AES128-SHA2 | `$krb5pa$19$user$realm$data` | | **yes** |
+| [39900](#mode-39900-pa-sha2) | AS-REQ Pre-Auth | AES256-SHA2 | `$krb5pa$20$user$realm$data` | | **yes** |
+| [39000](#mode-39000-pa-des) | AS-REQ Pre-Auth | DES-CBC-MD5 | `$krb5pa$3$user$realm$data` | | **yes** |
+| [39300](#mode-39300-pa-des-crc) | AS-REQ Pre-Auth | DES-CBC-CRC | `$krb5pa$1$user$realm$data` | | **yes** |
+| [28800](#mode-28800-aes128-db) | DB Key | AES128-SHA1 | `$krb5db$17$user$realm$key` | (+optional SPN) | **yes** |
+| [28900](#mode-28900-aes256-db) | DB Key | AES256-SHA1 | `$krb5db$18$user$realm$key` | (+optional SPN) | **yes** |
+| [39010](#mode-39010-db-sha2) | DB Key | AES128-SHA2 | `$krb5db$19$user$realm$key` | | **yes** |
+| [39020](#mode-39020-db-sha2) | DB Key | AES256-SHA2 | `$krb5db$20$user$realm$key` | | **yes** |
 | [38400](#mode-38400-des-db) | DB Key | DES 1/2/3 | `$krb5db$<1\|2\|3>$user$realm$key` | (+optional SPN) | **yes** |
 | [35300](#mode-35300-rc4-nt) | TGS-REP (NT hash) | RC4 | same as 13100 | same as 13100 | no |
 | [35400](#mode-35400-rc4-nt) | AS-REP (NT hash) | RC4 | same as 18200 | same as 18200 | no |
@@ -133,6 +145,26 @@ $krb5tgs$18$user$realm$checksum$edata2
 
 Same parser as 19600. Accepts the optional `*spn*$` field. Only the signature (`18` vs `17`) and key length (32 bytes vs 16) differ.
 
+### Mode 39400: AES128-SHA2 TGS-REP {: #mode-39400-aes128-sha2 }
+
+**Module:** `module_39400.c`
+
+```
+$krb5tgs$19$user$realm$checksum$edata2
+```
+
+Same field layout as 19600/19700. User and realm feed PBKDF2-HMAC-SHA256 (4096 iterations) with the etype name prefix salt (`aes128-cts-hmac-sha256-128\x00REALM + user`), followed by a KDF-HMAC-SHA2 second pass. Checksum is 32 hex (16 bytes, HMAC-SHA256-128).
+
+### Mode 39500: AES256-SHA2 TGS-REP {: #mode-39500-aes256-sha2 }
+
+**Module:** `module_39500.c`
+
+```
+$krb5tgs$20$user$realm$checksum$edata2
+```
+
+Same as 39400 but with PBKDF2-HMAC-SHA384 and a 48-hex checksum (24 bytes, HMAC-SHA384-192). Key output is 32 bytes.
+
 ---
 
 ## AS-REP Roast
@@ -241,6 +273,36 @@ $krb5asrep$18$salt$edata2$checksum
 
 Same as 32100 format 2. Converted to format 1 on output.
 
+### Mode 39600: AES128-SHA2 AS-REP {: #mode-39600-asrep-sha2 }
+
+**Module:** `module_39600.c`
+
+```
+$krb5asrep$19$user$realm$checksum$edata2
+```
+
+Same field layout as 32100/32200 but with SHA2 key derivation (PBKDF2-HMAC-SHA256 + KDF, etype name prefix salt). Checksum is 32 hex (16 bytes).
+
+### Mode 39700: AES256-SHA2 AS-REP {: #mode-39700-asrep-sha2 }
+
+**Module:** `module_39700.c`
+
+```
+$krb5asrep$20$user$realm$checksum$edata2
+```
+
+Same as 39600 but with PBKDF2-HMAC-SHA384 and a 48-hex checksum (24 bytes). Key output is 32 bytes.
+
+### Mode 39200: DES-CBC-CRC AS-REP {: #mode-39200-asrep-des-crc }
+
+**Module:** `module_39200.c`
+
+```
+$krb5asrep$1$user$realm$checksum$edata2
+```
+
+Same as mode 38600 (DES-CBC-MD5 AS-REP) but for etype 1 (DES-CBC-CRC). Signature is `$krb5asrep$1$`.
+
 ---
 
 ## AS-REQ Pre-Auth
@@ -303,6 +365,46 @@ $krb5pa$18$user$realm$data
 
 Same parser as 19800. Signature is `$krb5pa$18$`, key output is 32 bytes instead of 16.
 
+### Mode 39800: AES128-SHA2 Pre-Auth {: #mode-39800-pa-sha2 }
+
+**Module:** `module_39800.c`
+
+```
+$krb5pa$19$user$realm$data
+```
+
+Same field layout as 19800/19900. Key derivation uses PBKDF2-HMAC-SHA256 (4096 iterations) with the etype name prefix salt, followed by KDF-HMAC-SHA2. The `data` field contains the encrypted timestamp followed by a 32-hex HMAC-SHA256-128 checksum.
+
+### Mode 39900: AES256-SHA2 Pre-Auth {: #mode-39900-pa-sha2 }
+
+**Module:** `module_39900.c`
+
+```
+$krb5pa$20$user$realm$data
+```
+
+Same as 39800 but with PBKDF2-HMAC-SHA384 and a 48-hex HMAC-SHA384-192 checksum. Key output is 32 bytes.
+
+### Mode 39000: DES-CBC-MD5 Pre-Auth {: #mode-39000-pa-des }
+
+**Module:** `module_39000.c`
+
+```
+$krb5pa$3$user$realm$data
+```
+
+DES string-to-key from `REALM + user`, then DES-CBC decrypt the encrypted timestamp. Signature is `$krb5pa$3$`.
+
+### Mode 39300: DES-CBC-CRC Pre-Auth {: #mode-39300-pa-des-crc }
+
+**Module:** `module_39300.c`
+
+```
+$krb5pa$1$user$realm$data
+```
+
+Same as 39000 but for etype 1 (DES-CBC-CRC). Signature is `$krb5pa$1$`.
+
 ---
 
 ## Timeroasting (MS-SNTP)
@@ -323,8 +425,7 @@ $sntp-ms$<32hex_digest>$<96hex_salt>
 
 The hash is computed as `MD5(NTOWFv1 || salt)` where NTOWFv1 is the NT hash (MD4 of the UTF-16LE password) and salt is the 48-byte NTP server response header.
 
-!!! note "RID is not in the hash"
-    The RID identifies the computer or trust account but is not part of the hashcat format and is not used in the MD5 computation. KerbWolf includes the RID in its output as a prefix (`$sntp-ms$<RID>$<digest>$<salt>`) for account mapping; strip the RID field before feeding hashes to hashcat.
+The RID identifies the computer or trust account but is not part of the hash string and is not used in the MD5 computation. KerbWolf preserves it in the output line prefix (e.g., `1103:$sntp-ms$...`) for account mapping.
 
 ### Proposed: MS-SNTP SHA512 (120-byte ExtendedAuthenticator)
 
@@ -372,6 +473,16 @@ Unlike RC4 mode 13100 where user/realm are pure metadata, DES requires them. The
 
 Verification: decrypt block 3 (bytes 16-23) with zero IV, check for ASN.1 tag `0x63` (EncTicketPart). On match, decrypt full ciphertext, zero the embedded MD5 at plaintext bytes 8-24, recompute MD5, compare.
 
+### Mode 39100: DES-CBC-CRC TGS-REP {: #mode-39100-des-crc }
+
+**Module:** `module_39100.c`
+
+```
+$krb5tgs$1$user$realm$checksum$edata2
+```
+
+Same as 38500 but for etype 1 (DES-CBC-CRC). Integrity check uses CRC32 instead of MD5. Signature is `$krb5tgs$1$`.
+
 ### Mode 38600: DES AS-REP {: #mode-38600-des }
 
 **Module:** `module_38600.c`
@@ -416,6 +527,26 @@ No ciphertext — derives the AES-128 key from the candidate password via PBKDF2
 **Module:** `module_28900.c`
 
 Same as 28800 with `$krb5db$18$` signature and 64 hex (32 bytes) for the stored key.
+
+### Mode 39010: AES128-SHA2 DB Key {: #mode-39010-db-sha2 }
+
+**Module:** `module_39010.c`
+
+```
+$krb5db$19$user$realm$key
+```
+
+Same field layout as 28800 but with SHA2 key derivation (PBKDF2-HMAC-SHA256 + KDF, etype name prefix salt). Key field is 32 hex (16 bytes).
+
+### Mode 39020: AES256-SHA2 DB Key {: #mode-39020-db-sha2 }
+
+**Module:** `module_39020.c`
+
+```
+$krb5db$20$user$realm$key
+```
+
+Same as 39010 but with PBKDF2-HMAC-SHA384 and 64-hex key output (32 bytes).
 
 ### Mode 38400: DES DB Key {: #mode-38400-des-db }
 

@@ -119,7 +119,7 @@ Key derivation is a three-step process:
 | **RFC** | 8009 | Same |
 
 !!! warning "Windows uses 4096 iterations, not 32768"
-    RFC 8009 specifies a default of 32768 PBKDF2 iterations. Windows Server 2025 uses 4096 instead, matching the AES-SHA1 iteration count. Hashcat modules for etypes 19/20 must use 4096 to crack Windows-generated hashes.
+    RFC 8009 specifies a default of 32768 PBKDF2 iterations. Windows Server 2025 uses 4096 instead, matching the AES-SHA1 iteration count. Hashcat TGS-REP and AS-REP modules for etypes 19/20 (modes 39400-39700) use 4096 to match Windows. The Pre-Auth modules (39800/39900) currently use 32768 (RFC default) and need patching to crack Windows-generated hashes.
 
 ---
 
@@ -204,8 +204,8 @@ Common values you'll see:
 | **0x18** | AES128 + AES256 SHA1 (the "AES required" checkbox in ADUC) |
 | **0x1C** | RC4 + AES128 + AES256 SHA1 |
 | **0x1F** | All five legacy encryption types |
-| **0xF8** | AES128 + AES256 SHA1 + AES128-SHA2 + AES256-SHA2 (Server 2025, AES-only with SHA2) |
-| **0xFF** | All seven encryption types |
+| **0xF8** | AES128 + AES256 SHA1 + AES-SK + AES128-SHA2 + AES256-SHA2 (Server 2025, AES-only with SHA2; bit 5 has no effect) |
+| **0xFF** | All eight bits set (seven encryption types + unused bit 5) |
 
 `kw-roast --ldap` queries for accounts with `servicePrincipalName` set. The KDC picks the etype for the ticket based on this bitmask. On Server 2019+, the DC uses the strongest etype the service supports and ignores your RC4 request, so you might pass `-e rc4` and still get an AES256 ticket back.
 

@@ -65,7 +65,7 @@ class TestExtractOutputResults:
         from kerbwolf.log import Logger
 
         results = [
-            RoastResult(username="1000", realm="", spn="", etype=0, hash_string="$sntp-ms$1000$aa$bb", hashcat_mode=31300),
+            RoastResult(username="1000", realm="", spn="", etype=0, hash_string="$sntp-ms$aa$bb", hashcat_mode=31300),
             RoastResult(username="2000", realm="", spn="", etype=0, hash_string="$sntp-ms-sha512$2000$cc$dd", hashcat_mode=0),
         ]
         _output_results(results, None, Logger())

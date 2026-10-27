@@ -101,7 +101,7 @@ class TestCapturedToResult:
             rid=1000,
         )
         result = _captured_to_result(h, HashFormat.HASHCAT)
-        assert result.hash_string.startswith("$sntp-ms$1000$")
+        assert result.hash_string.startswith("$sntp-ms$")
         assert result.hashcat_mode == 31300
 
     def test_sntp_sha512(self):

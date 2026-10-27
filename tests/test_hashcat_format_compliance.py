@@ -312,7 +312,7 @@ class TestMode19900Format:
 
 # ---------------------------------------------------------------------------
 # Mode 31300: MS-SNTP Timeroasting
-# Hashcat format: $sntp-ms$<RID>$<32hex_digest>$<96hex_salt>
+# Hashcat format: $sntp-ms$<32hex_digest>$<96hex_salt>
 # ---------------------------------------------------------------------------
 
 
@@ -327,33 +327,33 @@ class TestMode31300Format:
         h = format_sntp_hash(self.MD5, self.SALT, self.RID)
         assert h.startswith("$sntp-ms$")
         parts = h.split("$")
-        assert len(parts) == 5  # ['', 'sntp-ms', rid, digest, salt]
+        assert len(parts) == 4  # ['', 'sntp-ms', digest, salt]
 
-    def test_rid_field(self):
+    def test_rid_not_in_hash(self):
         from kerbwolf.hashcat import format_sntp_hash
 
         h = format_sntp_hash(self.MD5, self.SALT, 1234)
-        assert h.split("$")[2] == "1234"
+        assert "1234" not in h
 
     def test_digest_32_hex(self):
         from kerbwolf.hashcat import format_sntp_hash
 
         h = format_sntp_hash(self.MD5, self.SALT, self.RID)
-        digest = h.split("$")[3]
+        digest = h.split("$")[2]
         assert len(digest) == 32
 
     def test_salt_96_hex(self):
         from kerbwolf.hashcat import format_sntp_hash
 
         h = format_sntp_hash(self.MD5, self.SALT, self.RID)
-        salt = h.split("$")[4]
+        salt = h.split("$")[3]
         assert len(salt) == 96
 
     def test_full_regex(self):
         from kerbwolf.hashcat import format_sntp_hash
 
         h = format_sntp_hash(self.MD5, self.SALT, self.RID)
-        pattern = r"^\$sntp-ms\$\d+\$[a-f0-9]{32}\$[a-f0-9]{96}$"
+        pattern = r"^\$sntp-ms\$[a-f0-9]{32}\$[a-f0-9]{96}$"
         assert re.match(pattern, h), f"Format mismatch: {h}"
 
     def test_matches_expected(self):
@@ -362,7 +362,7 @@ class TestMode31300Format:
         md5 = bytes.fromhex("cfc7023381cf6bb474cdcbeb0a67bdb3")
         salt = bytes.fromhex("907733697536811342962140955567108526489624716566696971338784438986103976327367763739445744705380")
         h = format_sntp_hash(md5, salt, 1103)
-        expected = "$sntp-ms$1103$cfc7023381cf6bb474cdcbeb0a67bdb3$907733697536811342962140955567108526489624716566696971338784438986103976327367763739445744705380"
+        expected = "$sntp-ms$cfc7023381cf6bb474cdcbeb0a67bdb3$907733697536811342962140955567108526489624716566696971338784438986103976327367763739445744705380"
         assert h == expected
 
 

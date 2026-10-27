@@ -27,7 +27,7 @@ Code flow (--format both --password both = 4 packets per RID)::
       │         (same structure, all RIDs, bit 31 set in 68B Key Identifier)
       │
       └─ _responses_to_results()       Format NtpResponse → RoastResult
-           ├─ 68-byte:  format_sntp_hash()       → $sntp-ms$RID$hash$salt
+           ├─ 68-byte:  format_sntp_hash()       → $sntp-ms$hash$salt
            └─ 120-byte: format_sntp_sha512_hash() → $sntp-ms-sha512$RID$hash$salt
 """
 

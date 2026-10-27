@@ -178,14 +178,15 @@ def format_sntp_hash(md5_hash: bytes, salt: bytes, rid: int) -> str:
         ``salt``     = response bytes [0:48]  (48 bytes, the NTP server header).
         ``rid``      = decoded from response bytes [48:52] (XOR'd with bit 31).
 
-    Hash string: ``$sntp-ms$<RID>$<32hex_digest>$<96hex_salt>``
+    Hash string: ``$sntp-ms$<32hex_digest>$<96hex_salt>``
 
-    The RID is metadata only - hashcat mode 31300 cracks as
-    ``MD5(candidate_NT_hash || salt)`` and does not use the RID.
-
-    Per ``hashcat/src/modules/module_31300.c``.
+    Per ``hashcat/src/modules/module_31300.c`` (3 tokens: signature,
+    digest, salt).  The *rid* parameter is accepted for API
+    compatibility but is not included in the hash — it is metadata
+    preserved in :attr:`RoastResult.username`.
     """
-    return f"$sntp-ms${rid}${md5_hash.hex()}${salt.hex()}"
+    _ = rid
+    return f"$sntp-ms${md5_hash.hex()}${salt.hex()}"
 
 
 def format_sntp_sha512_hash(checksum: bytes, salt: bytes, rid: int) -> str:
