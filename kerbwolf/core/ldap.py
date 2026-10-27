@@ -191,6 +191,51 @@ def find_all_users(conn: ldap3.Connection, domain: str) -> list[str]:
     return [str(entry["sAMAccountName"]) for entry in entries if entry["sAMAccountName"].value]
 
 
+def resolve_spns(conn: ldap3.Connection, domain: str, spns: list[str]) -> dict[str, str]:
+    """Resolve SPNs to their owning account's sAMAccountName via LDAP.
+
+    Returns ``{spn: sAMAccountName}`` for each SPN that matched an
+    account.  SPNs that don't match any account are omitted.
+    """
+    base_dn = _base_dn(domain)
+    result: dict[str, str] = {}
+    for spn in spns:
+        safe_spn = spn.replace("\\", "\\5c").replace("(", "\\28").replace(")", "\\29").replace("*", "\\2a").replace("\x00", "\\00")
+        ldap_filter = f"(&(servicePrincipalName={safe_spn})(!(UserAccountControl:1.2.840.113556.1.4.803:=2)))"
+        entries = _paged_search(conn, base_dn, ldap_filter, ["sAMAccountName"])
+        if entries:
+            result[spn] = str(entries[0]["sAMAccountName"])
+            _log.debug("SPN %s → %s", spn, result[spn])
+        else:
+            _log.debug("SPN %s: no matching account", spn)
+    return result
+
+
+def resolve_account_casing(conn: ldap3.Connection, domain: str, usernames: list[str]) -> dict[str, str]:
+    """Resolve sAMAccountNames to their correctly-cased values via LDAP.
+
+    LDAP matching on ``sAMAccountName`` is case-insensitive, so
+    ``SVC_SQL`` finds the account whose real name is ``svc_sql``.
+
+    Returns ``{input_name: correct_name}`` for each username that
+    matched an account.  Unmatched usernames are omitted.
+    """
+    base_dn = _base_dn(domain)
+    result: dict[str, str] = {}
+    for name in usernames:
+        safe = name.replace("\\", "\\5c").replace("(", "\\28").replace(")", "\\29").replace("*", "\\2a").replace("\x00", "\\00")
+        ldap_filter = f"(sAMAccountName={safe})"
+        entries = _paged_search(conn, base_dn, ldap_filter, ["sAMAccountName"])
+        if entries:
+            correct = str(entries[0]["sAMAccountName"])
+            if correct != name:
+                _log.debug("Casing correction: %s → %s", name, correct)
+            result[name] = correct
+        else:
+            _log.debug("Account %s: not found in LDAP", name)
+    return result
+
+
 def find_timeroastable(conn: ldap3.Connection, domain: str) -> list[TimeroastAccount]:
     """Find all enabled computer and gMSA accounts (timeroastable via MS-SNTP).
 

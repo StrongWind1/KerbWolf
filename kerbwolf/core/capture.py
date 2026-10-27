@@ -27,6 +27,9 @@ from impacket.krb5 import constants as krb_constants
 from impacket.krb5.asn1 import (
     AS_REP,
     AS_REQ,
+    ETYPE_INFO2,
+    KRB_ERROR,
+    METHOD_DATA,
     TGS_REP,
     EncryptedData,
 )
@@ -104,6 +107,7 @@ class AttackType(enum.StrEnum):
     NTLMV1 = "NTLMv1"
     NTLMV2 = "NTLMv2"
     LDAP_SIMPLE = "LDAP-Simple"
+    SALT_HINT = "SALT-HINT"
 
 
 @dataclass(frozen=True)
@@ -128,11 +132,16 @@ class CapturedHash:
     challenge_hex: str = ""
     lm_hex: str = ""
     ntlm_blob_hex: str = ""
+    # ETYPE-INFO2 salt from AS-REP padata (populated only for AS-REP).
+    padata_salt: str = ""
 
 
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
+
+SaltHints = dict[str, str]
 
 
 def parse_pcap(path: str) -> list[CapturedHash]:
@@ -148,6 +157,33 @@ def parse_pcap(path: str) -> list[CapturedHash]:
 
     with Path(path).open("rb") as fh:
         return _parse_stream(fh)
+
+
+def parse_pcap_with_salts(path: str) -> tuple[list[CapturedHash], SaltHints]:
+    """Parse a pcap and return hashes + ETYPE-INFO2 salt hints.
+
+    Salt hints come from two sources in the pcap:
+    1. **KRB-ERROR(PREAUTH_REQUIRED)**: salt probes from KerbWolf
+    2. **AS-REP padata**: ETYPE-INFO2 included in AS-REP responses
+
+    The *salt_hints* dict maps ``lowercase(cname)`` to the raw
+    ETYPE-INFO2 salt string.  Used to correct TGS-REP hash ``$user$``
+    fields via case-insensitive sname matching.
+    """
+    all_results = parse_pcap(path)
+
+    salt_hints: SaltHints = {}
+    hashes: list[CapturedHash] = []
+
+    for h in all_results:
+        if h.attack == AttackType.SALT_HINT:
+            salt_hints[h.username.lower()] = h.padata_salt
+        else:
+            hashes.append(h)
+            if h.padata_salt and h.attack == AttackType.AS_REP:
+                salt_hints[h.username.lower()] = h.padata_salt
+
+    return hashes, salt_hints
 
 
 # ---------------------------------------------------------------------------
@@ -177,6 +213,25 @@ def _parse_stream(fh: BinaryIO) -> list[CapturedHash]:
 
     msg = f"Unknown file format (magic: 0x{magic:08X})"
     raise KerbWolfError(msg)
+
+
+def _collect_salt_hints_from_hashes(hashes: list[CapturedHash]) -> SaltHints:
+    """Build a salt dictionary from AS-REQ cname → salt probe results.
+
+    KerbWolf salt probes show up in the pcap as AS-REQ (msg-type 10)
+    followed by KRB-ERROR (PREAUTH_REQUIRED).  We don't parse the
+    KRB-ERROR directly, but we DO have the AS-REP padata salt for any
+    AS-REP hashes.  For TGS-REP correlation, we build a case-insensitive
+    map from AS-REP usernames (which went through ETYPE-INFO2 correction)
+    to their corrected salt values.  Since KerbWolf sends sAMAccountNames
+    as TGS-REQ snames, the TGS-REP sname matches the AS-REQ cname used
+    for the salt probe.
+    """
+    hints: SaltHints = {}
+    for h in hashes:
+        if h.padata_salt and h.attack == AttackType.AS_REP:
+            hints[h.username.lower()] = h.padata_salt
+    return hints
 
 
 def _parse_pcap(
@@ -360,6 +415,7 @@ def _extract_from_packet(pkt_data: bytes, link_type: int) -> list[CapturedHash]:
     results.extend(_try_parse_asreq(krb_data))
     results.extend(_try_parse_asrep(krb_data))
     results.extend(_try_parse_tgsrep(krb_data))
+    results.extend(_try_parse_krberror_salt(krb_data))
     return results
 
 
@@ -505,6 +561,7 @@ def _extract_kerberos_from_stream(buffer: bytearray) -> list[CapturedHash]:
         results.extend(_try_parse_asreq(krb_data))
         results.extend(_try_parse_asrep(krb_data))
         results.extend(_try_parse_tgsrep(krb_data))
+        results.extend(_try_parse_krberror_salt(krb_data))
         del buffer[:total]
     return results
 
@@ -569,6 +626,8 @@ def _try_parse_asrep(data: bytes) -> list[CapturedHash]:
     if not username or not realm:
         return []
 
+    salt = _extract_etype_info2_salt(as_rep)
+
     enc_part = as_rep["enc-part"]
     return [
         CapturedHash(
@@ -578,12 +637,41 @@ def _try_parse_asrep(data: bytes) -> list[CapturedHash]:
             spn=f"krbtgt/{realm}",
             etype=int(enc_part["etype"]),
             cipher_hex=enc_part["cipher"].asOctets().hex(),
+            padata_salt=salt,
         )
     ]
 
 
+def _extract_etype_info2_salt(as_rep: Any) -> str:  # noqa: ANN401 - pyasn1 decoded object
+    """Extract the first ETYPE-INFO2 salt from an AS-REP's padata."""
+    try:
+        padata = as_rep["padata"]
+        if padata is None or not hasattr(padata, "hasValue") or not padata.hasValue():
+            return ""
+        for pa_data in padata:
+            pa_type = int(pa_data["padata-type"])
+            if pa_type == krb_constants.PreAuthenticationDataTypes.PA_ETYPE_INFO2.value:
+                etype_info2 = decoder.decode(pa_data["padata-value"], asn1Spec=ETYPE_INFO2())[0]
+                for entry in etype_info2:
+                    salt_val = entry["salt"]
+                    if salt_val is not None and salt_val.hasValue():
+                        return str(salt_val)
+    except Exception:  # noqa: BLE001
+        _log.debug("Failed to extract ETYPE-INFO2 salt from AS-REP", exc_info=True)
+    return ""
+
+
 def _try_parse_tgsrep(data: bytes) -> list[CapturedHash]:
-    """Extract ticket enc-part from a TGS-REP (msg-type 13) → ``$krb5tgs$``."""
+    """Extract ticket enc-part from a TGS-REP (msg-type 13) → ``$krb5tgs$``.
+
+    The ticket is encrypted with the **service account's** key, so the
+    hash ``$user$`` field must be the service account's sAMAccountName
+    (used as PBKDF2 salt for AES).  The TGS-REP packet does not carry
+    the sAMAccountName — only the SPN in ``sname`` and the requesting
+    client in ``cname``.  We use the SPN as the best available
+    identifier; for AES etypes the user must correct it to the
+    sAMAccountName before cracking.
+    """
     try:
         tgs_rep, _ = decoder.decode(data, asn1Spec=TGS_REP())
     except Exception:  # noqa: BLE001
@@ -592,15 +680,9 @@ def _try_parse_tgsrep(data: bytes) -> list[CapturedHash]:
     if int(tgs_rep["msg-type"]) != int(krb_constants.ApplicationTagNumbers.TGS_REP.value):
         return []
 
-    realm = str(tgs_rep["crealm"]).upper()
-    username = ""
-    if tgs_rep["cname"]:
-        name_string = tgs_rep["cname"]["name-string"]
-        if len(name_string) > 0:
-            username = str(name_string[0])
-
-    # Extract SPN from the ticket's sname.
     ticket = tgs_rep["ticket"]
+    realm = str(ticket["realm"]).upper()
+
     spn_parts = [str(c) for c in ticket["sname"]["name-string"]] if ticket["sname"] else []
     spn = "/".join(spn_parts) if spn_parts else "unknown"
 
@@ -608,7 +690,7 @@ def _try_parse_tgsrep(data: bytes) -> list[CapturedHash]:
     return [
         CapturedHash(
             attack=AttackType.TGS_REP,
-            username=username,
+            username=spn,
             realm=realm,
             spn=spn,
             etype=int(ticket_enc["etype"]),
@@ -620,6 +702,69 @@ def _try_parse_tgsrep(data: bytes) -> list[CapturedHash]:
 # ---------------------------------------------------------------------------
 # MS-SNTP response extraction (port 123)
 # ---------------------------------------------------------------------------
+
+
+def _try_parse_krberror_salt(data: bytes) -> list[CapturedHash]:
+    """Extract ETYPE-INFO2 salt from a KRB-ERROR (PREAUTH_REQUIRED).
+
+    Returns a ``SALT_HINT`` pseudo-hash that carries the ``cname`` from
+    the preceding AS-REQ and the ETYPE-INFO2 salt from the error.
+    These are filtered out by ``extract_from_pcap`` and used to build
+    a salt dictionary for correcting TGS-REP hash usernames.
+    """
+    try:
+        krb_error = decoder.decode(data, asn1Spec=KRB_ERROR())[0]
+    except Exception:  # noqa: BLE001
+        return []
+
+    if int(krb_error["error-code"]) != krb_constants.ErrorCodes.KDC_ERR_PREAUTH_REQUIRED.value:
+        return []
+
+    realm = str(krb_error["realm"]).upper() if krb_error["realm"] is not None else ""
+
+    e_data = krb_error["e-data"]
+    if e_data is None or not e_data.hasValue():
+        return []
+
+    salt = ""
+    try:
+        method_data = decoder.decode(e_data.asOctets(), asn1Spec=METHOD_DATA())[0]
+        for pa_data in method_data:
+            if int(pa_data["padata-type"]) == krb_constants.PreAuthenticationDataTypes.PA_ETYPE_INFO2.value:
+                etype_info2 = decoder.decode(pa_data["padata-value"], asn1Spec=ETYPE_INFO2())[0]
+                for entry in etype_info2:
+                    salt_val = entry["salt"]
+                    if salt_val is not None and salt_val.hasValue():
+                        salt = str(salt_val)
+                        break
+                if salt:
+                    break
+    except Exception:  # noqa: BLE001
+        return []
+
+    if not salt:
+        return []
+
+    username = ""
+    nul_idx = salt.find("\x00")
+    clean_salt = salt[nul_idx + 1 :] if nul_idx >= 0 else salt
+    if realm and clean_salt.startswith(realm):
+        username = clean_salt[len(realm) :]
+
+    if not username:
+        return []
+
+    return [
+        CapturedHash(
+            attack=AttackType.SALT_HINT,
+            username=username,
+            realm=realm,
+            spn="",
+            etype=0,
+            cipher_hex="",
+            padata_salt=salt,
+        )
+    ]
 
 
 def _try_parse_sntp(payload: bytes) -> list[CapturedHash]:

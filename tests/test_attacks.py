@@ -7,48 +7,6 @@ from kerbwolf.core.capture import AttackType, CapturedHash
 from kerbwolf.models import HashFormat, RoastResult
 
 # ---------------------------------------------------------------------------
-# kerberoast._spn_to_username
-# ---------------------------------------------------------------------------
-
-
-class TestTargetToDisplayName:
-    def test_service_host(self):
-        from kerbwolf.attacks.kerberoast import _target_to_display_name
-
-        assert _target_to_display_name("http/webserver") == "webserver"
-
-    def test_service_fqdn(self):
-        from kerbwolf.attacks.kerberoast import _target_to_display_name
-
-        assert _target_to_display_name("http/web.domain.com") == "web"
-
-    def test_no_slash(self):
-        from kerbwolf.attacks.kerberoast import _target_to_display_name
-
-        assert _target_to_display_name("svcaccount") == "svcaccount"
-
-    def test_multiple_slashes(self):
-        from kerbwolf.attacks.kerberoast import _target_to_display_name
-
-        assert _target_to_display_name("MSSQLSvc/sql01.corp.local:1433") == "sql01"
-
-    def test_trailing_slash(self):
-        from kerbwolf.attacks.kerberoast import _target_to_display_name
-
-        assert _target_to_display_name("svc/") == ""
-
-    def test_upn(self):
-        from kerbwolf.attacks.kerberoast import _target_to_display_name
-
-        assert _target_to_display_name("svc_sql@corp.local") == "svc_sql"
-
-    def test_samaccountname(self):
-        from kerbwolf.attacks.kerberoast import _target_to_display_name
-
-        assert _target_to_display_name("svc_sql") == "svc_sql"
-
-
-# ---------------------------------------------------------------------------
 # kerberoast - empty targets
 # ---------------------------------------------------------------------------
 
@@ -173,7 +131,7 @@ class TestExtractFromPcap:
     def test_empty_pcap(self):
         from kerbwolf.attacks.extract import extract_from_pcap
 
-        with patch("kerbwolf.attacks.extract.parse_pcap", return_value=[]):
+        with patch("kerbwolf.attacks.extract.parse_pcap_with_salts", return_value=([], {})):
             assert extract_from_pcap("test.pcap") == []
 
     def test_mixed_attacks(self):
@@ -184,7 +142,7 @@ class TestExtractFromPcap:
             CapturedHash(attack=AttackType.AS_REP, username="u2", realm="R", spn="krbtgt/R", etype=17, cipher_hex="bb" * 60),
             CapturedHash(attack=AttackType.TGS_REP, username="u3", realm="R", spn="http/w", etype=18, cipher_hex="cc" * 62),
         ]
-        with patch("kerbwolf.attacks.extract.parse_pcap", return_value=captures):
+        with patch("kerbwolf.attacks.extract.parse_pcap_with_salts", return_value=(captures, {})):
             results = extract_from_pcap("test.pcap")
             assert len(results) == 3
             prefixes = {r.hash_string.split("$")[1] for r in results}

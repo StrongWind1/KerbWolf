@@ -23,6 +23,18 @@ from kerbwolf.models import EncryptionType
 # because impacket has no type stubs.
 ENCTYPE_TABLE = _enctype_table  # impacket has no type stubs - inferred as Any
 
+# Register SHA2 etypes (19/20) using the SHA1 AES cipher classes.
+# The AES-CTS block cipher is identical; only key derivation and HMAC differ,
+# and KerbWolf handles those in its own string-to-key and hash formatting.
+_AES128_SHA1 = int(EncryptionType.AES128_CTS_HMAC_SHA1_96)
+_AES256_SHA1 = int(EncryptionType.AES256_CTS_HMAC_SHA1_96)
+_AES128_SHA2 = int(EncryptionType.AES128_CTS_HMAC_SHA256_128)
+_AES256_SHA2 = int(EncryptionType.AES256_CTS_HMAC_SHA384_192)
+if _AES128_SHA2 not in ENCTYPE_TABLE and _AES128_SHA1 in ENCTYPE_TABLE:
+    ENCTYPE_TABLE[_AES128_SHA2] = ENCTYPE_TABLE[_AES128_SHA1]
+if _AES256_SHA2 not in ENCTYPE_TABLE and _AES256_SHA1 in ENCTYPE_TABLE:
+    ENCTYPE_TABLE[_AES256_SHA2] = ENCTYPE_TABLE[_AES256_SHA1]
+
 # Maps our EncryptionType to the impacket etype ints used in _enctype_table.
 # DES-CBC-CRC (1) is not in impacket's table; we use DES-CBC-MD5 (3) cipher.
 _IMPACKET_ETYPE: dict[EncryptionType, int] = {
