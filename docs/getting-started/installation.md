@@ -38,7 +38,7 @@ kw-tgt --version
 kw-timeroast --version
 ```
 
-All five commands should print `kw-<tool> 0.4.0`.
+All five commands should print `kw-<tool> 1.0.0`.
 
 ## Run checks
 
@@ -61,16 +61,12 @@ uv run pytest                # unit tests
 | Package | Version | Purpose |
 |---------|---------|---------|
 | impacket | >= 0.13 | Kerberos protocol: ASN.1 structures, crypto, key derivation, CCache |
-| ldap3 | dev branch | LDAP enumeration with paging, NTLM and Kerberos auth |
-| gssapi | >= 1.11 | GSSAPI/SASL for Kerberos-authenticated LDAP connections |
+| gssapi | >= 1.11.1 | GSSAPI/SASL for Kerberos-authenticated LDAP connections |
 | dnspython | >= 2.4 | DNS SRV record lookup for DC discovery |
+| pyasn1 | >= 0.4.6 | ASN.1 DER encoding/decoding |
+| pycryptodomex | any | DES, AES, RC4, MD4 cryptographic primitives |
 
-### Transitive dependencies
-
-| Package | Comes from | Purpose |
-|---------|-----------|---------|
-| pyasn1 | impacket | ASN.1 DER encoding/decoding |
-| pycryptodome | impacket | DES, AES, RC4, MD4 cryptographic primitives |
+ldap3 is vendored in `kerbwolf/_vendor/ldap3/` (not installed as a separate package).
 
 ## Kerberos setup
 

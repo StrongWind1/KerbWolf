@@ -157,7 +157,7 @@ block-beta
 | **AES256-SHA1** (18) | `edata2 \|\| checksum` | Last 12 bytes (HMAC-SHA1 truncated) | All but last 12 bytes | Same as AES128-SHA1, longer key |
 | **AES128-SHA2** (19) | `edata2 \|\| checksum` | Last 16 bytes (HMAC-SHA256-128) | All but last 16 bytes | PBKDF2-SHA256 + KDF → AES key → decrypt → check HMAC |
 | **AES256-SHA2** (20) | `edata2 \|\| checksum` | Last 24 bytes (HMAC-SHA384-192) | All but last 24 bytes | PBKDF2-SHA384 + KDF → AES key → decrypt → check HMAC |
-| **DES-CBC-MD5** (3) | `checksum \|\| edata2` | First 16 bytes (first two DES blocks) | Remaining bytes | String-to-key → DES key → decrypt → ASN.1 at byte 24 → MD5 integrity |
+| **DES** (1, 3) | `checksum \|\| edata2` | First 16 bytes (first two DES blocks) | Remaining bytes | String-to-key → DES key → decrypt → integrity check (CRC32 for etype 1, MD5 for etype 3) |
 
 !!! tip "The etype determines the format, the attack determines the source"
     The hash format (where the checksum lives, how many bytes) is the same for all three attacks at the same etype. The only thing the attack type changes is *which ASN.1 field* the cipher is extracted from.
@@ -342,7 +342,7 @@ john --format=krb5pa-sha1 hashes.txt --wordlist=wordlist.txt       # AS-REQ AES
 | **DB Key** | `supplementalCredentials` / NTDS.dit | Long-term key stored in the KDC database |
 | **NT-Hash variants** | Same ciphertext as RC4 modes | Cracks the NT hash directly instead of the password (etype 23 only) |
 
-Mode 38400 handles etypes 1 and 3 in one module (same DES string-to-key). RC4 DB key is the NT hash itself (mode 1000).
+Mode 38400 handles etypes 1, 2, and 3 in one module (same DES string-to-key). RC4 DB key is the NT hash itself (mode 1000).
 
 ---
 

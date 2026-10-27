@@ -15,7 +15,7 @@ usage: kw-asrep [-h] [--version] [-v] [-t USER] [-T FILE] [--ldap]
                 [-e ETYPE] [-o FILE]
                 [--format {hashcat,john}]
 
-AS-REP Roast — extract hashes from accounts without Kerberos
+AS-REP Roast - extract hashes from accounts without Kerberos
 pre-authentication.
 
 options:
@@ -45,7 +45,7 @@ NTLM authentication (for LDAP):
   -p PASS, --password PASS
                         Cleartext password
   -H HASH, --hashes HASH
-                        NTLM hash — LM:NT, :NT, or NT
+                        NTLM hash - LM:NT, :NT, or NT
 
 Kerberos authentication (for LDAP):
   Domain and user are auto-detected from the ccache.
@@ -65,9 +65,10 @@ connection:
 
 output:
   -e ETYPE, --enctype ETYPE
-                        Encryption type(s), comma-separated or repeatable
-                        (choices: des-cbc-crc, des-cbc-md5, rc4, aes128,
-                        aes256, aes128-sha2, aes256-sha2; default: rc4)
+                        Encryption type(s) in preference order, repeatable or
+                        comma-separated (choices: des-cbc-crc, des-cbc-md5,
+                        rc4, aes128, aes256, aes128-sha2, aes256-sha2;
+                        default: rc4)
   -o FILE, --output FILE
                         Write hashes to file
   --format {hashcat,john}

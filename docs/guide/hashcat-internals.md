@@ -44,7 +44,7 @@ Some modes accept multiple input formats. Format 1 is the canonical hashcat form
 ## Things that will silently break your crack
 
 !!! warning "Case sensitivity and salt construction"
-    For all 6 AES modes (19600, 19700, 19800, 19900, 32100, 32200):
+    For all AES modes (19600, 19700, 19800, 19900, 32100, 32200, 39400-39900):
 
     - **Realm is uppercased at parse time.** Hashcat calls `uppercase()` on the realm field, so `contoso.com` and `Contoso.Com` both become `CONTOSO.COM`. But the realm **must match the KDC's realm exactly** after uppercasing. A typo like `CONTOSO.COM` vs `CONTOSO.NET` will break everything.
     - **Username is case-sensitive and left as-is.** Hashcat does not touch the case of the user field. If the KDC issued the ticket for `Administrator` and your hash says `administrator`, the derived key will be different and cracking will produce zero results with no error message.
@@ -71,7 +71,7 @@ $krb5tgs$23$user$realm$checksum$edata2
 | user | `$` | variable | yes (can be empty) | no |
 | realm | `$` | variable | yes (can be empty) | no |
 | checksum | `$` | 32 hex (16 bytes) | yes | yes |
-| edata2 | `$` | 64-40960 hex | yes | yes |
+| edata2 | `$` | 64-40958 hex | yes | yes |
 
 Canonical format. User and realm are display metadata — hashcat stores them for the potfile but never uses them for cracking. Only checksum + edata2 matter. hashcat also accepts the legacy `*user$realm$spn*` wrapper (format 2 below); KerbWolf never emits it.
 
@@ -86,7 +86,7 @@ $krb5tgs$23$checksum$edata2
 | signature `$krb5tgs$` | | 9 chars | yes | |
 | etype `23` | `$` | 2 digits | yes | |
 | checksum | `$` | 32 hex (16 bytes) | yes | yes |
-| edata2 | `$` | 64-40960 hex | yes | yes |
+| edata2 | `$` | 64-40958 hex | yes | yes |
 
 Detected when bytes after signature are `23$` but the next character is not `*`. Hashcat converts this to format 1 (with empty account info) on output.
 
@@ -99,9 +99,9 @@ $krb5tgs$spn:checksum$edata2
 | Field | Delimiter | Length | Required | Used for cracking |
 |-------|-----------|--------|----------|-------------------|
 | signature `$krb5tgs$` | | 9 chars | yes | |
-| spn | `:` | 0-2048 chars | no | no |
+| spn | `:` | 0-2047 chars | no | no |
 | checksum | `$` | 32 hex (16 bytes) | yes | yes |
-| edata2 | `$` | 64-40960 hex | yes | yes |
+| edata2 | `$` | 64-40958 hex | yes | yes |
 
 Detected when the bytes after signature are NOT `23`. No etype field, colon delimiter for SPN. Hashcat preserves this format on output (does not convert to format 1).
 
@@ -318,8 +318,8 @@ $krb5pa$23$user$realm$data
 | Field | Delimiter | Length | Required | Used for cracking |
 |-------|-----------|--------|----------|-------------------|
 | signature `$krb5pa$23$` | | 11 chars | yes | |
-| user | `$` | 0-64 chars | no | no |
-| realm | `$` | 0-64 chars | no | no |
+| user | `$` | 0-63 chars | no | no |
+| realm | `$` | 0-63 chars | no | no |
 | data (enc_timestamp + checksum) | `$` | 104 hex | yes | yes |
 
 Single format. User and realm can be empty strings. Hashcat stores the metadata fields for display but ignores them during cracking. The data field is one concatenated blob: 72 hex chars of encrypted timestamp followed by 32 hex chars of HMAC-MD5 checksum. Only the data field matters for cracking. hashcat also accepts `$krb5pa$23$user$realm$salt$data` with an extra salt field (John format); KerbWolf does not emit the salt field.
@@ -464,14 +464,14 @@ $krb5tgs$3$user$realm$checksum$edata2
 | Field | Delimiter | Length | Required | Used for cracking |
 |-------|-----------|--------|----------|-------------------|
 | signature `$krb5tgs$3$` | | 11 chars | yes | |
-| user | `$` | 1-128 chars | **yes** | **yes** (DES string-to-key salt) |
-| realm | `$` | 1-128 chars | **yes** | **yes** (DES string-to-key salt, uppercased) |
+| user | `$` | 1-127 chars | **yes** | **yes** (DES string-to-key salt) |
+| realm | `$` | 1-127 chars | **yes** | **yes** (DES string-to-key salt, uppercased) |
 | checksum | `$` | 32 hex (16 bytes) | yes | yes |
 | edata2 | `$` | 64+ hex | yes | yes |
 
 Unlike RC4 mode 13100 where user/realm are pure metadata, DES requires them. The salt for DES string-to-key is `REALM + user`, same as AES. The "checksum" field is the first 2 DES blocks of ciphertext, not a MAC — the real integrity check (MD5) is embedded in the plaintext after decryption.
 
-Verification: decrypt block 3 (bytes 16-23) with zero IV, check for ASN.1 tag `0x63` (EncTicketPart). On match, decrypt full ciphertext, zero the embedded MD5 at plaintext bytes 8-24, recompute MD5, compare.
+Verification: CBC-decrypt the second block of edata2 (bytes 24-31 of full ciphertext, XOR'd with the previous ciphertext block), check for ASN.1 tag `0x63` (EncTicketPart). On match, decrypt full ciphertext, zero the embedded MD5 at plaintext bytes 8-24, recompute MD5, compare.
 
 ### Mode 39100: DES-CBC-CRC TGS-REP {: #mode-39100-des-crc }
 
@@ -494,8 +494,8 @@ $krb5asrep$3$user$realm$checksum$edata2
 | Field | Delimiter | Length | Required | Used for cracking |
 |-------|-----------|--------|----------|-------------------|
 | signature `$krb5asrep$3$` | | 13 chars | yes | |
-| user | `$` | 1-128 chars | **yes** | **yes** (DES string-to-key salt) |
-| realm | `$` | 1-128 chars | **yes** | **yes** (DES string-to-key salt, uppercased) |
+| user | `$` | 1-127 chars | **yes** | **yes** (DES string-to-key salt) |
+| realm | `$` | 1-127 chars | **yes** | **yes** (DES string-to-key salt, uppercased) |
 | checksum | `$` | 32 hex (16 bytes) | yes | yes |
 | edata2 | `$` | 64+ hex | yes | yes |
 
@@ -559,8 +559,8 @@ $krb5db$<1|2|3>$user$realm$<16hex_key>
 | Field | Delimiter | Length | Required | Used for cracking |
 |-------|-----------|--------|----------|-------------------|
 | signature `$krb5db$<1\|2\|3>$` | | 10-11 chars | yes | |
-| user | `$` | 1-128 chars | **yes** | **yes** (DES string-to-key salt) |
-| realm | `$` | 1-128 chars | **yes** | **yes** (DES string-to-key salt) |
+| user | `$` | 1-127 chars | **yes** | **yes** (DES string-to-key salt) |
+| realm | `$` | 1-127 chars | **yes** | **yes** (DES string-to-key salt) |
 | stored key | `$` | 16 hex (8 bytes) | yes | yes |
 
 Accepts etypes 1, 2, and 3. The etype digit is stored for round-trip encoding but has no effect on cracking — DES string-to-key produces the same 8-byte key for all three. Also accepts an optional `*spn*$` block before the key.
@@ -606,7 +606,7 @@ The hash line carries both cryptographic inputs (required) and display metadata 
 
 RC4 key derivation is `MD4(UTF-16LE(password))` — no salt, no username, no realm. The metadata fields exist so cracked results can be attributed back to accounts. You can leave them empty or wrong and cracking still works.
 
-### AES modes (19600, 19700, 19800, 19900, 28800, 28900, 32100, 32200)
+### AES modes (19600, 19700, 19800, 19900, 28800, 28900, 32100, 32200, 39010, 39020, 39400-39900)
 
 | Field | Role | Wrong value breaks cracking? |
 |-------|------|------------------------------|
@@ -616,9 +616,9 @@ RC4 key derivation is `MD4(UTF-16LE(password))` — no salt, no username, no rea
 | realm | **Cryptographic** — PBKDF2 salt component (uppercased by hashcat) | **Yes** |
 | spn | Display metadata | No |
 
-AES key derivation is `PBKDF2-HMAC-SHA1(password, REALM + user, 4096)`. The salt is the uppercase realm concatenated with the case-preserved username. Wrong username case = wrong salt = wrong key = silent failure.
+AES-SHA1 key derivation is `PBKDF2-HMAC-SHA1(password, REALM + user, 4096)`. AES-SHA2 adds an etype name prefix to the salt and uses PBKDF2-HMAC-SHA256/384 + KDF-HMAC-SHA2. In both cases, the salt includes the uppercase realm and case-preserved username. Wrong username case = wrong salt = wrong key = silent failure.
 
-### DES modes (38400, 38500, 38600)
+### DES modes (38400, 38500, 38600, 39000, 39100, 39200, 39300)
 
 | Field | Role | Wrong value breaks cracking? |
 |-------|------|------------------------------|

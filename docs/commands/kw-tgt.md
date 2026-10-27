@@ -31,12 +31,12 @@ credential (one required):
   -p PASS, --password PASS
                         Cleartext password
   -H HASH, --hashes HASH
-                        NTLM hash — LM:NT, :NT, or NT (implies -e rc4)
-  --rc4-key HEX         RC4 key / NT hash — 32 hex (implies -e rc4)
-  --aes256-key HEX      AES-256 key — 64 hex (implies -e aes256)
-  --aes128-key HEX      AES-128 key — 32 hex (implies -e aes128)
-  --des-md5-key HEX     DES-CBC-MD5 key — 16 hex (implies -e des-cbc-md5)
-  --des-crc-key HEX     DES-CBC-CRC key — 16 hex (implies -e des-cbc-crc)
+                        NTLM hash - LM:NT, :NT, or NT (implies -e rc4)
+  --rc4-key HEX         RC4 key / NT hash - 32 hex (implies -e rc4)
+  --aes256-key HEX      AES-256 key - 64 hex (implies -e aes256)
+  --aes128-key HEX      AES-128 key - 32 hex (implies -e aes128)
+  --des-md5-key HEX     DES-CBC-MD5 key - 16 hex (implies -e des-cbc-md5)
+  --des-crc-key HEX     DES-CBC-CRC key - 16 hex (implies -e des-cbc-crc)
 
 connection:
   --dc-ip IP            DC IP or hostname (resolved via DNS SRV if omitted)
@@ -47,11 +47,11 @@ connection:
 
 output:
   -e ETYPE, --enctype ETYPE
-                        Encryption type(s), comma-separated or repeatable
-                        (choices: des-cbc-crc, des-cbc-md5, rc4, aes128,
-                        aes256, aes128-sha2, aes256-sha2; default: rc4).
-                        First etype selects pre-auth key type; full list
-                        goes in AS-REQ body.
+                        Encryption type(s) in preference order, repeatable or
+                        comma-separated (choices: des-cbc-crc, des-cbc-md5,
+                        rc4, aes128, aes256, aes128-sha2, aes256-sha2;
+                        default: rc4). First etype selects pre-auth key type;
+                        full list goes in AS-REQ body.
   -o FILE, --output FILE
                         Output ccache file (default: <user>.ccache)
 ```

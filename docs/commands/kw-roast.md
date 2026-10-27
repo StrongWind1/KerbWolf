@@ -16,7 +16,7 @@ usage: kw-roast [-h] [--version] [-v] [--no-preauth USER] [-u USER] [-p PASS]
                 [-e ETYPE] [-o FILE]
                 [--format {hashcat,john}]
 
-TGS-REP Roast (Kerberoast) — request service tickets and extract hashes.
+TGS-REP Roast (Kerberoast) - request service tickets and extract hashes.
 
 options:
   -h, --help            show this help message and exit
@@ -36,7 +36,7 @@ NTLM authentication:
   -p PASS, --password PASS
                         Cleartext password
   -H HASH, --hashes HASH
-                        NTLM hash — LM:NT, :NT, or NT
+                        NTLM hash - LM:NT, :NT, or NT
 
 Kerberos authentication:
   Authenticate with an existing TGT from a ccache file. Domain and user are
@@ -69,9 +69,10 @@ targets:
 
 output:
   -e ETYPE, --enctype ETYPE
-                        Encryption type(s), comma-separated or repeatable
-                        (choices: des-cbc-crc, des-cbc-md5, rc4, aes128,
-                        aes256, aes128-sha2, aes256-sha2; default: rc4)
+                        Encryption type(s) in preference order, repeatable or
+                        comma-separated (choices: des-cbc-crc, des-cbc-md5,
+                        rc4, aes128, aes256, aes128-sha2, aes256-sha2;
+                        default: rc4)
   -o FILE, --output FILE
                         Write hashes to file
   --format {hashcat,john}
