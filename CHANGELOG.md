@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.2] - 2026-10-27
+
+### Added
+
+- ETYPE-INFO2 salt probing for all non-RC4 hashes. Every AES hash now uses an ETYPE-INFO2-verified salt or warns the user that casing may be wrong. This ensures AES hashes actually crack.
+- Salt probing infrastructure: `probe_account_salt()`, `extract_salt_from_asrep()`, `_parse_salt_string()` in `core/asreq`.
+- sAMAccountName-first TGS-REQ: kw-roast now sends the sAMAccountName (not SPN) as the TGS-REQ sname, so the KDC echoes the correct account name and pcap extraction produces crackable hashes.
+- SPN-to-sAMAccountName LDAP resolution: manual `-t MSSQLSvc/db01.corp.local` targets are resolved to sAMAccountNames via LDAP before the TGS-REQ.
+- KRB-ERROR salt dictionary for pcap extraction: `kw-extract` now correlates KRB-ERROR ETYPE-INFO2 salts with TGS-REP hashes from the same capture.
+- Etype 19/20 cipher registration in impacket's enctype table for protocol compatibility.
+
+### Changed
+
+- Consolidated docs: merged `hash-formats.md` into `hashcat-modes.md` as the single hash reference page. Fixed stale hash format examples across all documentation.
+
+### Removed
+
+- `_target_to_display_name()` — extracted hostnames from SPNs (e.g., `sql01` from `MSSQLSvc/sql01.evil.corp:1433`), producing uncrackable AES hashes.
+- LDAP casing resolution for AS-REP roast — replaced by ETYPE-INFO2 from AS-REP padata which is always correct.
+
 ## [0.4.1] - 2026-10-26
 
 ### Added
