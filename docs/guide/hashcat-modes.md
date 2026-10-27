@@ -217,7 +217,7 @@ $krb5db$<etype>$<user>$<realm>$<key_hex>
 | `checksum` | Required, 32 hex | Required, size varies by etype |
 | `edata2` | Required | Required |
 
-The SPN is not in the canonical format. It is operational metadata that does not feed any crypto. KerbWolf emits it in log output alongside the hash.
+The SPN is not in the canonical format. It is operational metadata that does not feed any crypto. KerbWolf stores it in the result record but does not include it in the hash output.
 
 ### Format tables
 
@@ -294,7 +294,7 @@ Pre-Auth legacy: `$krb5pa$E$user$realm$$data` (empty salt field between realm an
 
 DB Key legacy: `$krb5db$E$user$realm$*spn*$key` (with SPN).
 
-The `*user$realm$spn*` wrapper only appears in John/Rubeus RC4 TGS-REP output. KerbWolf never emits it in hashcat mode. The SPN is not a cryptographic input — it is operational metadata logged alongside the hash.
+The `*user$realm$spn*` wrapper only appears in John/Rubeus RC4 TGS-REP output. KerbWolf never emits it in hashcat mode. The SPN is not a cryptographic input — it is operational metadata stored in the result but not included in the hash output.
 
 ---
 

