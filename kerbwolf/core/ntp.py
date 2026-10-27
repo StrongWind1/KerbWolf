@@ -11,11 +11,9 @@ Implements both authentication mechanisms defined in MS-SNTP:
   per SP800-108 section 5.1.  Used by Win8.1+ / Server 2012+.  No hashcat
   module exists for this format yet.
 
-Empirical testing (full 0-255 byte sweep of bytes 53-55) was performed against:
-
-- Windows Server 2022 Build 20348 (DC-SRV22-TOGO, snow.lab)
-- Windows Server 2025 Build 26100 (DC-SRV25-ZEUS, snow.lab)
-- Windows Server 2022 Build 20348 (DC01, evil.corp)
+Empirical testing (full 0-255 byte sweep of bytes 53-55) was performed against
+three DCs: two running Windows Server 2022 Build 20348 and one running Windows
+Server 2025 Build 26100.
 
 See ``scripts/byte_sweep_3dc.py`` for the fuzzing tool and full results.
 
@@ -137,10 +135,9 @@ def build_extended_request(rid: int, *, old_pwd: bool = False) -> bytes:
         Bytes 56-119: Crypto-Checksum (64 zero bytes).
                      Server ignores (MS-SNTP 3.2.5.1.1 step 2.1).
 
-    Tested against:
-        - Windows Server 2022 Build 20348 (snow.lab, evil.corp)
-        - Windows Server 2025 Build 26100 (snow.lab)
-        Full 0-255 sweep of bytes 53-55 confirmed identical behavior on all 3 DCs.
+    Tested against three DCs (two Server 2022 Build 20348, one Server 2025
+    Build 26100).  Full 0-255 sweep of bytes 53-55 confirmed identical
+    behavior on all three.
 
     Note on ``old_pwd``:
         The 120-byte format has no working mechanism to select current vs

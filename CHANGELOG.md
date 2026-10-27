@@ -29,7 +29,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Removed
 
-- `_target_to_display_name()` — extracted hostnames from SPNs (e.g., `sql01` from `MSSQLSvc/sql01.evil.corp:1433`), producing uncrackable AES hashes.
+- `_target_to_display_name()` — extracted hostnames from SPNs (e.g., `sql01` from `MSSQLSvc/sql01.contoso.com:1433`), producing uncrackable AES hashes.
 - LDAP casing resolution for AS-REP roast — replaced by ETYPE-INFO2 from AS-REP padata which is always correct.
 
 ## [0.1.0] - 2026-04-03
