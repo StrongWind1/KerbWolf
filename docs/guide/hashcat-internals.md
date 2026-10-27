@@ -49,7 +49,7 @@ Some modes accept multiple input formats. Format 1 is the canonical hashcat form
     - **Realm is uppercased at parse time.** Hashcat calls `uppercase()` on the realm field, so `contoso.com` and `Contoso.Com` both become `CONTOSO.COM`. But the realm **must match the KDC's realm exactly** after uppercasing. A typo like `CONTOSO.COM` vs `CONTOSO.NET` will break everything.
     - **Username is case-sensitive and left as-is.** Hashcat does not touch the case of the user field. If the KDC issued the ticket for `Administrator` and your hash says `administrator`, the derived key will be different and cracking will produce zero results with no error message.
     - **AES-SHA1 salt = `REALM` + `user` concatenated.** No separator, no null byte. `CONTOSO.COMAdministrator`. Fed to PBKDF2-HMAC-SHA1 with 4096 iterations.
-    - **AES-SHA2 salt = `etype_name` + `\x00` + `REALM` + `user`.** The etype name (e.g., `aes256-cts-hmac-sha384-192`) is prepended with a null byte separator. Fed to PBKDF2-HMAC-SHA256 (etype 19) or PBKDF2-HMAC-SHA384 (etype 20) with 4096 iterations, then KDF-HMAC-SHA2.
+    - **AES-SHA2 salt = `etype_name` + `\x00` + `REALM` + `user`.** The etype name (e.g., `aes256-cts-hmac-sha384-192`) is prepended with a null byte separator. Fed to PBKDF2-HMAC-SHA256 (etype 19) or PBKDF2-HMAC-SHA384 (etype 20), then KDF-HMAC-SHA2. TGS/ASREP modules use 4096 iterations; Pre-Auth and DB Key modules use 32768 (see [encryption types](encryption-types.md#aes128-sha2-and-aes256-sha2-etypes-19-and-20)).
     - **Hex fields accept both cases.** `a-f` and `A-F` both work in checksum and edata2 fields.
     - **RC4 modes (7500, 13100, 18200) don't care about any of this.** The user/realm/salt/spn fields are display-only metadata. The NT hash has no salt, so those fields can be empty or wrong and cracking still works.
 
@@ -537,7 +537,7 @@ Same as 28800 with `$krb5db$18$` signature and 64 hex (32 bytes) for the stored 
 $krb5db$19$user$realm$key
 ```
 
-Same field layout as 28800 but with SHA2 key derivation (PBKDF2-HMAC-SHA256 + KDF, etype name prefix salt). Key field is 32 hex (16 bytes).
+Same field layout as 28800 but with SHA2 key derivation (PBKDF2-HMAC-SHA256 + KDF, etype name prefix salt). Key field is 32 hex (16 bytes). The module uses `salt_iter = 32768 - 1` (RFC default); see the [encryption types warning](encryption-types.md#aes128-sha2-and-aes256-sha2-etypes-19-and-20) about the Windows 4096-iteration mismatch.
 
 ### Mode 39020: AES256-SHA2 DB Key {: #mode-39020-db-sha2 }
 
@@ -547,7 +547,7 @@ Same field layout as 28800 but with SHA2 key derivation (PBKDF2-HMAC-SHA256 + KD
 $krb5db$20$user$realm$key
 ```
 
-Same as 39010 but with PBKDF2-HMAC-SHA384 and 64-hex key output (32 bytes).
+Same as 39010 but with PBKDF2-HMAC-SHA384 and 64-hex key output (32 bytes). Also uses `salt_iter = 32768 - 1`.
 
 ### Mode 38400: DES DB Key {: #mode-38400-des-db }
 

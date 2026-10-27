@@ -119,7 +119,7 @@ Key derivation is a three-step process:
 | **RFC** | 8009 | Same |
 
 !!! warning "Windows uses 4096 iterations, not 32768"
-    RFC 8009 specifies a default of 32768 PBKDF2 iterations. Windows Server 2025 uses 4096 instead, matching the AES-SHA1 iteration count. Hashcat TGS-REP and AS-REP modules for etypes 19/20 (modes 39400-39700) use `salt_iter = 4096 - 1` to match Windows. The Pre-Auth modules (39800/39900) use `salt_iter = 32768 - 1` (RFC default); since a different iteration count produces a different PBKDF2 key, Windows-generated Pre-Auth hashes will not crack without changing `32768` to `4096` in the module source.
+    RFC 8009 specifies a default of 32768 PBKDF2 iterations. Windows Server 2025 uses 4096 instead, matching the AES-SHA1 iteration count. Hashcat TGS-REP and AS-REP modules for etypes 19/20 (modes 39400-39700) use `salt_iter = 4096 - 1` to match Windows. The Pre-Auth modules (39800/39900) and DB Key modules (39010/39020) use `salt_iter = 32768 - 1` (RFC default); since a different iteration count produces a different PBKDF2 key, Windows-generated hashes for these modes will not crack without changing `32768` to `4096` in the module source.
 
 ---
 
