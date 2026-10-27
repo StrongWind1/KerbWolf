@@ -270,7 +270,7 @@ Use `--format john` to output hashes for John. All 9 RC4/AES modes are verified 
 |--------|-------|-----------------|-------|
 | TGS-REP | RC4 | `krb5tgs` | `$krb5tgs$23$*user$realm$spn*$checksum$edata2` |
 | TGS-REP | AES | `krb5tgs-sha1` | Same as hashcat canonical format |
-| AS-REP | RC4 | `krb5asrep` | No username in hash (just `$checksum$edata2`) |
+| AS-REP | RC4 | `krb5asrep` | `$krb5asrep$23$checksum$edata2` (no user/realm fields) |
 | AS-REP | AES | `krb5asrep` | `$REALMuser$edata2$checksum` (realm+user concatenated) |
 | AS-REQ | RC4 | `krb5pa-md5` | `$krb5pa$23$user$realm$$edata2checksum` (empty salt field, edata2 before checksum) |
 | AS-REQ | AES | `krb5pa-sha1` | Adds empty salt field: `$krb5pa$17$user$realm$$edata2checksum` |

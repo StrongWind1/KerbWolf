@@ -151,7 +151,7 @@ tcpdump -i eth0 -w - port 88 | kw-extract -
 
 ### DC resolution
 
-Without `--dc-ip`, KerbWolf tries to find the DC on its own:
+KerbWolf resolves the DC through a chain: SRV first, then explicit flags override, then domain A/AAAA as fallback.
 
 ```mermaid
 flowchart TD
@@ -159,31 +159,32 @@ flowchart TD
     B -->|Yes| C["Extract domain + user<br/>from ccache principal"]
     B -->|No| D["Use -d domain and -u user"]
 
-    C & D --> E{"DNS SRV lookup<br/>_kerberos._tcp.DOMAIN"}
-    E -->|Found| F["DC hostname + IP from SRV"]
-    E -->|Failed| G{"--dc-ip provided?"}
+    C & D --> E["DNS SRV lookup<br/>_kerberos._tcp.DOMAIN"]
+    E --> F{"SRV found?"}
+    F -->|Yes| G["dc_ip + dc_hostname from SRV"]
+    F -->|No| G2["dc_ip + dc_hostname unset"]
 
-    G -->|Hostname| I["Resolve hostname → IP<br/>hostname = --dc-ip"]
-    G -->|Not provided| J{"Resolve domain A/AAAA"}
-    G -->|IP address| H{"--dc-hostname<br/>provided?"}
+    G & G2 --> H{"--dc-ip provided?"}
+    H -->|IP address| I["dc_ip = --dc-ip<br/>(overrides SRV)"]
+    H -->|Hostname| I2["Resolve hostname → IP<br/>dc_hostname = --dc-ip"]
+    H -->|No| J{"dc_ip set from SRV?"}
 
-    H -->|Yes| H2["IP = --dc-ip<br/>hostname = --dc-hostname"]
-    H -->|No| H3["IP = --dc-ip<br/>hostname = ⚠ missing"]
+    J -->|No| K["Resolve domain A/AAAA"]
+    J -->|Yes| L["Keep SRV result"]
 
-    J -->|Found| K["Use domain IP<br/>hostname = ⚠ missing"]
-    J -->|Failed| L["Error: use --dc-ip"]
+    I & I2 --> M{"--dc-hostname?"}
+    M -->|Yes| M2["dc_hostname = --dc-hostname"]
+    M -->|No| M3["Keep dc_hostname<br/>(from SRV or --dc-ip)"]
 
-    F --> M["DC IP + hostname ready"]
-    I --> M
-    H2 --> M
-    H3 --> N["DC IP only<br/>Kerberos LDAP will need<br/>RootDSE lookup for hostname"]
-    K --> N
+    K -->|Found| N["dc_ip = domain IP<br/>dc_hostname = ⚠ missing"]
+    K -->|Failed| O["Error: use --dc-ip"]
 
-    style F fill:#1a3a1a,stroke:#6bcb77
-    style M fill:#1a3a1a,stroke:#6bcb77
-    style N fill:#4a4a20,stroke:#ffd93d
-    style L fill:#4a2020,stroke:#ff6b6b
-    style H3 fill:#4a4a20,stroke:#ffd93d
+    L & M2 & M3 --> P["DC IP + hostname ready"]
+    N --> Q["DC IP only<br/>Kerberos LDAP will need<br/>RootDSE lookup for hostname"]
+
+    style P fill:#1a3a1a,stroke:#6bcb77
+    style Q fill:#4a4a20,stroke:#ffd93d
+    style O fill:#4a2020,stroke:#ff6b6b
 ```
 
 !!! warning "Kerberos LDAP needs a hostname"
