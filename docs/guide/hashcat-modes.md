@@ -288,7 +288,7 @@ hashcat accepts these older formats on input and silently converts to canonical 
 | 23 | `$krb5tgs$23$*user$realm$spn*$checksum$edata2` (Rubeus/JtR) | `$krb5asrep$23$user@realm:checksum$edata2` (Impacket) |
 | 23 | `$krb5tgs$23$checksum$edata2` (bare) | `$krb5asrep$user@realm:checksum$edata2` (no etype) |
 | 23 | `$krb5tgs$spn:checksum$edata2` (JtR) | |
-| 17, 18 | (none — canonical is the only format) | `$krb5asrep$E$salt$edata2$checksum` (JtR, fields reordered) |
+| 17, 18 | `$krb5tgs$E$user$realm$*spn*$checksum$edata2` (optional SPN) | `$krb5asrep$E$salt$edata2$checksum` (JtR, fields reordered) |
 
 Pre-Auth legacy: `$krb5pa$E$user$realm$$data` (empty salt field between realm and data) and `$krb5pa$E$user$realm$salt$data` (JtR explicit salt).
 

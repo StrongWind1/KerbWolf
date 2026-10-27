@@ -48,7 +48,8 @@ Some modes accept multiple input formats. Format 1 is the canonical hashcat form
 
     - **Realm is uppercased at parse time.** Hashcat calls `uppercase()` on the realm field, so `contoso.com` and `Contoso.Com` both become `CONTOSO.COM`. But the realm **must match the KDC's realm exactly** after uppercasing. A typo like `CONTOSO.COM` vs `CONTOSO.NET` will break everything.
     - **Username is case-sensitive and left as-is.** Hashcat does not touch the case of the user field. If the KDC issued the ticket for `Administrator` and your hash says `administrator`, the derived key will be different and cracking will produce zero results with no error message.
-    - **Salt = `REALM` + `user` concatenated.** No separator, no null byte. `CONTOSO.COMAdministrator`. Fed to PBKDF2-HMAC-SHA1 with 4096 iterations.
+    - **AES-SHA1 salt = `REALM` + `user` concatenated.** No separator, no null byte. `CONTOSO.COMAdministrator`. Fed to PBKDF2-HMAC-SHA1 with 4096 iterations.
+    - **AES-SHA2 salt = `etype_name` + `\x00` + `REALM` + `user`.** The etype name (e.g., `aes256-cts-hmac-sha384-192`) is prepended with a null byte separator. Fed to PBKDF2-HMAC-SHA256 (etype 19) or PBKDF2-HMAC-SHA384 (etype 20) with 4096 iterations, then KDF-HMAC-SHA2.
     - **Hex fields accept both cases.** `a-f` and `A-F` both work in checksum and edata2 fields.
     - **RC4 modes (7500, 13100, 18200) don't care about any of this.** The user/realm/salt/spn fields are display-only metadata. The NT hash has no salt, so those fields can be empty or wrong and cracking still works.
 
@@ -373,7 +374,7 @@ Same parser as 19800. Signature is `$krb5pa$18$`, key output is 32 bytes instead
 $krb5pa$19$user$realm$data
 ```
 
-Same field layout as 19800/19900. Key derivation uses PBKDF2-HMAC-SHA256 (4096 iterations) with the etype name prefix salt, followed by KDF-HMAC-SHA2. The `data` field contains the encrypted timestamp followed by a 32-hex HMAC-SHA256-128 checksum.
+Same field layout as 19800/19900. Key derivation uses PBKDF2-HMAC-SHA256 with the etype name prefix salt, followed by KDF-HMAC-SHA2. The module uses `salt_iter = 32768 - 1` (RFC 8009 default); see the [encryption types warning](encryption-types.md#aes128-sha2-and-aes256-sha2-etypes-19-and-20) about the Windows 4096-iteration mismatch. The `data` field contains the encrypted timestamp followed by a 32-hex HMAC-SHA256-128 checksum.
 
 ### Mode 39900: AES256-SHA2 Pre-Auth {: #mode-39900-pa-sha2 }
 
