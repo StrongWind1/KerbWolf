@@ -23,7 +23,7 @@ sequenceDiagram
 
     Note over Attacker: Extract ticket → enc-part → cipher bytes
     Attacker->>Attacker: Split cipher into checksum + edata2
-    Attacker->>Attacker: Format as $krb5tgs$23$*svc_sql$REALM$SPN*$...
+    Attacker->>Attacker: Format as $krb5tgs$23$svc_sql$REALM$...
 
     Attacker->>Hashcat: Feed hash + wordlist
     Hashcat-->>Attacker: svc_sql's password = "Summer2024!"
@@ -58,7 +58,7 @@ sequenceDiagram
     alt DONT_REQUIRE_PREAUTH is set
         KDC-->>Attacker: AS-REP (enc-part encrypted with jsmith's key)
         Note over Attacker: Extract enc-part → cipher bytes
-        Attacker->>Hashcat: $krb5asrep$23$jsmith@REALM:...
+        Attacker->>Hashcat: $krb5asrep$23$jsmith$REALM$...
         Hashcat-->>Attacker: jsmith's password
     else Pre-auth required (normal)
         KDC-->>Attacker: KRB_ERROR (PREAUTH_REQUIRED)
@@ -96,7 +96,7 @@ sequenceDiagram
 
     KDC-->>User: AS-REP (normal authentication continues)
 
-    Attacker->>Hashcat: $krb5pa$23$user$REALM$$...
+    Attacker->>Hashcat: $krb5pa$23$user$REALM$...
     Hashcat-->>Attacker: user's password
 ```
 

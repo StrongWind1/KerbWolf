@@ -93,8 +93,7 @@ nav:
       - Overview: guide/index.md
       - Attacks in Depth: guide/attacks.md
       - Encryption Types: guide/encryption-types.md
-      - Hash Formats: guide/hash-formats.md
-      - Hashcat Modes: guide/hashcat-modes.md
+      - Hash Reference: guide/hashcat-modes.md
       - Hashcat Internals: guide/hashcat-internals.md
   - Installation: getting-started/installation.md
   - Commands:

@@ -2,7 +2,7 @@
 
 Extract Kerberos, SNTP (timeroast), NTLM, and LDAP credentials from pcap and pcapng captures. Completely offline, no network connection or credentials needed.
 
-For a full explanation, see the [guide](../guide/index.md) and [hash formats](../guide/hash-formats.md).
+For a full explanation, see the [guide](../guide/index.md) and [hash reference](../guide/hashcat-modes.md).
 
 ## Help
 

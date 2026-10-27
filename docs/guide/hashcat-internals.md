@@ -8,15 +8,15 @@ Some modes accept multiple input formats. Format 1 is the canonical hashcat form
 
 | Mode | Attack | Etype | Canonical format | Alt formats | User/realm required? |
 |------|--------|-------|-----------------|-------------|---------------------|
-| [13100](#mode-13100-rc4) | TGS-REP Roast (Kerberoast) | RC4 | `$krb5tgs$23$*user$realm$spn*$chk$edata2` | [2](#mode-13100-rc4-format-2-no-account-info), [3](#mode-13100-rc4-format-3-colon-delimited-spn) | no |
+| [13100](#mode-13100-rc4) | TGS-REP Roast (Kerberoast) | RC4 | `$krb5tgs$23$user$realm$chk$edata2` | [2](#mode-13100-rc4-format-2-no-account-info), [3](#mode-13100-rc4-format-3-colon-delimited-spn) | no |
 | [19600](#mode-19600-aes128) | TGS-REP Roast (Kerberoast) | AES128 | `$krb5tgs$17$user$realm$chk$edata2` | (+optional SPN) | **yes** |
 | [19700](#mode-19700-aes256) | TGS-REP Roast (Kerberoast) | AES256 | `$krb5tgs$18$user$realm$chk$edata2` | (+optional SPN) | **yes** |
-| [38500](#mode-38500-des) | TGS-REP Roast (Kerberoast) | DES-CBC-MD5 | `$krb5tgs$3$*user$realm$spn*$chk$edata2` | | **yes** |
-| [18200](#mode-18200-rc4) | AS-REP Roast | RC4 | `$krb5asrep$23$user@realm:chk$edata2` | [2](#mode-18200-rc4-format-2-no-etype) | no |
+| [38500](#mode-38500-des) | TGS-REP Roast (Kerberoast) | DES-CBC-MD5 | `$krb5tgs$3$user$realm$chk$edata2` | | **yes** |
+| [18200](#mode-18200-rc4) | AS-REP Roast | RC4 | `$krb5asrep$23$user$realm$chk$edata2` | [2](#mode-18200-rc4-format-2-no-etype) | no |
 | [32100](#mode-32100-aes128) | AS-REP Roast | AES128 | `$krb5asrep$17$user$realm$chk$edata2` | [2](#mode-32100-aes128-format-2-checksum-after-edata2) | **yes** |
 | [32200](#mode-32200-aes256) | AS-REP Roast | AES256 | `$krb5asrep$18$user$realm$chk$edata2` | [2](#mode-32200-aes256-format-2-checksum-after-edata2) | **yes** |
 | [38600](#mode-38600-des) | AS-REP Roast | DES-CBC-MD5 | `$krb5asrep$3$user$realm$chk$edata2` | (+joined `user@realm:`) | **yes** |
-| [7500](#mode-7500-rc4) | AS-REQ Pre-Auth | RC4 | `$krb5pa$23$user$realm$salt$edata2checksum` | | no |
+| [7500](#mode-7500-rc4) | AS-REQ Pre-Auth | RC4 | `$krb5pa$23$user$realm$data` | | no |
 | [19800](#mode-19800-aes128) | AS-REQ Pre-Auth | AES128 | `$krb5pa$17$user$realm$data` | | **yes** |
 | [19900](#mode-19900-aes256) | AS-REQ Pre-Auth | AES256 | `$krb5pa$18$user$realm$data` | | **yes** |
 | [28800](#mode-28800-aes128-db) | DB Key | AES128 | `$krb5db$17$user$realm$key` | (+optional SPN) | **yes** |
@@ -48,18 +48,19 @@ Some modes accept multiple input formats. Format 1 is the canonical hashcat form
 **Module:** `module_13100.c`
 
 ```
-$krb5tgs$23$*user$realm$spn*$checksum$edata2
+$krb5tgs$23$user$realm$checksum$edata2
 ```
 
 | Field | Delimiter | Length | Required | Used for cracking |
 |-------|-----------|--------|----------|-------------------|
 | signature `$krb5tgs$` | | 9 chars | yes | |
 | etype `23` | `$` | 2 digits | yes | |
-| account info `*user$realm$spn*` | `$` | variable | yes (can be `**`) | no |
+| user | `$` | variable | yes (can be empty) | no |
+| realm | `$` | variable | yes (can be empty) | no |
 | checksum | `$` | 32 hex (16 bytes) | yes | yes |
 | edata2 | `$` | 64-40960 hex | yes | yes |
 
-Canonical format. Detected when bytes after signature are `23$*`. Account info between the asterisks is opaque to hashcat: it stores whatever is there and writes it back to the potfile, but never parses user/realm/spn from it. Cracking uses only checksum + edata2.
+Canonical format. User and realm are display metadata — hashcat stores them for the potfile but never uses them for cracking. Only checksum + edata2 matter. hashcat also accepts the legacy `*user$realm$spn*` wrapper (format 2 below); KerbWolf never emits it.
 
 #### Mode 13100: RC4 &mdash; format 2 (no account info)
 
@@ -140,18 +141,19 @@ Same parser as 19600. Accepts the optional `*spn*$` field. Only the signature (`
 **Module:** `module_18200.c`
 
 ```
-$krb5asrep$23$user@realm:checksum$edata2
+$krb5asrep$23$user$realm$checksum$edata2
 ```
 
 | Field | Delimiter | Length | Required | Used for cracking |
 |-------|-----------|--------|----------|-------------------|
 | signature `$krb5asrep$` | | 11 chars | yes | |
 | etype `23` | `$` | 2 digits | yes | |
-| user principal | `:` | variable | no | no |
+| user | `$` | variable | no | no |
+| realm | `$` | variable | no | no |
 | checksum | `$` | 32 hex (16 bytes) | yes | yes |
 | edata2 | `$` | 64-40960 hex | yes | yes |
 
-Canonical format. Detected when bytes after signature are `23$`. Note the `:` between user principal and checksum, not `$`.
+Canonical format. hashcat also accepts the legacy `$krb5asrep$23$user@realm:checksum$edata2` (Impacket format) on input. KerbWolf emits the canonical `$`-delimited format.
 
 #### Mode 18200: RC4 &mdash; format 2 (no etype)
 
@@ -247,7 +249,7 @@ Same as 32100 format 2. Converted to format 1 on output.
 **Module:** `module_07500.c`
 
 ```
-$krb5pa$23$user$realm$salt$edata2checksum
+$krb5pa$23$user$realm$data
 ```
 
 | Field | Delimiter | Length | Required | Used for cracking |
@@ -255,10 +257,9 @@ $krb5pa$23$user$realm$salt$edata2checksum
 | signature `$krb5pa$23$` | | 11 chars | yes | |
 | user | `$` | 0-64 chars | no | no |
 | realm | `$` | 0-64 chars | no | no |
-| salt | `$` | 0-128 chars | no | no |
 | data (enc_timestamp + checksum) | `$` | 104 hex | yes | yes |
 
-Single format. User, realm, and salt can all be empty strings — KerbWolf emits an empty salt, producing `$$` before the data. Hashcat stores the metadata fields for display but ignores them during cracking. The data field is one concatenated blob: 72 hex chars of encrypted timestamp followed by 32 hex chars of HMAC-MD5 checksum. Only the data field matters for cracking.
+Single format. User and realm can be empty strings. Hashcat stores the metadata fields for display but ignores them during cracking. The data field is one concatenated blob: 72 hex chars of encrypted timestamp followed by 32 hex chars of HMAC-MD5 checksum. Only the data field matters for cracking. hashcat also accepts `$krb5pa$23$user$realm$salt$data` with an extra salt field (John format); KerbWolf does not emit the salt field.
 
 ---
 
@@ -358,17 +359,18 @@ checksum = HMAC-SHA512(derived_key, salt)
 **Module:** `module_38500.c`
 
 ```
-$krb5tgs$3$*user$realm$spn*$checksum$edata2
+$krb5tgs$3$user$realm$checksum$edata2
 ```
 
 | Field | Delimiter | Length | Required | Used for cracking |
 |-------|-----------|--------|----------|-------------------|
 | signature `$krb5tgs$3$` | | 11 chars | yes | |
-| account info `*user$realm$spn*` | `$` | variable | yes | **yes** (user+realm form the DES string-to-key salt) |
+| user | `$` | 1-128 chars | **yes** | **yes** (DES string-to-key salt) |
+| realm | `$` | 1-128 chars | **yes** | **yes** (DES string-to-key salt, uppercased) |
 | checksum | `$` | 32 hex (16 bytes) | yes | yes |
 | edata2 | `$` | 64+ hex | yes | yes |
 
-Unlike RC4 mode 13100 where user/realm/spn are pure metadata, DES requires them. The salt for DES string-to-key is `REALM + user`, same as AES. The "checksum" field is the first 2 DES blocks of ciphertext, not a MAC — the real integrity check (MD5) is embedded in the plaintext after decryption.
+Unlike RC4 mode 13100 where user/realm are pure metadata, DES requires them. The salt for DES string-to-key is `REALM + user`, same as AES. The "checksum" field is the first 2 DES blocks of ciphertext, not a MAC — the real integrity check (MD5) is embedded in the plaintext after decryption.
 
 Verification: decrypt block 3 (bytes 16-23) with zero IV, check for ASN.1 tag `0x63` (EncTicketPart). On match, decrypt full ciphertext, zero the embedded MD5 at plaintext bytes 8-24, recompute MD5, compare.
 

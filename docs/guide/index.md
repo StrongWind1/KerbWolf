@@ -70,13 +70,7 @@ Domain controllers respond to authenticated NTP requests from computer, gMSA, an
 
 ## Attack matrix
 
-|  | DES-CBC-CRC (1) | DES-CBC-MD5 (3) | AES128-SHA1 (17) | AES256-SHA1 (18) | AES128-SHA2 (19) | AES256-SHA2 (20) | RC4 (23) |
-|---|---|---|---|---|---|---|---|
-| **AS-REQ** | `$krb5pa$1$` (39300) | `$krb5pa$3$` (39000) | `$krb5pa$17$` (19800) | `$krb5pa$18$` (19900) | `$krb5pa$19$` (39800) | `$krb5pa$20$` (39900) | `$krb5pa$23$` (7500) |
-| **AS-REP** | `$krb5asrep$1$` (39200) | `$krb5asrep$3$` (38600) | `$krb5asrep$17$` (32100) | `$krb5asrep$18$` (32200) | `$krb5asrep$19$` (39600) | `$krb5asrep$20$` (39700) | `$krb5asrep$23$` (18200) |
-| **TGS-REP** | `$krb5tgs$1$` (39100) | `$krb5tgs$3$` (38500) | `$krb5tgs$17$` (19600) | `$krb5tgs$18$` (19700) | `$krb5tgs$19$` (39400) | `$krb5tgs$20$` (39500) | `$krb5tgs$23$` (13100) |
-
-Numbers in parentheses are hashcat mode numbers. AES-SHA2 etypes 19/20 (RFC 8009) are supported on Windows Server 2025. KerbWolf implements the Windows-specific string-to-key (PBKDF2 with 4096 iterations + KDF-HMAC-SHA2 second pass).
+KerbWolf covers 7 encryption types × 4 attack types = 29 hashcat modes plus 3 NT-hash variants. See the [Hash Reference](hashcat-modes.md) for the full mode matrix, hash format tables, and cracking examples.
 
 ### Timeroasting matrix
 
@@ -217,7 +211,7 @@ nxc smb 10.0.0.1 --generate-hosts-file /etc/hosts
 
 - [Attacks in Depth](attacks.md) - protocol details, sequence diagrams, ASN.1 paths
 - [Encryption Types](encryption-types.md) - key derivation, salt, Windows version history
-- [Hash Formats](hash-formats.md) - cipher splitting, hashcat/John format tables, cracking
+- [Hash Reference](hashcat-modes.md) - modes, formats, cipher splitting, cracking examples
 
 ## Disclaimer
 

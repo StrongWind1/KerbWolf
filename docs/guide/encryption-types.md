@@ -204,7 +204,7 @@ Common values you'll see:
 | **0x18** | AES128 + AES256 SHA1 (the "AES required" checkbox in ADUC) |
 | **0x1C** | RC4 + AES128 + AES256 SHA1 |
 | **0x1F** | All five legacy encryption types |
-| **0xF8** | AES128 + AES256 SHA1 + RC4 + AES128-SHA2 + AES256-SHA2 (Server 2025 with SHA2) |
+| **0xF8** | AES128 + AES256 SHA1 + AES128-SHA2 + AES256-SHA2 (Server 2025, AES-only with SHA2) |
 | **0xFF** | All seven encryption types |
 
 `kw-roast --ldap` queries for accounts with `servicePrincipalName` set. The KDC picks the etype for the ticket based on this bitmask. On Server 2019+, the DC uses the strongest etype the service supports and ignores your RC4 request, so you might pass `-e rc4` and still get an AES256 ticket back.
