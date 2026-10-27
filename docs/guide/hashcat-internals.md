@@ -73,7 +73,7 @@ $krb5tgs$23$user$realm$checksum$edata2
 | checksum | `$` | 32 hex (16 bytes) | yes | yes |
 | edata2 | `$` | 64-40958 hex | yes | yes |
 
-Canonical format. User and realm are display metadata — hashcat stores them for the potfile but never uses them for cracking. Only checksum + edata2 matter. hashcat also accepts the legacy `*user$realm$spn*` wrapper (format 2 below); KerbWolf never emits it.
+Canonical format. User and realm are display metadata — hashcat stores them for the potfile but never uses them for cracking. Only checksum + edata2 matter. hashcat also accepts the Rubeus/Impacket `$krb5tgs$23$*user$realm$spn*$checksum$edata2` legacy wrapper (normalized to format 1 on output), plus format 2 (bare) and format 3 (colon-SPN) below. KerbWolf never emits the legacy wrapper.
 
 #### Mode 13100: RC4 &mdash; format 2 (no account info)
 
@@ -103,7 +103,7 @@ $krb5tgs$spn:checksum$edata2
 | checksum | `$` | 32 hex (16 bytes) | yes | yes |
 | edata2 | `$` | 64-40958 hex | yes | yes |
 
-Detected when the bytes after signature are NOT `23`. No etype field, colon delimiter for SPN. Hashcat preserves this format on output (does not convert to format 1).
+Detected when the bytes after signature are NOT `23`. No etype field, colon delimiter for SPN. Hashcat converts this to format 1 on output (canonical `$23$user$realm$` format).
 
 ---
 

@@ -137,7 +137,7 @@ LDAP mode queries the DC for computer and gMSA accounts, extracts their RIDs fro
 | `-c FILE`, `--ccache FILE` | Kerberos ccache file |
 | `--dc-hostname HOST` | DC FQDN for Kerberos SPN (auto-detected if omitted) |
 
-When `--ldap` is used without `-r`, RIDs come from LDAP. When both `--ldap` and `-r` are specified, `-r` provides the RIDs and LDAP provides name labels.
+`--ldap` takes priority over `-r`/`-R`: when `--ldap` is set, RIDs and account names both come from LDAP. When `--ldap` is not set, `-r`/`-R` provides RIDs (or the default range 500-10000).
 
 ### Network options
 
