@@ -23,7 +23,7 @@
 3. **AS-REQ Pre-Auth** - extract encrypted timestamps from network captures (passive)
 4. **Timeroasting** - unauthenticated MS-SNTP hash extraction for computer and gMSA accounts
 
-Plus pcap extraction of NTLM hashes (NTLMv1/v2 from 8 transports) and LDAP simple bind credentials.
+Plus pcap extraction of NTLM hashes (NTLMv1/v2 from 9 transports) and LDAP simple bind credentials.
 
 ## Example
 
@@ -114,7 +114,7 @@ tcpdump -i eth0 -w - 'port 88 or port 123 or port 445' | kw-extract -
 
 **SNTP** (port 123): 68-byte MD5 and 120-byte KDF+HMAC-SHA512 timeroast responses.
 
-**NTLM** (8 transports): Extracts NTLMv1, NTLMv1-ESS, NTLMv2, and LMv2 hashes with automatic TCP stream reassembly and Type 2/Type 3 connection tracking.
+**NTLM** (9 transports): Extracts NTLMv1, NTLMv1-ESS, NTLMv2, and LMv2 hashes with automatic TCP stream reassembly and Type 2/Type 3 connection tracking.
 
 | Transport | Ports | Spec |
 |-----------|-------|------|
@@ -122,6 +122,7 @@ tcpdump -i eth0 -w - 'port 88 or port 123 or port 445' | kw-extract -
 | HTTP | 80 | [MS-NTHT] |
 | WinRM | 5985, 5986 | [MS-WSMV] |
 | LDAP | 389 | SASL/SPNEGO |
+| DCE-RPC | 135 | [MS-RPCE] |
 | SMTP | 25, 587 | [MS-SMTPNTLM] |
 | POP3 | 110 | [MS-POP3] |
 | IMAP | 143 | [MS-OXIMAP] |

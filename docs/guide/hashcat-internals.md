@@ -24,7 +24,8 @@ Some modes accept multiple input formats. Format 1 is the canonical hashcat form
 | [38400](#mode-38400-des-db) | DB Key | DES 1/2/3 | `$krb5db$<1\|2\|3>$user$realm$key` | (+optional SPN) | **yes** |
 | [35300](#mode-35300-rc4-nt) | TGS-REP (NT hash) | RC4 | same as 13100 | same as 13100 | no |
 | [35400](#mode-35400-rc4-nt) | AS-REP (NT hash) | RC4 | same as 18200 | same as 18200 | no |
-| [31300](#mode-31300-ms-sntp-68-byte-authenticator) | Timeroasting | MD5 | `$sntp-ms$RID$digest$salt` | | no |
+| [35900](#mode-35900-rc4-nt) | Pre-Auth (NT hash) | RC4 | same as 7500 | same as 7500 | no |
+| [31300](#mode-31300-ms-sntp-68-byte-authenticator) | Timeroasting | MD5 | `$sntp-ms$digest$salt` | | no |
 
 ---
 
@@ -311,22 +312,19 @@ Same parser as 19800. Signature is `$krb5pa$18$`, key output is 32 bytes instead
 **Module:** `module_31300.c`
 
 ```
-$sntp-ms$<RID>$<32hex_digest>$<96hex_salt>
+$sntp-ms$<32hex_digest>$<96hex_salt>
 ```
 
 | Field | Delimiter | Length | Required | Used for cracking |
 |-------|-----------|--------|----------|-------------------|
 | signature `$sntp-ms$` | | 9 chars | yes | |
-| RID | `$` | 1-10 digits | yes | **no** (metadata only) |
 | MD5 digest | `$` | 32 hex | yes | yes |
 | salt (NTP response header) | `$` | 96 hex (48 bytes) | yes | yes |
 
 The hash is computed as `MD5(NTOWFv1 || salt)` where NTOWFv1 is the NT hash (MD4 of the UTF-16LE password) and salt is the 48-byte NTP server response header.
 
-The RID identifies the computer or trust account. It is not used in the MD5 computation but is preserved in the hash string so cracked passwords can be mapped back to accounts. Hashcat stores it in `salt_buf_pc` and emits it in the potfile output.
-
-!!! note "Format change"
-    The original module_31300.c used `$sntp-ms$<hash>$<salt>` (3 tokens, no RID). KerbWolf's updated module adds the RID as a 4th token between the signature and the digest.
+!!! note "RID is not in the hash"
+    The RID identifies the computer or trust account but is not part of the hashcat format and is not used in the MD5 computation. KerbWolf includes the RID in its output as a prefix (`$sntp-ms$<RID>$<digest>$<salt>`) for account mapping; strip the RID field before feeding hashes to hashcat.
 
 ### Proposed: MS-SNTP SHA512 (120-byte ExtendedAuthenticator)
 
@@ -452,13 +450,19 @@ Identical hash format to mode 13100. The difference is the input: the wordlist c
 
 Same relationship to mode 18200. Identical hash format, NT hash as input.
 
+### Mode 35900: RC4 Pre-Auth, NT hash input {: #mode-35900-rc4-nt }
+
+**Module:** `module_35900.c`
+
+Same relationship to mode 7500. Identical hash format, NT hash as input.
+
 ---
 
 ## What hashcat actually needs to crack each hash
 
 The hash line carries both cryptographic inputs (required) and display metadata (ignored during cracking). Getting a metadata field wrong doesn't break anything. Getting a cryptographic input wrong means zero results with no error.
 
-### RC4 modes (7500, 13100, 18200, 35300, 35400)
+### RC4 modes (7500, 13100, 18200, 35300, 35400, 35900)
 
 | Field | Role | Wrong value breaks cracking? |
 |-------|------|------------------------------|

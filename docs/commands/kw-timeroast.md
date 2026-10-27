@@ -178,6 +178,8 @@ Only files with at least one hash are created.
 $sntp-ms$<RID>$<32hex_digest>$<96hex_salt>
 ```
 
+Hashcat expects `$sntp-ms$<digest>$<salt>` (no RID). KerbWolf includes the RID for account mapping; strip it before feeding to hashcat.
+
 **120-byte KDF+HMAC-SHA512** (no hashcat module yet):
 
 ```

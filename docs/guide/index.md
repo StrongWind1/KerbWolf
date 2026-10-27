@@ -57,7 +57,7 @@ When users authenticate, their AS-REQ contains an encrypted timestamp. Capture i
 
 **Tool:** `kw-extract` &nbsp;|&nbsp; **Auth required:** No (offline pcap parsing)
 
-`kw-extract` also extracts NTLM hashes (SMB, HTTP, WinRM, LDAP, DCE-RPC, SMTP, POP3, IMAP, Telnet), MS-SNTP timeroast hashes, and plaintext credentials from LDAP simple binds — all from the same pcap in one pass.
+`kw-extract` also extracts NTLM hashes (9 transports: SMB, HTTP, WinRM, LDAP, DCE-RPC, SMTP, POP3, IMAP, Telnet), MS-SNTP timeroast hashes, and plaintext credentials from LDAP simple binds — all from the same pcap in one pass.
 
 ### Timeroasting (MS-SNTP)
 
@@ -70,14 +70,16 @@ Domain controllers respond to authenticated NTP requests from computer, gMSA, an
 
 ## Attack matrix
 
-KerbWolf covers 7 encryption types × 4 attack types = 29 hashcat modes plus 3 NT-hash variants. See the [Hash Reference](hashcat-modes.md) for the full mode matrix, hash format tables, and cracking examples.
+KerbWolf covers 7 encryption types × 4 attack types. See the [Hash Reference](hashcat-modes.md) for the full mode matrix, hash format tables, and cracking examples.
 
 ### Timeroasting matrix
 
 | # | Format | Algorithm | Hash format | Hashcat mode |
 |---|--------|-----------|-------------|-------------|
-| 1 | 68-byte Authenticator | `MD5(NTOWFv1 \|\| salt)` | `$sntp-ms$<RID>$<hash>$<salt>` | 31300 |
+| 1 | 68-byte Authenticator | `MD5(NTOWFv1 \|\| salt)` | `$sntp-ms$<hash>$<salt>` | 31300 |
 | 2 | 120-byte ExtendedAuthenticator | KDF(SP800-108, HMAC-SHA512) + HMAC-SHA512 | `$sntp-ms-sha512$<RID>$<hash>$<salt>` | proposed |
+
+KerbWolf's output includes the RID as a prefix for account mapping (`$sntp-ms$<RID>$<hash>$<salt>`). Strip it before feeding to hashcat, which expects `$sntp-ms$<hash>$<salt>` (3 tokens).
 
 ---
 

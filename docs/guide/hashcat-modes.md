@@ -21,7 +21,7 @@ Same hash format as the password modes, but the input is a 32-char NT hash inste
 |---|---|---|
 | TGS-REP | 35300 | 13100 |
 | AS-REP | 35400 | 18200 |
-| Pre-Auth | 35700 | 7500 |
+| Pre-Auth | 35900 | 7500 |
 
 ---
 
@@ -40,7 +40,7 @@ flowchart TD
     E -->|"AES-SHA1 (17/18)"| G["Split: last 12 bytes = checksum<br/>remaining = edata2"]
     E -->|"AES-SHA2 (19)"| G2["Split: last 16 bytes = checksum<br/>remaining = edata2"]
     E -->|"AES-SHA2 (20)"| G3["Split: last 24 bytes = checksum<br/>remaining = edata2"]
-    E -->|"DES (3)"| H["Split: first 16 bytes = checksum<br/>remaining = edata2"]
+    E -->|"DES (1/3)"| H["Split: first 16 bytes = checksum<br/>remaining = edata2"]
     G2 --> J
     G3 --> J
 
@@ -133,7 +133,7 @@ block-beta
     end
 
     block:deslabel:1
-        dest["DES<br/>(etype 3)"]
+        dest["DES<br/>(etype 1/3)"]
     end
     block:descheck:2
         desc["Checksum (16 bytes)<br/>first two DES blocks"]
@@ -272,7 +272,7 @@ Use `--format john` to output hashes for John. All 9 RC4/AES modes are verified 
 | TGS-REP | AES | `krb5tgs-sha1` | Same as hashcat canonical format |
 | AS-REP | RC4 | `krb5asrep` | No username in hash (just `$checksum$edata2`) |
 | AS-REP | AES | `krb5asrep` | `$REALMuser$edata2$checksum` (realm+user concatenated) |
-| AS-REQ | RC4 | `krb5pa-md5` | Same as hashcat |
+| AS-REQ | RC4 | `krb5pa-md5` | `$krb5pa$23$user$realm$$edata2checksum` (empty salt field, edata2 before checksum) |
 | AS-REQ | AES | `krb5pa-sha1` | Adds empty salt field: `$krb5pa$17$user$realm$$edata2checksum` |
 | Any | DES-CBC-MD5 | `krb5-3` | `$krb3$REALMuser$cipher` |
 | Any | DES-CBC-CRC | — | No native John support; falls back to hashcat format |

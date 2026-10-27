@@ -41,11 +41,11 @@ Examples:
 
 ## What it extracts
 
-| Output | Source | Protocol | Hashcat mode |
+| Output | Source | Protocol | Hashcat modes |
 |--------|--------|----------|-------------|
-| `$krb5pa$` | PA-ENC-TIMESTAMP | AS-REQ (port 88) | 7500 / 19800 / 19900 |
-| `$krb5asrep$` | enc-part (no-preauth accounts) | AS-REP (port 88) | 18200 / 32100 / 32200 |
-| `$krb5tgs$` | Service ticket enc-part | TGS-REP (port 88) | 13100 / 19600 / 19700 |
+| `$krb5pa$` | PA-ENC-TIMESTAMP | AS-REQ (port 88) | 39300 / 39000 / 19800 / 19900 / 39800 / 39900 / 7500 |
+| `$krb5asrep$` | enc-part (no-preauth accounts) | AS-REP (port 88) | 39200 / 38600 / 32100 / 32200 / 39600 / 39700 / 18200 |
+| `$krb5tgs$` | Service ticket enc-part | TGS-REP (port 88) | 39100 / 38500 / 19600 / 19700 / 39400 / 39500 / 13100 |
 | `$sntp-ms$` | 68-byte Authenticator (MD5) | MS-SNTP (port 123) | 31300 |
 | `$sntp-ms-sha512$` | 120-byte ExtendedAuthenticator | MS-SNTP (port 123) | proposed |
 | `user::domain:...` | Net-NTLMv1 / NTLMv1-ESS | NTLM (see below) | 5500 |

@@ -25,7 +25,7 @@ KerbWolf extracts crackable hashes from Active Directory. 7 Kerberos encryption 
 - **Ccache auto-detection** — `-d` and `-u` are optional when using `-k -c` (domain and username extracted from ccache)
 - **Hashcat + John** — both output formats supported, all 9 RC4/AES modes verified cracking
 - **Native pcap parsing** — extract Kerberos, SNTP, and NTLM hashes from pcap/pcapng captures with TCP reassembly
-- **NTLM from 8 transports** — SMB, HTTP, WinRM, LDAP, SMTP, POP3, IMAP, Telnet
+- **NTLM from 9 transports** — SMB, HTTP, WinRM, LDAP, DCE-RPC, SMTP, POP3, IMAP, Telnet
 - **IPv4 and IPv6** — dual-stack support throughout
 - **DNS resolution** — SRV (preferred) + A/AAAA fallback for DC discovery
 - **TCP and UDP** — configurable transport, UDP auto-falls back to TCP
