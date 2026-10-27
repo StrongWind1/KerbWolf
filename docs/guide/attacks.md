@@ -141,7 +141,7 @@ With `--ldap`, KerbWolf runs a focused LDAP search that returns only accounts li
 (&(servicePrincipalName=*)(!(UserAccountControl:1.2.840.113556.1.4.803:=2))(!(objectCategory=computer)))
 ```
 
-This returns service accounts like `svc_sql`, `svc_http`, `svc_backup` that have SPNs registered. KerbWolf takes the first SPN from each account and requests a service ticket for it.
+This returns service accounts like `svc_sql`, `svc_http`, `svc_backup` that have SPNs registered. KerbWolf sends each account's sAMAccountName (not the SPN) as the TGS-REQ sname, so the KDC echoes the correct account name and the resulting hash uses the right salt.
 
 **For `kw-asrep --ldap`** the filter searches for accounts with the `DONT_REQUIRE_PREAUTH` flag (UAC bit 4194304), excluding disabled and computer accounts:
 
