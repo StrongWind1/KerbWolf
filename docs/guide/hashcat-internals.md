@@ -558,7 +558,7 @@ $krb5db$<1|2|3>$user$realm$<16hex_key>
 
 | Field | Delimiter | Length | Required | Used for cracking |
 |-------|-----------|--------|----------|-------------------|
-| signature `$krb5db$<1\|2\|3>$` | | 10-11 chars | yes | |
+| signature `$krb5db$<1\|2\|3>$` | | 10 chars | yes | |
 | user | `$` | 1-127 chars | **yes** | **yes** (DES string-to-key salt) |
 | realm | `$` | 1-127 chars | **yes** | **yes** (DES string-to-key salt) |
 | stored key | `$` | 16 hex (8 bytes) | yes | yes |
