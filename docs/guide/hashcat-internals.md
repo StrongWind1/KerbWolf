@@ -184,7 +184,7 @@ $krb5asrep$23$user$realm$checksum$edata2
 | user | `$` | variable | no | no |
 | realm | `$` | variable | no | no |
 | checksum | `$` | 32 hex (16 bytes) | yes | yes |
-| edata2 | `$` | 64-40960 hex | yes | yes |
+| edata2 | `$` | 64-40958 hex | yes | yes |
 
 Canonical format. hashcat also accepts the legacy `$krb5asrep$23$user@realm:checksum$edata2` (Impacket format) on input. KerbWolf emits the canonical `$`-delimited format.
 
@@ -199,7 +199,7 @@ $krb5asrep$user@realm:checksum$edata2
 | signature `$krb5asrep$` | | 11 chars | yes | |
 | user principal | `:` | variable | no | no |
 | checksum | `$` | 32 hex (16 bytes) | yes | yes |
-| edata2 | `$` | 64-40960 hex | yes | yes |
+| edata2 | `$` | 64-40958 hex | yes | yes |
 
 Detected when bytes after signature are NOT `23`. Same fields minus the etype. Hashcat converts this to format 1 (with `23$`) on output.
 
