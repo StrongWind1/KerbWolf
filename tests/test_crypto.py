@@ -73,7 +73,7 @@ class TestDeriveKey:
 
     def test_des_cbc_crc_key_length(self):
         key = derive_key(EncryptionType.DES_CBC_CRC, "password", "DOMAIN.LOCALuser")
-        assert key.enctype == 3  # maps to DES-CBC-MD5 cipher
+        assert key.enctype == 1
         assert len(key.contents) == 8
 
     def test_rc4_ignores_salt(self):
@@ -103,14 +103,14 @@ class TestDeriveKey:
 
 
 class TestDeriveAllKeys:
-    def test_returns_derivable_etypes(self):
+    def test_returns_all_etypes(self):
         keys = derive_all_keys("password", "DOMAIN.LOCALuser")
-        assert len(keys) == 5
+        assert len(keys) == 7
 
-    def test_sha2_etypes_excluded(self):
+    def test_sha2_etypes_included(self):
         keys = derive_all_keys("password", "DOMAIN.LOCALuser")
-        assert EncryptionType.AES128_CTS_HMAC_SHA256_128 not in keys
-        assert EncryptionType.AES256_CTS_HMAC_SHA384_192 not in keys
+        assert EncryptionType.AES128_CTS_HMAC_SHA256_128 in keys
+        assert EncryptionType.AES256_CTS_HMAC_SHA384_192 in keys
 
     def test_key_sizes_correct(self):
         keys = derive_all_keys("password", "DOMAIN.LOCALuser")

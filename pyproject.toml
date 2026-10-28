@@ -94,6 +94,7 @@ convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
 "kerbwolf/core/ntlmssp.py" = ["PLR0917"]
+"kerbwolf/core/crypto.py" = ["S304"]
 "kerbwolf/hashcat.py" = ["PLR0917"]
 "tests/**" = [
   "D",       # docstrings — tests
