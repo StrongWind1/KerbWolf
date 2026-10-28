@@ -56,9 +56,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     # -- output --
     grp = parser.add_argument_group("output")
-    grp.add_argument(
-        "-e", "--enctype", action="append", metavar="ETYPE", default=None, help="Encryption type(s) in preference order, repeatable or comma-separated (choices: des-cbc-crc, des-cbc-md5, rc4, aes128, aes256, aes128-sha2, aes256-sha2; default: rc4). First etype selects pre-auth key type; full list goes in AS-REQ body."
-    )
+    grp.add_argument("-e", "--enctype", action="append", metavar="ETYPE", default=None, help="Encryption type(s) in preference order, repeatable or comma-separated (choices: des-cbc-crc, des-cbc-md5, rc4, aes128, aes256; default: rc4). First etype selects pre-auth key type; full list goes in AS-REQ body.")
     grp.add_argument("-o", "--output", metavar="FILE", help="Output ccache file (default: <user>.ccache)")
 
     return parser

@@ -67,7 +67,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     # -- Output --
     grp = parser.add_argument_group("output")
-    grp.add_argument("-e", "--enctype", action="append", metavar="ETYPE", default=None, help="Encryption type(s) in preference order, repeatable or comma-separated (choices: des-cbc-crc, des-cbc-md5, rc4, aes128, aes256, aes128-sha2, aes256-sha2; default: rc4)")
+    grp.add_argument("-e", "--enctype", action="append", metavar="ETYPE", default=None, help="Encryption type(s) in preference order, repeatable or comma-separated (choices: des-cbc-crc, des-cbc-md5, rc4, aes128, aes256; default: rc4)")
     grp.add_argument("-o", "--output", metavar="FILE", help="Write hashes to file")
     grp.add_argument("--format", choices=["hashcat", "john"], default="hashcat", dest="hash_format", help="Hash output format (default: hashcat)")
 

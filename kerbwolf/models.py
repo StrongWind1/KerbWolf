@@ -56,8 +56,6 @@ ETYPE_BY_NAME: dict[str, EncryptionType] = {
     "rc4": EncryptionType.RC4_HMAC,
     "aes128": EncryptionType.AES128_CTS_HMAC_SHA1_96,
     "aes256": EncryptionType.AES256_CTS_HMAC_SHA1_96,
-    "aes128-sha2": EncryptionType.AES128_CTS_HMAC_SHA256_128,
-    "aes256-sha2": EncryptionType.AES256_CTS_HMAC_SHA384_192,
 }
 
 
