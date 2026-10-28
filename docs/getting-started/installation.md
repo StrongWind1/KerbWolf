@@ -38,7 +38,7 @@ kw-tgt --version
 kw-timeroast --version
 ```
 
-All five commands should print `kw-<tool> 1.0.0`.
+All five commands should print `kw-<tool> 1.1.0`.
 
 ## Run checks
 

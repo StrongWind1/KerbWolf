@@ -49,7 +49,7 @@ output:
   -e ETYPE, --enctype ETYPE
                         Encryption type(s) in preference order, repeatable or
                         comma-separated (choices: des-cbc-crc, des-cbc-md5,
-                        rc4, aes128, aes256, aes128-sha2, aes256-sha2;
+                        rc4, aes128, aes256;
                         default: rc4). First etype selects pre-auth key type;
                         full list goes in AS-REQ body.
   -o FILE, --output FILE

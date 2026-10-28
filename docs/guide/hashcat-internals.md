@@ -22,13 +22,13 @@ Some modes accept multiple input formats. Format 1 is the canonical hashcat form
 | [39700](#mode-39700-asrep-sha2) | AS-REP Roast | AES256-SHA2 | `$krb5asrep$20$user$realm$chk$edata2` | | **yes** |
 | [38600](#mode-38600-des) | AS-REP Roast | DES-CBC-MD5 | `$krb5asrep$3$user$realm$chk$edata2` | (+joined `user@realm:`) | **yes** |
 | [39200](#mode-39200-asrep-des-crc) | AS-REP Roast | DES-CBC-CRC | `$krb5asrep$1$user$realm$chk$edata2` | | **yes** |
-| [7500](#mode-7500-rc4) | AS-REQ Pre-Auth | RC4 | `$krb5pa$23$user$realm$data` | | no |
-| [19800](#mode-19800-aes128) | AS-REQ Pre-Auth | AES128-SHA1 | `$krb5pa$17$user$realm$data` | | **yes** |
-| [19900](#mode-19900-aes256) | AS-REQ Pre-Auth | AES256-SHA1 | `$krb5pa$18$user$realm$data` | | **yes** |
-| [39800](#mode-39800-pa-sha2) | AS-REQ Pre-Auth | AES128-SHA2 | `$krb5pa$19$user$realm$data` | | **yes** |
-| [39900](#mode-39900-pa-sha2) | AS-REQ Pre-Auth | AES256-SHA2 | `$krb5pa$20$user$realm$data` | | **yes** |
-| [39000](#mode-39000-pa-des) | AS-REQ Pre-Auth | DES-CBC-MD5 | `$krb5pa$3$user$realm$data` | | **yes** |
-| [39300](#mode-39300-pa-des-crc) | AS-REQ Pre-Auth | DES-CBC-CRC | `$krb5pa$1$user$realm$data` | | **yes** |
+| [7500](#mode-7500-rc4) | AS-REQ Pre-Auth | RC4 | `$krb5pa$23$user$realm$checksum$encrypted` | | no |
+| [19800](#mode-19800-aes128) | AS-REQ Pre-Auth | AES128-SHA1 | `$krb5pa$17$user$realm$checksum$encrypted` | | **yes** |
+| [19900](#mode-19900-aes256) | AS-REQ Pre-Auth | AES256-SHA1 | `$krb5pa$18$user$realm$checksum$encrypted` | | **yes** |
+| [39800](#mode-39800-pa-sha2) | AS-REQ Pre-Auth | AES128-SHA2 | `$krb5pa$19$user$realm$checksum$encrypted` | | **yes** |
+| [39900](#mode-39900-pa-sha2) | AS-REQ Pre-Auth | AES256-SHA2 | `$krb5pa$20$user$realm$checksum$encrypted` | | **yes** |
+| [39000](#mode-39000-pa-des) | AS-REQ Pre-Auth | DES-CBC-MD5 | `$krb5pa$3$user$realm$checksum$encrypted` | | **yes** |
+| [39300](#mode-39300-pa-des-crc) | AS-REQ Pre-Auth | DES-CBC-CRC | `$krb5pa$1$user$realm$checksum$encrypted` | | **yes** |
 | [28800](#mode-28800-aes128-db) | DB Key | AES128-SHA1 | `$krb5db$17$user$realm$key` | (+optional SPN) | **yes** |
 | [28900](#mode-28900-aes256-db) | DB Key | AES256-SHA1 | `$krb5db$18$user$realm$key` | (+optional SPN) | **yes** |
 | [39010](#mode-39010-db-sha2) | DB Key | AES128-SHA2 | `$krb5db$19$user$realm$key` | | **yes** |
@@ -313,7 +313,7 @@ Same as mode 38600 (DES-CBC-MD5 AS-REP) but for etype 1 (DES-CBC-CRC). Signature
 **Module:** `module_07500.c`
 
 ```
-$krb5pa$23$user$realm$data
+$krb5pa$23$user$realm$checksum$encrypted
 ```
 
 | Field | Delimiter | Length | Required | Used for cracking |
@@ -321,9 +321,10 @@ $krb5pa$23$user$realm$data
 | signature `$krb5pa$23$` | | 11 chars | yes | |
 | user | `$` | 0-63 chars | no | no |
 | realm | `$` | 0-63 chars | no | no |
-| data (enc_timestamp + checksum) | `$` | 104 hex | yes | yes |
+| checksum | `$` | 32 hex | yes | yes |
+| encrypted | `$` | 72 hex | yes | yes |
 
-Single format. User and realm can be empty strings. Hashcat stores the metadata fields for display but ignores them during cracking. The data field is one concatenated blob: 72 hex chars of encrypted timestamp followed by 32 hex chars of HMAC-MD5 checksum. Only the data field matters for cracking. hashcat also accepts `$krb5pa$23$user$realm$salt$data` with an extra salt field (John format); KerbWolf does not emit the salt field.
+Single format. User and realm can be empty strings. Hashcat stores the metadata fields for display but ignores them during cracking. The checksum field is 32 hex chars of HMAC-MD5, the encrypted field is 72 hex chars of encrypted timestamp. Only these two fields matter for cracking.
 
 ---
 
@@ -332,7 +333,7 @@ Single format. User and realm can be empty strings. Hashcat stores the metadata 
 **Module:** `module_19800.c`
 
 ```
-$krb5pa$17$user$realm$data
+$krb5pa$17$user$realm$checksum$encrypted
 ```
 
 | Field | Delimiter | Length | Required | Used for cracking |
@@ -354,7 +355,7 @@ Same salt construction as all AES modes: uppercase realm + user → PBKDF2 4096 
 **Module:** `module_19900.c`
 
 ```
-$krb5pa$18$user$realm$data
+$krb5pa$18$user$realm$checksum$encrypted
 ```
 
 | Field | Delimiter | Length | Required | Used for cracking |
@@ -371,7 +372,7 @@ Same parser as 19800. Signature is `$krb5pa$18$`, key output is 32 bytes instead
 **Module:** `module_39800.c`
 
 ```
-$krb5pa$19$user$realm$data
+$krb5pa$19$user$realm$checksum$encrypted
 ```
 
 Same field layout as 19800/19900. Key derivation uses PBKDF2-HMAC-SHA256 with the etype name prefix salt, followed by KDF-HMAC-SHA2. The module uses `salt_iter = 32768 - 1` (RFC 8009 default); see the [encryption types warning](encryption-types.md#aes128-sha2-and-aes256-sha2-etypes-19-and-20) about the Windows 4096-iteration mismatch. The `data` field contains the encrypted timestamp followed by a 32-hex HMAC-SHA256-128 checksum.
@@ -381,7 +382,7 @@ Same field layout as 19800/19900. Key derivation uses PBKDF2-HMAC-SHA256 with th
 **Module:** `module_39900.c`
 
 ```
-$krb5pa$20$user$realm$data
+$krb5pa$20$user$realm$checksum$encrypted
 ```
 
 Same as 39800 but with PBKDF2-HMAC-SHA384 and a 48-hex HMAC-SHA384-192 checksum. Key output is 32 bytes.
@@ -391,7 +392,7 @@ Same as 39800 but with PBKDF2-HMAC-SHA384 and a 48-hex HMAC-SHA384-192 checksum.
 **Module:** `module_39000.c`
 
 ```
-$krb5pa$3$user$realm$data
+$krb5pa$3$user$realm$checksum$encrypted
 ```
 
 DES string-to-key from `REALM + user`, then DES-CBC decrypt the encrypted timestamp. Signature is `$krb5pa$3$`.
@@ -401,7 +402,7 @@ DES string-to-key from `REALM + user`, then DES-CBC decrypt the encrypted timest
 **Module:** `module_39300.c`
 
 ```
-$krb5pa$1$user$realm$data
+$krb5pa$1$user$realm$checksum$encrypted
 ```
 
 Same as 39000 but for etype 1 (DES-CBC-CRC). Signature is `$krb5pa$1$`.

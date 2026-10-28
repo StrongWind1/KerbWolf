@@ -188,7 +188,7 @@ $krb5asrep$<etype>$<user>$<realm>$<checksum_hex>$<edata2_hex>
 **Pre-Auth (encrypted timestamp):**
 
 ```
-$krb5pa$<etype>$<user>$<realm>$<data_hex>
+$krb5pa$<etype>$<user>$<realm>$<checksum>$<encrypted>
 ```
 
 **DB Key (stored key from KDC database):**
@@ -249,13 +249,13 @@ The SPN is not in the canonical format. It is operational metadata that does not
 
 | Etype | Mode | Format |
 |-------|------|--------|
-| RC4 (23) | 7500 | `$krb5pa$23$user$realm$data` |
-| AES128-SHA1 (17) | 19800 | `$krb5pa$17$user$realm$data` |
-| AES256-SHA1 (18) | 19900 | `$krb5pa$18$user$realm$data` |
-| AES128-SHA2 (19) | 39800 | `$krb5pa$19$user$realm$data` |
-| AES256-SHA2 (20) | 39900 | `$krb5pa$20$user$realm$data` |
-| DES-CBC-CRC (1) | 39300 | `$krb5pa$1$user$realm$cipher` |
-| DES-CBC-MD5 (3) | 39000 | `$krb5pa$3$user$realm$cipher` |
+| RC4 (23) | 7500 | `$krb5pa$23$user$realm$checksum$encrypted` |
+| AES128-SHA1 (17) | 19800 | `$krb5pa$17$user$realm$checksum$encrypted` |
+| AES256-SHA1 (18) | 19900 | `$krb5pa$18$user$realm$checksum$encrypted` |
+| AES128-SHA2 (19) | 39800 | `$krb5pa$19$user$realm$checksum$encrypted` |
+| AES256-SHA2 (20) | 39900 | `$krb5pa$20$user$realm$checksum$encrypted` |
+| DES-CBC-CRC (1) | 39300 | `$krb5pa$1$user$realm$checksum$encrypted` |
+| DES-CBC-MD5 (3) | 39000 | `$krb5pa$3$user$realm$checksum$encrypted` |
 
 !!! note "Pre-auth data field"
     The pre-auth hash data is the full PA-ENC-TIMESTAMP cipher as a single hex field. For RC4, that is edata2 (72 hex chars) followed by checksum (32 hex chars). The John format adds an empty salt field (`$$`) between `realm` and the data; KerbWolf's hashcat format does not.

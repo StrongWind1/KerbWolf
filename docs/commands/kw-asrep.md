@@ -67,7 +67,7 @@ output:
   -e ETYPE, --enctype ETYPE
                         Encryption type(s) in preference order, repeatable or
                         comma-separated (choices: des-cbc-crc, des-cbc-md5,
-                        rc4, aes128, aes256, aes128-sha2, aes256-sha2;
+                        rc4, aes128, aes256;
                         default: rc4)
   -o FILE, --output FILE
                         Write hashes to file

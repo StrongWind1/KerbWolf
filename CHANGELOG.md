@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.0] - 2026-10-28
+
+### Added
+
+- Native DES-CBC-CRC (etype 1) cipher implementation with CRC-32 checksum per RFC 3961 section 6.
+- Native RFC 8009 SHA2 key derivation (PBKDF2-SHA256/SHA384 + KDF-HMAC-SHA2), replacing the stub that aliased SHA1 cipher classes.
+- Salt extraction from AS-REP ETYPE-INFO2 padata, enabling TGT acquisition for accounts with DONT_REQUIRE_PREAUTH set.
+
+### Fixed
+
+- Pre-Auth hash format now outputs `$krb5pa$E$user$realm$checksum$encrypted` with separate checksum and encrypted fields, matching hashcat canonical format.
+- `kw-tgt` no longer crashes with "Unexpected response when retrieving salt" when the target account has DONT_REQUIRE_PREAUTH (etypes 1, 3, 17).
+- Test suite reduced from ~115s to ~1.5s by mocking `_probe_salts` in kerberoast tests (was making real TCP connections to test IPs).
+
+### Removed
+
+- `aes128-sha2` and `aes256-sha2` CLI options from `kw-roast`, `kw-asrep`, and `kw-tgt`. SHA2 etypes remain supported internally for pcap extraction and hash formatting.
+
 ## [1.0.0] - 2026-10-27
 
 ### Added
