@@ -289,7 +289,7 @@ _CHECKSUM_BYTES: dict[int, tuple[int, bool]] = {
 
 
 def _split_cipher(etype: int, cipher: bytes) -> tuple[str, str]:
-    """Split cipher into ``(checksum_hex, edata2_hex)`` per etype."""
+    """Split cipher into ``(checksum_hex, encrypted_hex)`` per etype."""
     size, at_end = _CHECKSUM_BYTES.get(etype, (16, False))
     if at_end:
         return hexlify(cipher[-size:]).decode(), hexlify(cipher[:-size]).decode()
@@ -310,19 +310,20 @@ def _format_krb5_hash(
 
     Canonical output (hashcat always emits; also accepted on input):
 
-        $krb5tgs$E$user$realm$checksum$edata2
-        $krb5asrep$E$user$realm$checksum$edata2
-        $krb5pa$E$user$realm$data
+        $krb5tgs$E$user$realm$checksum$encrypted
+        $krb5asrep$E$user$realm$checksum$encrypted
+        $krb5pa$E$user$realm$checksum$encrypted   (etypes 17, 18, 23)
+        $krb5pa$E$user$realm$data                  (etypes 1, 3 - integrity embedded)
     """
     if fmt == HashFormat.JOHN:
         safe_spn = spn.replace(":", "~") if spn is not None else None
         return _john_format(prefix, etype, username, realm, cipher, safe_spn)
 
-    if prefix == "krb5pa":
+    if prefix == "krb5pa" and etype in {1, 3}:
         return f"${prefix}${etype}${username}${realm}${hexlify(cipher).decode()}"
 
-    checksum, edata2 = _split_cipher(etype, cipher)
-    return f"${prefix}${etype}${username}${realm}${checksum}${edata2}"
+    checksum, encrypted = _split_cipher(etype, cipher)
+    return f"${prefix}${etype}${username}${realm}${checksum}${encrypted}"
 
 
 def _john_format(prefix: str, etype: int, username: str, realm: str, cipher: bytes, spn: str | None) -> str:
