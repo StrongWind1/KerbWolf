@@ -392,6 +392,31 @@ def _retrieve_salt_any_etype(
     return None
 
 
+def _extract_salt_from_asrep(response: bytes, etype_int: int, username: str, realm: str) -> str:
+    """Extract salt from an AS-REP's PA-DATA (ETYPE-INFO2).
+
+    When DONT_REQUIRE_PREAUTH is set, the KDC returns an AS-REP instead of
+    PREAUTH_REQUIRED.  The AS-REP still carries ETYPE-INFO2 in its padata.
+    """
+    try:
+        as_rep = decoder.decode(response, asn1Spec=AS_REP())[0]
+        pa_data_seq = as_rep["padata"]
+        if pa_data_seq is not None and pa_data_seq.hasValue():
+            for pa_data in pa_data_seq:
+                pa_type = int(pa_data["padata-type"])
+                if pa_type == krb_constants.PreAuthenticationDataTypes.PA_ETYPE_INFO2.value:
+                    etype_info2 = decoder.decode(pa_data["padata-value"], asn1Spec=ETYPE_INFO2())[0]
+                    for entry in etype_info2:
+                        salt_val = entry["salt"]
+                        if salt_val is not None and salt_val.hasValue():
+                            _log.debug("Extracted salt from AS-REP ETYPE-INFO2")
+                            return str(salt_val)
+    except Exception:  # noqa: BLE001
+        _log.debug("Failed to parse AS-REP padata", exc_info=True)
+    _log.debug("No salt in AS-REP, using computed salt for etype %d", etype_int)
+    return compute_salt(username, realm)
+
+
 def _retrieve_salt(
     username: str,
     realm: str,
@@ -407,9 +432,8 @@ def _retrieve_salt(
 
     try:
         krb_error = decoder.decode(response, asn1Spec=KRB_ERROR())[0]
-    except Exception as exc:
-        msg = "Unexpected response when retrieving salt"
-        raise KDCError(error_code=0, message=msg) from exc
+    except Exception:  # noqa: BLE001
+        return _extract_salt_from_asrep(response, etype_int, username, realm)
 
     error_code = int(krb_error["error-code"])
     if error_code != krb_constants.ErrorCodes.KDC_ERR_PREAUTH_REQUIRED.value:
