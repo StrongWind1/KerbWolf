@@ -73,7 +73,7 @@ kw-roast -k -c admin.ccache --ldap
 kw-asrep -d CORP.LOCAL --dc-ip 10.0.0.1 -t jsmith
 ```
 
-**Features:** LDAP enumeration, hashcat + John output, all 7 etypes (DES/RC4/AES128/AES256/AES128-SHA2/AES256-SHA2), ccache auto-detection, DNS SRV resolution, TCP/UDP with auto-fallback.
+**Features:** LDAP enumeration, hashcat + John output, all 7 etypes (DES/RC4/AES128/AES256 via CLI, AES-SHA2 via pcap extraction), ccache auto-detection, DNS SRV resolution, TCP/UDP with auto-fallback.
 
 ## Timeroasting
 
