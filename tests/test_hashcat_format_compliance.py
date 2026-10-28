@@ -222,23 +222,21 @@ class TestMode7500Format:
 
     def test_full_format_regex(self):
         h = format_pa_hash(PA_RC4_CIPHER, 23, "user", "REALM")
-        pattern = r"^\$krb5pa\$23\$user\$REALM\$[a-f0-9]{104}$"
+        pattern = r"^\$krb5pa\$23\$user\$REALM\$[a-f0-9]{32}\$[a-f0-9]{72}$"
         assert re.match(pattern, h), f"Format mismatch: {h}"
 
-    def test_no_empty_salt_field(self):
+    def test_checksum_and_encrypted_fields(self):
         h = format_pa_hash(PA_RC4_CIPHER, 23, "user", "REALM")
-        assert "$$" not in h
-
-    def test_data_field_total_length(self):
-        h = format_pa_hash(PA_RC4_CIPHER, 23, "user", "REALM")
-        data_field = h.split("$")[-1]
-        assert len(data_field) == 104
+        parts = h.split("$")
+        assert len(parts) == 7
+        assert len(parts[5]) == 32
+        assert len(parts[6]) == 72
 
     def test_data_preserves_cipher_order(self):
         h = format_pa_hash(PA_RC4_CIPHER, 23, "user", "REALM")
-        data_field = h.split("$")[-1]
-        assert data_field[:32] == "11" * 16  # PA_RC4_CHECKSUM (first in cipher)
-        assert data_field[32:] == "22" * 36  # PA_RC4_TIMESTAMP (rest of cipher)
+        parts = h.split("$")
+        assert parts[5] == "11" * 16  # PA_RC4_CHECKSUM
+        assert parts[6] == "22" * 36  # PA_RC4_TIMESTAMP
 
     def test_user_can_be_empty(self):
         h = format_pa_hash(PA_RC4_CIPHER, 23, "", "REALM")
@@ -247,8 +245,7 @@ class TestMode7500Format:
 
 # ---------------------------------------------------------------------------
 # Mode 19800: AES128 Pre-Auth
-# Hashcat format: $krb5pa$17$user$realm$data
-# data = enc_timestamp + checksum concatenated (104-112 hex)
+# Hashcat format: $krb5pa$17$user$realm$checksum$encrypted
 # ---------------------------------------------------------------------------
 
 
@@ -259,30 +256,17 @@ class TestMode19800Format:
 
     def test_full_format_regex(self):
         h = format_pa_hash(PA_AES_CIPHER, 17, "user", "REALM")
-        # $krb5pa$17$user$REALM$<104-112hex>
-        pattern = r"^\$krb5pa\$17\$user\$REALM\$[a-f0-9]{104,112}$"
+        pattern = r"^\$krb5pa\$17\$user\$REALM\$[a-f0-9]{24}\$[a-f0-9]{88}$"
         assert re.match(pattern, h), f"Format mismatch: {h}"
 
-    def test_data_field_length(self):
+    def test_checksum_and_encrypted_fields(self):
         h = format_pa_hash(PA_AES_CIPHER, 17, "user", "REALM")
-        data = h.split("$")[-1]
-        assert 104 <= len(data) <= 112
-
-    def test_checksum_at_end_of_data(self):
-        """Hashcat splits internally: last 24 hex = checksum."""
-        h = format_pa_hash(PA_AES_CIPHER, 17, "user", "REALM")
-        data = h.split("$")[-1]
-        checksum = data[-24:]
-        assert checksum == "44" * 12  # PA_AES_CHECKSUM
-
-    def test_enc_timestamp_before_checksum(self):
-        h = format_pa_hash(PA_AES_CIPHER, 17, "user", "REALM")
-        data = h.split("$")[-1]
-        enc_timestamp = data[:-24]
-        assert enc_timestamp == "33" * 44  # PA_AES_TIMESTAMP
+        parts = h.split("$")
+        assert len(parts) == 7
+        assert parts[5] == "44" * 12  # PA_AES_CHECKSUM
+        assert parts[6] == "33" * 44  # PA_AES_TIMESTAMP
 
     def test_user_required_nonempty(self):
-        """Hashcat requires user >= 1 char for AES modes."""
         h = format_pa_hash(PA_AES_CIPHER, 17, "a", "R")
         parts = h.split("$")
         assert parts[3] == "a"

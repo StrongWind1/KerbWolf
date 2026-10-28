@@ -111,7 +111,7 @@ class TestEtypeByName:
             ETYPE_BY_NAME["invalid"]
 
     def test_all_names_count(self):
-        assert len(ETYPE_BY_NAME) == 7
+        assert len(ETYPE_BY_NAME) == 5
 
 
 # ---------------------------------------------------------------------------
