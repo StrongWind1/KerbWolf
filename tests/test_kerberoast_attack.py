@@ -6,6 +6,9 @@ from unittest.mock import MagicMock, patch
 from kerbwolf.attacks.kerberoast import kerberoast, kerberoast_no_preauth
 from kerbwolf.models import EncryptionType, KDCError, KerberosCredential
 
+_EMPTY_SALT_CACHE: dict[str, tuple[str, str]] = {}
+_PATCH_SALTS = patch("kerbwolf.attacks.kerberoast._probe_salts", return_value=_EMPTY_SALT_CACHE)
+
 # ---------------------------------------------------------------------------
 # kerberoast - no credentials and no TGT
 # ---------------------------------------------------------------------------
@@ -29,7 +32,12 @@ class TestKerberoastErrorHandling:
         mock_session_key = MagicMock()
         mock_session_key.enctype = 23
 
-        with patch("kerbwolf.attacks.kerberoast.request_tgt", return_value=(b"tgt", b"key", mock_session_key)), patch("kerbwolf.attacks.kerberoast.ENCTYPE_TABLE", {23: MagicMock()}), patch("kerbwolf.attacks.kerberoast.request_tgs_raw", side_effect=KDCError(7, "S_PRINCIPAL_UNKNOWN")):
+        with (
+            patch("kerbwolf.attacks.kerberoast.request_tgt", return_value=(b"tgt", b"key", mock_session_key)),
+            patch("kerbwolf.attacks.kerberoast.ENCTYPE_TABLE", {23: MagicMock()}),
+            _PATCH_SALTS,
+            patch("kerbwolf.attacks.kerberoast.request_tgs_raw", side_effect=KDCError(7, "S_PRINCIPAL_UNKNOWN")),
+        ):
             results = kerberoast(
                 KerberosCredential(username="admin", domain="evil.corp", password="pass"),
                 dc_ip="10.0.0.1",
@@ -41,7 +49,12 @@ class TestKerberoastErrorHandling:
         mock_session_key = MagicMock()
         mock_session_key.enctype = 23
 
-        with patch("kerbwolf.attacks.kerberoast.request_tgt", return_value=(b"tgt", b"key", mock_session_key)), patch("kerbwolf.attacks.kerberoast.ENCTYPE_TABLE", {23: MagicMock()}), patch("kerbwolf.attacks.kerberoast.request_tgs_raw", side_effect=ConnectionError("timeout")):
+        with (
+            patch("kerbwolf.attacks.kerberoast.request_tgt", return_value=(b"tgt", b"key", mock_session_key)),
+            patch("kerbwolf.attacks.kerberoast.ENCTYPE_TABLE", {23: MagicMock()}),
+            _PATCH_SALTS,
+            patch("kerbwolf.attacks.kerberoast.request_tgs_raw", side_effect=ConnectionError("timeout")),
+        ):
             results = kerberoast(
                 KerberosCredential(username="admin", domain="evil.corp", password="pass"),
                 dc_ip="10.0.0.1",
@@ -61,7 +74,7 @@ class TestKerberoastCcache:
         mock_session_key = MagicMock()
         mock_cipher_cls = MagicMock()
 
-        with patch("kerbwolf.attacks.kerberoast.request_tgt") as mock_req, patch("kerbwolf.attacks.kerberoast.request_tgs_raw", side_effect=KDCError(0, "")):
+        with patch("kerbwolf.attacks.kerberoast.request_tgt") as mock_req, _PATCH_SALTS, patch("kerbwolf.attacks.kerberoast.request_tgs_raw", side_effect=KDCError(0, "")):
             kerberoast(
                 dc_ip="10.0.0.1",
                 target_spns=["http/web"],
@@ -82,7 +95,7 @@ class TestKerberoastParams:
         mock_sk = MagicMock()
         mock_sk.enctype = 23
 
-        with patch("kerbwolf.attacks.kerberoast.request_tgt", return_value=(b"t", b"k", mock_sk)), patch("kerbwolf.attacks.kerberoast.ENCTYPE_TABLE", {23: MagicMock()}), patch("kerbwolf.attacks.kerberoast.request_tgs_raw", side_effect=KDCError(0, "")) as mock_tgs:
+        with patch("kerbwolf.attacks.kerberoast.request_tgt", return_value=(b"t", b"k", mock_sk)), patch("kerbwolf.attacks.kerberoast.ENCTYPE_TABLE", {23: MagicMock()}), _PATCH_SALTS, patch("kerbwolf.attacks.kerberoast.request_tgs_raw", side_effect=KDCError(0, "")) as mock_tgs:
             kerberoast(
                 KerberosCredential(username="u", domain="d", password="p"),
                 dc_ip="1.2.3.4",
@@ -94,7 +107,7 @@ class TestKerberoastParams:
         mock_sk = MagicMock()
         mock_sk.enctype = 23
 
-        with patch("kerbwolf.attacks.kerberoast.request_tgt", return_value=(b"t", b"k", mock_sk)), patch("kerbwolf.attacks.kerberoast.ENCTYPE_TABLE", {23: MagicMock()}), patch("kerbwolf.attacks.kerberoast.request_tgs_raw", side_effect=KDCError(0, "")) as mock_tgs:
+        with patch("kerbwolf.attacks.kerberoast.request_tgt", return_value=(b"t", b"k", mock_sk)), patch("kerbwolf.attacks.kerberoast.ENCTYPE_TABLE", {23: MagicMock()}), _PATCH_SALTS, patch("kerbwolf.attacks.kerberoast.request_tgs_raw", side_effect=KDCError(0, "")) as mock_tgs:
             kerberoast(
                 KerberosCredential(username="u", domain="d", password="p"),
                 dc_ip="1.2.3.4",
@@ -107,7 +120,7 @@ class TestKerberoastParams:
         mock_sk = MagicMock()
         mock_sk.enctype = 23
 
-        with patch("kerbwolf.attacks.kerberoast.request_tgt", return_value=(b"t", b"k", mock_sk)) as mock_req, patch("kerbwolf.attacks.kerberoast.ENCTYPE_TABLE", {23: MagicMock()}), patch("kerbwolf.attacks.kerberoast.request_tgs_raw", side_effect=KDCError(0, "")):
+        with patch("kerbwolf.attacks.kerberoast.request_tgt", return_value=(b"t", b"k", mock_sk)) as mock_req, patch("kerbwolf.attacks.kerberoast.ENCTYPE_TABLE", {23: MagicMock()}), _PATCH_SALTS, patch("kerbwolf.attacks.kerberoast.request_tgs_raw", side_effect=KDCError(0, "")):
             kerberoast(
                 KerberosCredential(username="u", domain="d", password="p"),
                 dc_ip="1.2.3.4",
@@ -130,26 +143,26 @@ class TestKerberoastNoPreauth:
         assert kerberoast_no_preauth("vuln_user", domain="d", dc_ip="1.2.3.4", target_users=None) == []
 
     def test_kdc_error_skipped(self):
-        with patch("kerbwolf.attacks.kerberoast.request_asrep_no_preauth", side_effect=KDCError(0, "")):
+        with _PATCH_SALTS, patch("kerbwolf.attacks.kerberoast.request_asrep_no_preauth", side_effect=KDCError(0, "")):
             results = kerberoast_no_preauth("vuln", domain="d", dc_ip="1.2.3.4", target_users=["target"])
         assert results == []
 
     def test_unexpected_error_skipped(self):
-        with patch("kerbwolf.attacks.kerberoast.request_asrep_no_preauth", side_effect=RuntimeError("oops")):
+        with _PATCH_SALTS, patch("kerbwolf.attacks.kerberoast.request_asrep_no_preauth", side_effect=RuntimeError("oops")):
             results = kerberoast_no_preauth("vuln", domain="d", dc_ip="1.2.3.4", target_users=["target"])
         assert results == []
 
     def test_timeout_passed(self):
-        with patch("kerbwolf.attacks.kerberoast.request_asrep_no_preauth", side_effect=KDCError(0, "")) as mock:
+        with _PATCH_SALTS, patch("kerbwolf.attacks.kerberoast.request_asrep_no_preauth", side_effect=KDCError(0, "")) as mock:
             kerberoast_no_preauth("vuln", domain="d", dc_ip="1.2.3.4", target_users=["t"], timeout=25.0)
             assert mock.call_args.kwargs["timeout"] == 25.0
 
     def test_etypes_passed(self):
-        with patch("kerbwolf.attacks.kerberoast.request_asrep_no_preauth", side_effect=KDCError(0, "")) as mock:
+        with _PATCH_SALTS, patch("kerbwolf.attacks.kerberoast.request_asrep_no_preauth", side_effect=KDCError(0, "")) as mock:
             kerberoast_no_preauth("vuln", domain="d", dc_ip="1.2.3.4", target_users=["t"], etypes=(EncryptionType.AES256_CTS_HMAC_SHA1_96,))
             assert mock.call_args.kwargs["etypes"] == (18,)
 
     def test_etypes_multiple_no_preauth(self):
-        with patch("kerbwolf.attacks.kerberoast.request_asrep_no_preauth", side_effect=KDCError(0, "")) as mock:
+        with _PATCH_SALTS, patch("kerbwolf.attacks.kerberoast.request_asrep_no_preauth", side_effect=KDCError(0, "")) as mock:
             kerberoast_no_preauth("vuln", domain="d", dc_ip="1.2.3.4", target_users=["t"], etypes=(EncryptionType.RC4_HMAC, EncryptionType.AES128_CTS_HMAC_SHA1_96))
             assert mock.call_args.kwargs["etypes"] == (23, 17)
