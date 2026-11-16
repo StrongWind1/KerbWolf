@@ -215,6 +215,7 @@ nxc smb 10.0.0.1 --generate-hosts-file /etc/hosts
 - [Attacks in Depth](attacks.md) - protocol details, sequence diagrams, ASN.1 paths
 - [Encryption Types](encryption-types.md) - key derivation, salt, Windows version history
 - [Hash Reference](hashcat-modes.md) - modes, formats, cipher splitting, cracking examples
+- [Cracking Speed](cracking-speed.md) - measured hashcat rates per mode on an RTX 4090, and time to exhaust common keyspaces
 
 ## Disclaimer
 
