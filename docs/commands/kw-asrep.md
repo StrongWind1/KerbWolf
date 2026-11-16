@@ -11,12 +11,10 @@ $ kw-asrep -h
 usage: kw-asrep [-h] [--version] [-v] [-t USER] [-T FILE] [--ldap]
                 [--ldap-all] [--ldap-ssl] [-u USER] [-p PASS] [-H HASH] [-k]
                 [-c FILE] [-d DOMAIN] [--dc-ip IP] [--dc-hostname HOST]
-                [--transport {tcp,udp}] [--timeout TIMEOUT]
-                [-e ETYPE] [-o FILE]
-                [--format {hashcat,john}]
+                [--transport {tcp,udp}] [--timeout TIMEOUT] [-e ETYPE]
+                [-o FILE]
 
-AS-REP Roast - extract hashes from accounts without Kerberos
-pre-authentication.
+AS-REP Roast - extract hashes from accounts without Kerberos pre-authentication.
 
 options:
   -h, --help            show this help message and exit
@@ -24,8 +22,7 @@ options:
   -v, --verbose         Increase verbosity (-v, -vv)
 
 targets (no authentication required):
-  The attack sends AS-REQs without pre-auth. Accounts that require pre-auth
-  are silently skipped.
+  The attack sends AS-REQs without pre-auth. Accounts that require pre-auth are silently skipped.
 
   -t USER, --target USER
                         Target username (repeatable)
@@ -67,12 +64,9 @@ output:
   -e ETYPE, --enctype ETYPE
                         Encryption type(s) in preference order, repeatable or
                         comma-separated (choices: des-cbc-crc, des-cbc-md5,
-                        rc4, aes128, aes256;
-                        default: rc4)
+                        rc4, aes128, aes256; default: rc4)
   -o FILE, --output FILE
                         Write hashes to file
-  --format {hashcat,john}
-                        Hash output format (default: hashcat)
 
 Examples:
   kw-asrep -d CORP.LOCAL --dc-ip 10.0.0.1 -t jsmith
@@ -80,6 +74,13 @@ Examples:
   kw-asrep -d CORP.LOCAL --dc-ip 10.0.0.1 -u admin -p pass --ldap
   kw-asrep -k -c admin.ccache --ldap
 ```
+
+## Behaviour
+
+- **Requests.** One AS-REQ without pre-authentication is sent per target. Accounts that require pre-authentication answer with a KDC error and are skipped without a message; `-vv` shows them.
+- **User field.** The username in the hash is taken from the salt in the AS-REP (ETYPE-INFO2 for RC4 and AES, PA-PW-SALT for DES), so its spelling is the one the key was derived with even if the target was typed in another case. When the reply carries no salt, the name is used as typed, and a warning is logged if the hash is not RC4.
+- **Etype.** The hash is labelled with the etype of the reply, which the KDC chooses from the `-e` list and the account's keys.
+- **Output.** `-o` never overwrites. If the file exists, the hashes go to `name_1.ext`, then `name_2.ext`, and so on.
 
 ## Examples
 

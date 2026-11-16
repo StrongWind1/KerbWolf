@@ -1,6 +1,6 @@
 # Hash Reference
 
-Hashcat modes, hash string formats, cipher splitting, cracking examples, and John the Ripper format for all Kerberos encryption types.
+Hashcat modes, hash string formats, cipher splitting, and cracking examples for all Kerberos encryption types.
 
 See also: [encryption types](encryption-types.md) for key derivation details, [attacks](attacks.md) for protocol walkthroughs.
 
@@ -8,26 +8,31 @@ See also: [encryption types](encryption-types.md) for key derivation details, [a
 
 |  | DES-CBC-CRC (1) | DES-CBC-MD5 (3) | AES128-SHA1 (17) | AES256-SHA1 (18) | AES128-SHA2 (19) | AES256-SHA2 (20) | RC4 (23) |
 |---|---|---|---|---|---|---|---|
-| **TGS-REP** | 39100 `$krb5tgs$1$` | 38500 `$krb5tgs$3$` | 19600 `$krb5tgs$17$` | 19700 `$krb5tgs$18$` | 39400 `$krb5tgs$19$` | 39500 `$krb5tgs$20$` | 13100 `$krb5tgs$23$` |
-| **AS-REP** | 39200 `$krb5asrep$1$` | 38600 `$krb5asrep$3$` | 32100 `$krb5asrep$17$` | 32200 `$krb5asrep$18$` | 39600 `$krb5asrep$19$` | 39700 `$krb5asrep$20$` | 18200 `$krb5asrep$23$` |
-| **Pre-Auth** | 39300 `$krb5pa$1$` | 39000 `$krb5pa$3$` | 19800 `$krb5pa$17$` | 19900 `$krb5pa$18$` | 39800 `$krb5pa$19$` | 39900 `$krb5pa$20$` | 7500 `$krb5pa$23$` |
-| **DB Key** | 38400 `$krb5db$1$` | 38400 `$krb5db$3$` | 28800 `$krb5db$17$` | 28900 `$krb5db$18$` | 39010 `$krb5db$19$` | 39020 `$krb5db$20$` | -- |
+| **TGS-REP** | 39100 `$krb5tgs$1$` | 38500 `$krb5tgs$3$` | 19600 `$krb5tgs$17$` | 19700 `$krb5tgs$18$` | none `$krb5tgs$19$` | none `$krb5tgs$20$` | 13100 `$krb5tgs$23$` |
+| **AS-REP** | 39200 `$krb5asrep$1$` | 38600 `$krb5asrep$3$` | 32100 `$krb5asrep$17$` | 32200 `$krb5asrep$18$` | none `$krb5asrep$19$` | none `$krb5asrep$20$` | 18200 `$krb5asrep$23$` |
+| **Pre-Auth** | 39300 `$krb5pa$1$` | 39000 `$krb5pa$3$` | 19800 `$krb5pa$17$` | 19900 `$krb5pa$18$` | none `$krb5pa$19$` | none `$krb5pa$20$` | 7500 `$krb5pa$23$` |
+| **DB Key** | 38400 `$krb5db$1$` | 38400 `$krb5db$3$` | 28800 `$krb5db$17$` | 28900 `$krb5db$18$` | none | none | 1000 (NT hash) |
+
+These are the 21 Kerberos modes in hashcat master as of 2026-11-15, plus mode 1000 for the etype 23 database key. Modes 35300, 35400, 38400, 38500 and 38600 first shipped in hashcat v8.0.0; 39000 through 39400 were added after that release, so they need a build from master.
+
+!!! warning "No hashcat mode for AES-SHA2"
+    hashcat has no mode for etypes 19 and 20 (RFC 8009). KerbWolf still extracts those hashes from pcaps and writes them in the canonical layout, but nothing in hashcat loads them.
 
 ### NT-hash variants (etype 23 only)
 
-Same hash format as the password modes, but the input is a 32-char NT hash instead of a password.
+Same canonical line as the password modes, but the candidates are 32-char NT hashes instead of passwords. Mode 39400 is narrower than 7500: it needs a 72-hex encrypted timestamp and does not take 7500's single-field shape.
 
 | Attack | NT Mode | Password Mode |
 |---|---|---|
 | TGS-REP | 35300 | 13100 |
 | AS-REP | 35400 | 18200 |
-| Pre-Auth | 35900 | 7500 |
+| Pre-Auth | 39400 | 7500 |
 
 ---
 
 ## From packet to hash
 
-Kerberos message comes in, ASN.1 gets decoded, cipher bytes get pulled out, split by etype, hex-encoded, and written as a hashcat/John string.
+Kerberos message comes in, ASN.1 gets decoded, cipher bytes get pulled out, split by etype, hex-encoded, and written as a hashcat string.
 
 ```mermaid
 flowchart TD
@@ -41,15 +46,14 @@ flowchart TD
     E -->|"AES-SHA2 (19)"| G2["Split: last 16 bytes = checksum<br/>remaining = edata2"]
     E -->|"AES-SHA2 (20)"| G3["Split: last 24 bytes = checksum<br/>remaining = edata2"]
     E -->|"DES (1/3)"| H["Split: first 16 bytes = checksum<br/>remaining = edata2"]
-    G2 --> J
-    G3 --> J
+    G2 & G3 --> J2["Format: $krb5tgs$19$… / $krb5tgs$20$…<br/>(no hashcat mode)"]
 
     F --> I["Format: $krb5tgs$23$user$realm$checksum$edata2"]
     G --> J["Format: $krb5tgs$18$user$realm$checksum$edata2"]
     H --> K["Format: $krb5tgs$3$user$realm$checksum$edata2"]
 
-    I & J & K --> L["hashcat / john"]
-    L --> M["Cracked password or DES key"]
+    I & J & K --> L["hashcat"]
+    L --> M["Cracked password"]
 
     style E fill:#2a2a4a,stroke:#8b8bff
     style L fill:#1a3a1a,stroke:#6bcb77
@@ -64,7 +68,7 @@ You Kerberoasted an account and got a TGS-REP. What happens next:
 
 **Step 2: Split the cipher.** For RC4 (etype 23), the cipher is structured as `checksum || edata2`:
 
-- **Checksum**: the first 16 bytes — an HMAC-MD5 over the encrypted data
+- **Checksum**: the first 16 bytes — an HMAC-MD5 over the plaintext (an 8-byte confounder plus the `EncTicketPart`), which also keys the RC4 encryption
 - **Edata2**: everything after the first 16 bytes — the actual encrypted ticket data
 
 **Step 3: Format the hash.** Hex-encode both parts and arrange them into the hashcat format:
@@ -73,14 +77,14 @@ You Kerberoasted an account and got a TGS-REP. What happens next:
 $krb5tgs$23$svc_sql$CORP.LOCAL$<checksum_32hex>$<edata2_hex>
 ```
 
-**Step 4: Hashcat cracks it.** For each candidate password, hashcat computes `MD4(UTF-16LE(password))` to get an NT hash, uses it to decrypt `edata2`, and checks whether the HMAC-MD5 matches `checksum`. If it matches, the password is found.
+**Step 4: Hashcat cracks it.** For each candidate password, hashcat computes `MD4(UTF-16LE(password))` to get an NT hash, derives the RC4 key from it (HMAC-MD5 with the key-usage number, then HMAC-MD5 with the checksum), decrypts `edata2`, and checks whether the HMAC-MD5 of the decrypted data matches `checksum`. If it matches, the password is found.
 
 ```mermaid
 flowchart LR
     subgraph RC4["RC4 cracking (fast)"]
         direction TB
         R1["Candidate password"] --> R2["MD4(UTF-16LE(pw))"]
-        R2 --> R3["NT hash = RC4 key"]
+        R2 --> R3["NT hash → HMAC-MD5 (usage, checksum)<br/>→ RC4 key"]
         R3 --> R4["Decrypt edata2"]
         R4 --> R5{"HMAC-MD5<br/>matches?"}
         R5 -->|Yes| R6["Cracked!"]
@@ -91,8 +95,8 @@ flowchart LR
         direction TB
         A1["Candidate password"] --> A2["+ salt (realm+user)"]
         A2 --> A3["PBKDF2-SHA1<br/>4096 iterations"]
-        A3 --> A4["AES key"]
-        A4 --> A5["Decrypt edata2"]
+        A3 --> A4["DK → encryption key Ke<br/>and integrity key Ki"]
+        A4 --> A5["Decrypt edata2 with Ke"]
         A5 --> A6{"HMAC-SHA1<br/>matches?"}
         A6 -->|Yes| A7["Cracked!"]
         A6 -->|No| A1
@@ -106,7 +110,7 @@ flowchart LR
 
 ## How the split differs by etype
 
-Where the checksum lives depends on the etype, not on which attack produced it. RC4 and DES put the checksum first; AES puts it last. The checksum size varies: 12 bytes for AES-SHA1, 16 for AES128-SHA2, 24 for AES256-SHA2.
+Where the checksum lives depends on the etype, not on which attack produced it. RC4 puts the checksum first and AES puts it last. DES has no separate checksum: it is encrypted inside the plaintext, and the first 16 cipher bytes are split off only to keep the same line layout. The checksum size varies: 16 bytes for RC4, 12 for AES-SHA1, 16 for AES128-SHA2, 24 for AES256-SHA2.
 
 ```mermaid
 block-beta
@@ -150,17 +154,17 @@ block-beta
     style desdata fill:#1a3a3a,stroke:#6bcbcb
 ```
 
-| Etype | Cipher layout | Checksum | Edata2 | Hashcat verification |
+| Etype | Cipher layout | Checksum | Edata2 | Verification |
 |-------|--------------|----------|--------|---------------------|
-| **RC4** (23) | `checksum \|\| edata2` | First 16 bytes (HMAC-MD5) | Remaining bytes | Derive NT hash → decrypt → check HMAC |
-| **AES128-SHA1** (17) | `edata2 \|\| checksum` | Last 12 bytes (HMAC-SHA1 truncated) | All but last 12 bytes | PBKDF2 → AES key → decrypt → check HMAC |
+| **RC4** (23) | `checksum \|\| edata2` | First 16 bytes (HMAC-MD5) | Remaining bytes | Derive NT hash → RC4 key → decrypt → check HMAC over the plaintext |
+| **AES128-SHA1** (17) | `edata2 \|\| checksum` | Last 12 bytes (HMAC-SHA1 truncated) | All but last 12 bytes | PBKDF2 + DK → Ke, Ki → decrypt → check HMAC over the plaintext |
 | **AES256-SHA1** (18) | `edata2 \|\| checksum` | Last 12 bytes (HMAC-SHA1 truncated) | All but last 12 bytes | Same as AES128-SHA1, longer key |
-| **AES128-SHA2** (19) | `edata2 \|\| checksum` | Last 16 bytes (HMAC-SHA256-128) | All but last 16 bytes | PBKDF2-SHA256 + KDF → AES key → decrypt → check HMAC |
-| **AES256-SHA2** (20) | `edata2 \|\| checksum` | Last 24 bytes (HMAC-SHA384-192) | All but last 24 bytes | PBKDF2-SHA384 + KDF → AES key → decrypt → check HMAC |
-| **DES** (1, 3) | `checksum \|\| edata2` | First 16 bytes (first two DES blocks) | Remaining bytes | String-to-key → DES key → decrypt → integrity check (CRC32 for etype 1, MD5 for etype 3) |
+| **AES128-SHA2** (19) | `edata2 \|\| checksum` | Last 16 bytes (HMAC-SHA256-128) | All but last 16 bytes | PBKDF2-SHA256 + KDF → integrity key Ki → check HMAC over the ciphertext, no decryption needed (no hashcat mode) |
+| **AES256-SHA2** (20) | `edata2 \|\| checksum` | Last 24 bytes (HMAC-SHA384-192) | All but last 24 bytes | PBKDF2-SHA384 + KDF → integrity key Ki → check HMAC over the ciphertext, no decryption needed (no hashcat mode) |
+| **DES** (1, 3) | `checksum \|\| edata2` | First 16 bytes (the first two cipher blocks, not a checksum) | Remaining bytes | String-to-key → DES key → decrypt → integrity check (CRC32 for etype 1, MD5 for etype 3) |
 
 !!! tip "The etype determines the format, the attack determines the source"
-    The hash format (where the checksum lives, how many bytes) is the same for all three attacks at the same etype. The only thing the attack type changes is *which ASN.1 field* the cipher is extracted from.
+    The split (where the checksum lives, how many bytes) is the same for all three attacks at the same etype, with one exception: DES pre-auth (etypes 1 and 3) is written as a single unsplit cipher field. Otherwise the only thing the attack type changes is *which ASN.1 field* the cipher is extracted from.
 
 ### Where the cipher comes from (by attack type)
 
@@ -176,7 +180,7 @@ block-beta
 
 ### Canonical format
 
-All etypes use the same field layout. This is what hashcat emits and what KerbWolf outputs.
+All etypes use the same field layout, except DES pre-auth, which has one cipher field. This is what KerbWolf outputs for the TGS-REP, AS-REP and Pre-Auth hashes, and what every hashcat Kerberos mode accepts. hashcat prints a cracked hash back in the shape it was loaded in, so a canonical line stays canonical and a legacy line stays legacy.
 
 **TGS-REP / AS-REP (enc-part hashes):**
 
@@ -188,7 +192,8 @@ $krb5asrep$<etype>$<user>$<realm>$<checksum_hex>$<edata2_hex>
 **Pre-Auth (encrypted timestamp):**
 
 ```
-$krb5pa$<etype>$<user>$<realm>$<checksum>$<encrypted>
+$krb5pa$<etype>$<user>$<realm>$<checksum_hex>$<encrypted_hex>     (etypes 17, 18, 19, 20, 23)
+$krb5pa$<etype>$<user>$<realm>$<cipher_hex>                       (etypes 1, 3)
 ```
 
 **DB Key (stored key from KDC database):**
@@ -197,11 +202,13 @@ $krb5pa$<etype>$<user>$<realm>$<checksum>$<encrypted>
 $krb5db$<etype>$<user>$<realm>$<key_hex>
 ```
 
+KerbWolf does not produce DB key lines. They come from hashcat's `tools/krb5db2hashcat.py`, run on a credential dump.
+
 ### Checksum sizes
 
 | Etype | Hex chars | Bytes | Algorithm |
 |---|---|---|---|
-| 1, 3 (DES) | 32 | 16 | First 2 DES blocks (split point for early reject) |
+| 1, 3 (DES) | 32 | 16 | First 2 DES cipher blocks (a fixed split, not a checksum) |
 | 17, 18 (AES-SHA1) | 24 | 12 | HMAC-SHA1-96 (RFC 3962) |
 | 19 (AES128-SHA2) | 32 | 16 | HMAC-SHA256-128 (RFC 8009) |
 | 20 (AES256-SHA2) | 48 | 24 | HMAC-SHA384-192 (RFC 8009) |
@@ -228,8 +235,8 @@ The SPN is not in the canonical format. It is operational metadata that does not
 | RC4 (23) | 13100 | `$krb5tgs$23$user$realm$checksum$edata2` |
 | AES128-SHA1 (17) | 19600 | `$krb5tgs$17$user$realm$checksum$edata2` |
 | AES256-SHA1 (18) | 19700 | `$krb5tgs$18$user$realm$checksum$edata2` |
-| AES128-SHA2 (19) | 39400 | `$krb5tgs$19$user$realm$checksum$edata2` |
-| AES256-SHA2 (20) | 39500 | `$krb5tgs$20$user$realm$checksum$edata2` |
+| AES128-SHA2 (19) | none | `$krb5tgs$19$user$realm$checksum$edata2` |
+| AES256-SHA2 (20) | none | `$krb5tgs$20$user$realm$checksum$edata2` |
 | DES-CBC-CRC (1) | 39100 | `$krb5tgs$1$user$realm$checksum$edata2` |
 | DES-CBC-MD5 (3) | 38500 | `$krb5tgs$3$user$realm$checksum$edata2` |
 
@@ -240,8 +247,8 @@ The SPN is not in the canonical format. It is operational metadata that does not
 | RC4 (23) | 18200 | `$krb5asrep$23$user$realm$checksum$edata2` |
 | AES128-SHA1 (17) | 32100 | `$krb5asrep$17$user$realm$checksum$edata2` |
 | AES256-SHA1 (18) | 32200 | `$krb5asrep$18$user$realm$checksum$edata2` |
-| AES128-SHA2 (19) | 39600 | `$krb5asrep$19$user$realm$checksum$edata2` |
-| AES256-SHA2 (20) | 39700 | `$krb5asrep$20$user$realm$checksum$edata2` |
+| AES128-SHA2 (19) | none | `$krb5asrep$19$user$realm$checksum$edata2` |
+| AES256-SHA2 (20) | none | `$krb5asrep$20$user$realm$checksum$edata2` |
 | DES-CBC-CRC (1) | 39200 | `$krb5asrep$1$user$realm$checksum$edata2` |
 | DES-CBC-MD5 (3) | 38600 | `$krb5asrep$3$user$realm$checksum$edata2` |
 
@@ -252,49 +259,53 @@ The SPN is not in the canonical format. It is operational metadata that does not
 | RC4 (23) | 7500 | `$krb5pa$23$user$realm$checksum$encrypted` |
 | AES128-SHA1 (17) | 19800 | `$krb5pa$17$user$realm$checksum$encrypted` |
 | AES256-SHA1 (18) | 19900 | `$krb5pa$18$user$realm$checksum$encrypted` |
-| AES128-SHA2 (19) | 39800 | `$krb5pa$19$user$realm$checksum$encrypted` |
-| AES256-SHA2 (20) | 39900 | `$krb5pa$20$user$realm$checksum$encrypted` |
-| DES-CBC-CRC (1) | 39300 | `$krb5pa$1$user$realm$checksum$encrypted` |
-| DES-CBC-MD5 (3) | 39000 | `$krb5pa$3$user$realm$checksum$encrypted` |
+| AES128-SHA2 (19) | none | `$krb5pa$19$user$realm$checksum$encrypted` |
+| AES256-SHA2 (20) | none | `$krb5pa$20$user$realm$checksum$encrypted` |
+| DES-CBC-CRC (1) | 39300 | `$krb5pa$1$user$realm$cipher` |
+| DES-CBC-MD5 (3) | 39000 | `$krb5pa$3$user$realm$cipher` |
 
-!!! note "Pre-auth data field"
-    The pre-auth hash data is the full PA-ENC-TIMESTAMP cipher as a single hex field. For RC4, that is edata2 (72 hex chars) followed by checksum (32 hex chars). The John format adds an empty salt field (`$$`) between `realm` and the data; KerbWolf's hashcat format does not.
+!!! note "Pre-auth data fields"
+    For RC4 and AES, KerbWolf splits the PA-ENC-TIMESTAMP cipher the same way as the enc-part hashes: the checksum is the first 16 bytes for RC4 and the last 12 bytes for AES-SHA1, and it is written before the encrypted timestamp. For DES the whole cipher goes out as one hex field, because the integrity check sits inside the plaintext. Modes 39300 and 39000 also accept the cipher split after its first 32 hex chars.
 
----
+#### DB Key (`$krb5db$`)
 
-## John the Ripper format
+| Etype | Mode | Format |
+|-------|------|--------|
+| DES-CBC-CRC (1) | 38400 | `$krb5db$1$user$realm$key` |
+| DES-CBC-MD5 (3) | 38400 | `$krb5db$3$user$realm$key` |
+| AES128-SHA1 (17) | 28800 | `$krb5db$17$user$realm$key` |
+| AES256-SHA1 (18) | 28900 | `$krb5db$18$user$realm$key` |
+| RC4 (23) | 1000 | Bare NT hash, 32 hex |
 
-Use `--format john` to output hashes for John. All 9 RC4/AES modes are verified cracking.
-
-| Attack | Etype | John `--format=` | Notes |
-|--------|-------|-----------------|-------|
-| TGS-REP | RC4 | `krb5tgs` | `$krb5tgs$23$*user$realm$spn*$checksum$edata2` |
-| TGS-REP | AES | `krb5tgs-sha1` | Same as hashcat canonical format |
-| AS-REP | RC4 | `krb5asrep` | `$krb5asrep$23$checksum$edata2` (no user/realm fields) |
-| AS-REP | AES | `krb5asrep` | `$REALMuser$edata2$checksum` (realm+user concatenated) |
-| AS-REQ | RC4 | `krb5pa-md5` | `$krb5pa$23$user$realm$$edata2checksum` (empty salt field, edata2 before checksum) |
-| AS-REQ | AES | `krb5pa-sha1` | Adds empty salt field: `$krb5pa$17$user$realm$$edata2checksum` |
-| Any | DES-CBC-MD5 | `krb5-3` | `$krb3$REALMuser$cipher` |
-| Any | DES-CBC-CRC | — | No native John support; falls back to hashcat format |
+An account's etype 1 and etype 3 keys are the same DES key, so loading both lines into mode 38400 counts as one hash. hashcat's `tools/krb5db2hashcat.py` turns secretsdump, gosecretsdump, mimikatz, DSInternals and ntdissector output into these lines.
 
 ---
 
 ## Legacy and variant formats
 
-hashcat accepts these older formats on input and silently converts to canonical on output. Other tools (Rubeus, Impacket, John the Ripper) may emit these instead of the canonical format.
+hashcat accepts these other shapes on input and prints a cracked hash back in the shape it was loaded in; only an optional `*spn*` field is dropped. Other tools (Rubeus, Impacket, John the Ripper) may emit these instead of the canonical format. Field lengths and detection rules are on the [Hashcat Internals](hashcat-internals.md) page.
 
-| Etype | TGS-REP legacy | AS-REP legacy |
-|---|---|---|
-| 23 | `$krb5tgs$23$*user$realm$spn*$checksum$edata2` (Rubeus/JtR) | `$krb5asrep$23$user@realm:checksum$edata2` (Impacket) |
-| 23 | `$krb5tgs$23$checksum$edata2` (bare) | `$krb5asrep$user@realm:checksum$edata2` (no etype) |
-| 23 | `$krb5tgs$spn:checksum$edata2` (JtR) | |
-| 17, 18 | `$krb5tgs$E$user$realm$*spn*$checksum$edata2` (optional SPN) | `$krb5asrep$E$salt$edata2$checksum` (JtR, fields reordered) |
+| Modes | Also accepted |
+|---|---|
+| 13100, 35300 | `$krb5tgs$23$*user$realm$spn*$checksum$edata2` (Rubeus/Impacket) |
+| 13100, 35300 | `$krb5tgs$23$checksum$edata2` (bare) |
+| 13100, 35300 | `$krb5tgs$spn:checksum$edata2` (JtR) |
+| 18200, 35400 | `$krb5asrep$23$user@realm:checksum$edata2` (Impacket) |
+| 18200, 35400 | `$krb5asrep$user@realm:checksum$edata2` (no etype) |
+| 19600, 19700 | `$krb5tgs$E$user$realm$*spn*$checksum$edata2` (optional SPN) |
+| 32100, 32200 | `$krb5asrep$E$salt$edata2$checksum` (JtR, fields reordered) |
+| 38500, 39100 | `$krb5tgs$E$*user$realm$spn*$checksum$edata2` (asterisk block) |
+| 38600, 39200 | `$krb5asrep$E$user@realm:checksum$edata2` (joined) |
+| 7500 | `$krb5pa$23$user$realm$salt$encrypted+checksum` (salt field) |
+| 7500 | `$krb5pa$23$user$realm$encrypted+checksum` (single field) |
+| 39400 | `$krb5pa$23$user$realm$salt$encrypted+checksum` (salt field) |
+| 19800, 19900 | `$krb5pa$E$user$realm$encrypted+checksum` (single field) |
+| 19800, 19900 | `$krb5pa$E$user$realm$$encrypted+checksum` (empty salt, JtR) |
+| 19800, 19900 | `$krb5pa$E$user$realm$salt$encrypted+checksum` (explicit salt) |
+| 39000, 39300 | `$krb5pa$E$user$realm$checksum$encrypted` (cipher split after 32 hex) |
+| 28800, 28900, 38400 | `$krb5db$E$user$realm$*spn*$key` (optional SPN) |
 
-Pre-Auth legacy: `$krb5pa$E$user$realm$$data` (empty salt field between realm and data) and `$krb5pa$E$user$realm$salt$data` (JtR explicit salt).
-
-DB Key legacy: `$krb5db$E$user$realm$*spn*$key` (with SPN).
-
-The `*user$realm$spn*` wrapper only appears in John/Rubeus RC4 TGS-REP output. KerbWolf never emits it in hashcat mode. The SPN is not a cryptographic input — it is operational metadata stored in the result but not included in the hash output.
+The `*user$realm$spn*` wrapper appears in the RC4 and DES TGS-REP output of other tools (Impacket's `GetUserSPNs.py` writes it for both); their AES output uses a separate `$*spn*$` field instead. KerbWolf never emits either. The SPN is not a cryptographic input — it is operational metadata stored in the result but not included in the hash output.
 
 ---
 
@@ -305,29 +316,32 @@ The `*user$realm$spn*` wrapper only appears in John/Rubeus RC4 TGS-REP output. K
 hashcat -m 13100 hashes.txt wordlist.txt    # RC4
 hashcat -m 19600 hashes.txt wordlist.txt    # AES128-SHA1
 hashcat -m 19700 hashes.txt wordlist.txt    # AES256-SHA1
-hashcat -m 39400 hashes.txt wordlist.txt    # AES128-SHA2
-hashcat -m 39500 hashes.txt wordlist.txt    # AES256-SHA2
+hashcat -m 39100 hashes.txt wordlist.txt    # DES-CBC-CRC
+hashcat -m 38500 hashes.txt wordlist.txt    # DES-CBC-MD5
 
 # Hashcat — AS-REP Roast
 hashcat -m 18200 hashes.txt wordlist.txt    # RC4
 hashcat -m 32100 hashes.txt wordlist.txt    # AES128-SHA1
 hashcat -m 32200 hashes.txt wordlist.txt    # AES256-SHA1
-hashcat -m 39600 hashes.txt wordlist.txt    # AES128-SHA2
-hashcat -m 39700 hashes.txt wordlist.txt    # AES256-SHA2
+hashcat -m 39200 hashes.txt wordlist.txt    # DES-CBC-CRC
+hashcat -m 38600 hashes.txt wordlist.txt    # DES-CBC-MD5
 
 # Hashcat — AS-REQ Pre-Auth
 hashcat -m 7500  hashes.txt wordlist.txt    # RC4
 hashcat -m 19800 hashes.txt wordlist.txt    # AES128-SHA1
 hashcat -m 19900 hashes.txt wordlist.txt    # AES256-SHA1
-hashcat -m 39800 hashes.txt wordlist.txt    # AES128-SHA2
-hashcat -m 39900 hashes.txt wordlist.txt    # AES256-SHA2
+hashcat -m 39300 hashes.txt wordlist.txt    # DES-CBC-CRC
+hashcat -m 39000 hashes.txt wordlist.txt    # DES-CBC-MD5
 
-# John the Ripper
-john --format=krb5tgs hashes.txt --wordlist=wordlist.txt           # TGS RC4
-john --format=krb5tgs-sha1 hashes.txt --wordlist=wordlist.txt      # TGS AES
-john --format=krb5asrep hashes.txt --wordlist=wordlist.txt         # AS-REP (auto)
-john --format=krb5pa-md5 hashes.txt --wordlist=wordlist.txt        # AS-REQ RC4
-john --format=krb5pa-sha1 hashes.txt --wordlist=wordlist.txt       # AS-REQ AES
+# Hashcat — DB Key
+hashcat -m 38400 hashes.txt wordlist.txt    # DES (etypes 1, 2, 3)
+hashcat -m 28800 hashes.txt wordlist.txt    # AES128-SHA1
+hashcat -m 28900 hashes.txt wordlist.txt    # AES256-SHA1
+
+# Hashcat — NT-hash variants (wordlist of 32-hex NT hashes)
+hashcat -m 35300 hashes.txt nt-hashes.txt   # TGS-REP RC4
+hashcat -m 35400 hashes.txt nt-hashes.txt   # AS-REP RC4
+hashcat -m 39400 hashes.txt nt-hashes.txt   # AS-REQ Pre-Auth RC4
 ```
 
 ---
@@ -336,8 +350,8 @@ john --format=krb5pa-sha1 hashes.txt --wordlist=wordlist.txt       # AS-REQ AES
 
 | Attack | Source | Description |
 |---|---|---|
-| **TGS-REP** (Kerberoast) | TGS-REP `enc-part` | Service ticket encrypted with the service account's long-term key |
-| **AS-REP** (AS-REP Roast) | AS-REP `enc-part` | Response to accounts with pre-auth disabled, encrypted with the client's key |
+| **TGS-REP** (Kerberoast) | TGS-REP `ticket.enc-part` (or the ticket in an AS-REP when roasting with `--no-preauth`) | Service ticket encrypted with the service account's long-term key |
+| **AS-REP** (AS-REP Roast) | AS-REP `enc-part` | Reply part encrypted with the client's key; free to request for accounts with pre-auth disabled, and present in any captured password logon |
 | **Pre-Auth** (AS-REQ) | `PA-ENC-TIMESTAMP` | Encrypted timestamp from pre-authentication, captured from network traffic |
 | **DB Key** | `supplementalCredentials` / NTDS.dit | Long-term key stored in the KDC database |
 | **NT-Hash variants** | Same ciphertext as RC4 modes | Cracks the NT hash directly instead of the password (etype 23 only) |

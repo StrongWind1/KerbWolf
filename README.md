@@ -73,11 +73,11 @@ kw-roast -k -c admin.ccache --ldap
 kw-asrep -d CORP.LOCAL --dc-ip 10.0.0.1 -t jsmith
 ```
 
-**Features:** LDAP enumeration, hashcat + John output, all 7 etypes (DES/RC4/AES128/AES256 via CLI, AES-SHA2 via pcap extraction), ccache auto-detection, DNS SRV resolution, TCP/UDP with auto-fallback.
+**Features:** LDAP enumeration, hashcat output, all 7 etypes (DES/RC4/AES128/AES256 via CLI, AES-SHA2 via pcap extraction), ccache auto-detection, DNS SRV resolution, TCP/UDP with auto-fallback.
 
 ## Timeroasting
 
-Extract password-equivalent hashes from domain controllers via MS-SNTP. No authentication needed - just a valid RID.
+Extract crackable hashes, keyed with the account's NT hash, from domain controllers via MS-SNTP. No authentication needed - just a valid RID.
 
 | Command | Auth required |
 |---------|---------------|
@@ -91,7 +91,7 @@ kw-timeroast 10.0.0.1 -r 500-5000 -o hashes.txt
 kw-timeroast 10.0.0.1 --ldap -d CORP.LOCAL -u admin -p 'Pass!' --wordlist crack.txt
 ```
 
-**Features:** 68-byte MD5 (hashcat 31300) + 120-byte KDF+HMAC-SHA512, current/previous password selection, LDAP discovery of computer + gMSA accounts, cracking wordlist output.
+**Features:** 68-byte MD5 (hashcat 31300) + 120-byte KDF+HMAC-SHA512, current/previous password selection for the 68-byte format, LDAP discovery of computer + gMSA accounts, cracking wordlist output.
 
 ## Pcap extraction
 
@@ -124,7 +124,7 @@ tcpdump -i eth0 -w - 'port 88 or port 123 or port 445' | kw-extract -
 | DCE-RPC | 135 | [MS-RPCE] |
 | SMTP | 25, 587 | [MS-SMTPNTLM] |
 | POP3 | 110 | [MS-POP3] |
-| IMAP | 143 | [MS-OXIMAP] |
+| IMAP | 143 | [MS-OXIMAP4] |
 | Telnet | 23 | [MS-TNAP] |
 
 ## Attack matrix
@@ -133,18 +133,18 @@ tcpdump -i eth0 -w - 'port 88 or port 123 or port 445' | kw-extract -
 
 |  | DES-CBC-CRC (1) | DES-CBC-MD5 (3) | AES128-SHA1 (17) | AES256-SHA1 (18) | AES128-SHA2 (19) | AES256-SHA2 (20) | RC4 (23) |
 |---|---|---|---|---|---|---|---|
-| **AS-REQ** | `$krb5pa$1$` (39300) | `$krb5pa$3$` (39000) | `$krb5pa$17$` (19800) | `$krb5pa$18$` (19900) | `$krb5pa$19$` (39800) | `$krb5pa$20$` (39900) | `$krb5pa$23$` (7500) |
-| **AS-REP** | `$krb5asrep$1$` (39200) | `$krb5asrep$3$` (38600) | `$krb5asrep$17$` (32100) | `$krb5asrep$18$` (32200) | `$krb5asrep$19$` (39600) | `$krb5asrep$20$` (39700) | `$krb5asrep$23$` (18200) |
-| **TGS-REP** | `$krb5tgs$1$` (39100) | `$krb5tgs$3$` (38500) | `$krb5tgs$17$` (19600) | `$krb5tgs$18$` (19700) | `$krb5tgs$19$` (39400) | `$krb5tgs$20$` (39500) | `$krb5tgs$23$` (13100) |
+| **AS-REQ** | `$krb5pa$1$` (39300) | `$krb5pa$3$` (39000) | `$krb5pa$17$` (19800) | `$krb5pa$18$` (19900) | `$krb5pa$19$` (none) | `$krb5pa$20$` (none) | `$krb5pa$23$` (7500) |
+| **AS-REP** | `$krb5asrep$1$` (39200) | `$krb5asrep$3$` (38600) | `$krb5asrep$17$` (32100) | `$krb5asrep$18$` (32200) | `$krb5asrep$19$` (none) | `$krb5asrep$20$` (none) | `$krb5asrep$23$` (18200) |
+| **TGS-REP** | `$krb5tgs$1$` (39100) | `$krb5tgs$3$` (38500) | `$krb5tgs$17$` (19600) | `$krb5tgs$18$` (19700) | `$krb5tgs$19$` (none) | `$krb5tgs$20$` (none) | `$krb5tgs$23$` (13100) |
 
-Numbers in parentheses are hashcat mode numbers. AES-SHA2 etypes 19/20 (RFC 8009) are supported on Windows Server 2025. KerbWolf implements the Windows-specific string-to-key (PBKDF2 with 4096 iterations + KDF-HMAC-SHA2 second pass).
+Numbers in parentheses are hashcat mode numbers; hashcat has no mode for the AES-SHA2 etypes 19/20. Those etypes (RFC 8009) are present in Windows 11 24H2 and Windows Server 2025, disabled by default. KerbWolf implements the string-to-key with the 4096 PBKDF2 iterations Windows was observed to use (the RFC default is 32768), followed by the KDF-HMAC-SHA2 pass.
 
 ### Timeroasting (MS-SNTP)
 
 | Format | Algorithm | Hashcat mode |
 |--------|-----------|-------------|
 | 68-byte Authenticator | `MD5(NTOWFv1 \|\| salt)` | 31300 |
-| 120-byte ExtendedAuth | KDF(SP800-108, HMAC-SHA512) | proposed |
+| 120-byte ExtendedAuth | KDF(SP800-108, HMAC-SHA512) | none |
 
 ### NTLM (from pcap)
 
@@ -159,10 +159,10 @@ Numbers in parentheses are hashcat mode numbers. AES-SHA2 etypes 19/20 (RFC 8009
 git clone https://github.com/StrongWind1/KerbWolf.git
 cd KerbWolf
 uv sync                        # install dev dependencies
-make check                     # run lint + typecheck + tests
+make check                     # run lint + typecheck + tests + strict docs build
 make docs                      # build documentation
 make format                    # auto-fix formatting
-make build                     # build wheel (runs check + docs first)
+make build                     # build wheel + sdist
 ```
 
 ## Credits

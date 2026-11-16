@@ -2,18 +2,16 @@
 
 Request a Kerberos TGT using password, hash, or key (pass-the-key). Saves a ccache file for use with `kw-roast -k -c` or any tool that reads `KRB5CCNAME`.
 
-For a full explanation of credential types and etype auto-detection, see the [guide](../guide/index.md) and [encryption types](../guide/encryption-types.md).
+Credential and etype selection are described under [Behaviour](#behaviour) below. For the encryption types themselves, see [encryption types](../guide/encryption-types.md).
 
 ## Help
 
 ```
 $ kw-tgt -h
 usage: kw-tgt [-h] [--version] [-v] -d DOMAIN -u USER
-              (-p PASS | -H HASH | --rc4-key HEX | --aes256-key HEX |
-               --aes128-key HEX | --des-md5-key HEX | --des-crc-key HEX)
+              (-p PASS | -H HASH | --rc4-key HEX | --aes256-key HEX | --aes128-key HEX | --des-md5-key HEX | --des-crc-key HEX)
               [--dc-ip IP] [--dc-hostname HOST] [--transport {tcp,udp}]
-              [--timeout TIMEOUT]
-              [-e ETYPE] [-o FILE]
+              [--timeout TIMEOUT] [-e ETYPE] [-o FILE]
 
 Request a Kerberos TGT using password, hash, or key (pass-the-key).
 
@@ -49,12 +47,18 @@ output:
   -e ETYPE, --enctype ETYPE
                         Encryption type(s) in preference order, repeatable or
                         comma-separated (choices: des-cbc-crc, des-cbc-md5,
-                        rc4, aes128, aes256;
-                        default: rc4). First etype selects pre-auth key type;
-                        full list goes in AS-REQ body.
+                        rc4, aes128, aes256; default: rc4). First etype
+                        selects pre-auth key type; full list goes in AS-REQ
+                        body.
   -o FILE, --output FILE
                         Output ccache file (default: <user>.ccache)
 ```
+
+## Behaviour
+
+- **Etype selection.** The first `-e` value picks the key used for pre-authentication, and the whole list goes in the AS-REQ body. The default is `rc4`. `-H` and the `--*-key` flags fix the etype themselves; a `-e` given alongside them is ignored with a warning.
+- **Salt lookup.** With a password and an AES or DES etype, kw-tgt first sends an AS-REQ without pre-authentication to read the account's salt from the KDC, then derives the key and sends the real request. RC4 has no salt, so it goes straight to the pre-authenticated request, as do `-H` and the key flags.
+- **Output.** The ccache is written to `-o`, or to `<user>.ccache` in the current directory, and replaces a file that is already there.
 
 ## Examples
 

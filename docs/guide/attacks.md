@@ -33,10 +33,12 @@ sequenceDiagram
 |--------|-------|
 | **Kerberos message** | TGS-REP → `ticket` → `enc-part` |
 | **Encrypted with** | Service account's long-term key (Key Usage 2) |
-| **Cracks to** | Service account's password (RC4/AES) or 56-bit DES key |
+| **Cracks to** | Service account's password |
 | **Auth required?** | Yes — you need a TGT (password, hash, or ccache) |
 | **Exception** | `--no-preauth` mode uses a DONT_REQ_PREAUTH account to request tickets via AS-REQ, bypassing authentication entirely |
 | **KerbWolf tool** | `kw-roast` |
+
+KerbWolf requests each ticket by the account's sAMAccountName rather than by SPN. A target given as an SPN or a UPN is first resolved to its account through LDAP, which needs LDAP credentials (`-u` with `-p` or `-H`, or `-k`). Without them, for example with `--no-preauth`, or when nothing matches, an SPN is sent as it is and a UPN as the part before the `@`. This matters for AES and DES: the ticket's key is salted with the account name, and a TGS-REP only names the service, so a hash labelled with an SPN has the wrong salt.
 
 ---
 
@@ -69,8 +71,8 @@ sequenceDiagram
 | Detail | Value |
 |--------|-------|
 | **Kerberos message** | AS-REP → `enc-part` |
-| **Encrypted with** | Client's long-term key (Key Usage 3) |
-| **Cracks to** | User's password (RC4/AES) or 56-bit DES key |
+| **Encrypted with** | Client's long-term key (Key Usage 3; 8 for RC4-HMAC, per RFC 4757) |
+| **Cracks to** | User's password |
 | **Auth required?** | No (for the attack itself). LDAP discovery of vulnerable accounts needs auth. |
 | **KerbWolf tool** | `kw-asrep` |
 
@@ -80,7 +82,7 @@ sequenceDiagram
 
 During normal authentication, the AS-REQ contains an encrypted timestamp (`PA-ENC-TIMESTAMP`) as proof of identity. Capture it off the wire via tcpdump, Wireshark, or traffic mirroring and you can crack it offline.
 
-Nothing gets sent to the KDC. You just need visibility into port 88 traffic. Every user who authenticates during your capture window produces a crackable hash.
+Nothing gets sent to the KDC. You just need visibility into port 88 traffic. Every user who authenticates with a password during your capture window produces a crackable hash. For AES and DES the user field has to carry the account's real spelling, not what the user typed: `kw-extract` takes it from the salt the KDC sends in the same exchange (the `PREAUTH_REQUIRED` error or the AS-REP), and falls back to the name as typed when the capture holds neither.
 
 ```mermaid
 sequenceDiagram
@@ -104,7 +106,7 @@ sequenceDiagram
 |--------|-------|
 | **Kerberos message** | AS-REQ → `padata` → `PA-ENC-TIMESTAMP` |
 | **Encrypted with** | Client's long-term key (Key Usage 1) |
-| **Cracks to** | User's password (RC4/AES) or 56-bit DES key |
+| **Cracks to** | User's password |
 | **Auth required?** | No (offline pcap parsing) |
 | **KerbWolf tool** | `kw-extract` |
 
@@ -125,6 +127,8 @@ sequenceDiagram
 | **Prevalence** | Very common (any SPN account) | Rare (needs misconfiguration) | Depends on capture position |
 | **Tool** | `kw-roast` | `kw-asrep` | `kw-extract` |
 
+`kw-extract` also reads AS-REP and TGS-REP messages out of a capture, so all three hash types can be collected passively. The enc-part of every password-based AS-REP is encrypted with the client's key whether or not the account required pre-authentication (smartcard and FAST-armored logons use a different reply key and are not password-crackable), which makes each captured password logon crackable twice: once from the AS-REQ timestamp and once from the AS-REP.
+
 ---
 
 ## LDAP target discovery
@@ -141,7 +145,7 @@ With `--ldap`, KerbWolf runs a focused LDAP search that returns only accounts li
 (&(servicePrincipalName=*)(!(UserAccountControl:1.2.840.113556.1.4.803:=2))(!(objectCategory=computer)))
 ```
 
-This returns service accounts like `svc_sql`, `svc_http`, `svc_backup` that have SPNs registered. KerbWolf sends each account's sAMAccountName (not the SPN) as the TGS-REQ sname, so the KDC echoes the correct account name and the resulting hash uses the right salt.
+This returns service accounts like `svc_sql`, `svc_http`, `svc_backup` that have SPNs registered. KerbWolf sends each account's sAMAccountName (not the SPN) as the TGS-REQ sname, and takes the user field of the hash from a salt probe for that account (one AS-REQ without pre-authentication per target), so the hash carries the salt the key was derived with.
 
 **For `kw-asrep --ldap`** the filter searches for accounts with the `DONT_REQUIRE_PREAUTH` flag (UAC bit 4194304), excluding disabled and computer accounts:
 
@@ -149,7 +153,7 @@ This returns service accounts like `svc_sql`, `svc_http`, `svc_backup` that have
 (&(UserAccountControl:1.2.840.113556.1.4.803:=4194304)(!(UserAccountControl:1.2.840.113556.1.4.803:=2))(!(objectCategory=computer)))
 ```
 
-This returns only accounts that are actually vulnerable to AS-REP roasting. If you see zero results, the domain has no misconfigured accounts.
+This returns only accounts that are actually vulnerable to AS-REP roasting. If you see zero results, no enabled, non-computer account that your bind user can see has the flag.
 
 ### `--ldap-all` (spray)
 
@@ -159,7 +163,7 @@ With `--ldap-all`, KerbWolf retrieves every enabled user account in the domain a
 (&(objectCategory=person)(objectClass=user)(!(UserAccountControl:1.2.840.113556.1.4.803:=2)))
 ```
 
-**For `kw-roast --ldap-all`** this means requesting a service ticket for every user, not just those with SPNs. Most will fail (no SPN), but this catches accounts where an SPN was added and later removed, or where the SPN is set in an unusual way.
+**For `kw-roast --ldap-all`** this means requesting a service ticket for every user, not just those with SPNs. The KDC refuses a ticket for an account with no SPN, so those are skipped: against a lab DC the spray returned exactly the accounts `--ldap` finds.
 
 **For `kw-asrep --ldap-all`** this sends an AS-REQ for every user. The KDC itself tells you which accounts don't require pre-auth by returning an AS-REP instead of a `PREAUTH_REQUIRED` error. Accounts that do require pre-auth are silently skipped.
 
@@ -182,7 +186,7 @@ Add `--ldap-ssl` to use LDAPS on port 636 instead of LDAP on port 389.
 
 ## Timeroasting (MS-SNTP)
 
-Timeroasting abuses Microsoft's NTP authentication extension (MS-SNTP) to extract password-equivalent hashes from domain controllers without any authentication. It targets computer and gMSA accounts.
+Timeroasting abuses Microsoft's NTP authentication extension (MS-SNTP) to extract crackable hashes, keyed with the account's NT hash, from domain controllers without any authentication. It targets computer and gMSA accounts.
 
 ### Which accounts are timeroastable?
 
@@ -226,14 +230,14 @@ sequenceDiagram
 | Format | Size | Algorithm | Hashcat | Windows support |
 |--------|------|-----------|---------|----------------|
 | Authenticator | 68 bytes | `MD5(NTOWFv1 \|\| salt)` | Mode 31300 | All versions |
-| ExtendedAuthenticator | 120 bytes | KDF(SP800-108, HMAC-SHA512) + HMAC-SHA512 | Proposed | Server 2012+ |
+| ExtendedAuthenticator | 120 bytes | KDF(SP800-108, HMAC-SHA512) + HMAC-SHA512 | None | Server 2012+ |
 
 The 68-byte format is the primary attack target because hashcat mode 31300 can crack it. The 120-byte format uses a stronger algorithm (KDF with the RID as context), but no hashcat module exists for it yet.
 
 ### Password selection (current vs previous)
 
 - **68-byte**: Bit 31 of the Key Identifier selects current (0) or previous (1) password. Works correctly on all tested DCs.
-- **120-byte**: The spec says Flags bit 0 (USE_OLDKEY_VERSION) selects old password, but the DC requires bit 0 to be set just to respond. No working mechanism to select current vs previous.
+- **120-byte**: The spec says Flags bit 0 (USE_OLDKEY_VERSION) selects old password, but the DC requires bit 0 to be set just to respond. No working mechanism to select current vs previous, so `kw-timeroast` sends the 120-byte request once per RID whatever `--password` says, and does not label those hashes by password age.
 
 Per MS-SNTP Appendix A `<27>`/`<28>`: machine accounts do not keep password history. Only trust accounts can have a previous password. If no previous exists, the DC returns the current password for both selectors.
 
@@ -256,7 +260,7 @@ Tested against Windows Server 2022 (Build 20348) and Server 2025 (Build 26100). 
 $sntp-ms$<32hex_MD5_digest>$<96hex_salt>
 ```
 
-The RID is not part of the hash string. It is preserved in the output line prefix for account mapping.
+The RID is not part of the hash string. With `--rid-prefix` each output line is written as `<name-or-RID>:<hash>` for account mapping (load such a file with `hashcat --username`); without it the RID appears only in the log on stderr.
 
 **120-byte KDF+HMAC-SHA512** (no hashcat module):
 
@@ -288,8 +292,7 @@ kw-timeroast 10.0.0.1 --ldap -d CORP.LOCAL -u admin -p pass --wordlist crack.txt
 
 # Both formats, both passwords, save to files
 kw-timeroast 10.0.0.1 -r 500-5000 --format both --password both -o hashes.txt
-# Creates: hashes-current-md5.txt, hashes-current-sha512.txt,
-#          hashes-previous-md5.txt, hashes-previous-sha512.txt
+# Creates: hashes-current-md5.txt, hashes-previous-md5.txt, hashes-sha512.txt
 
 # Crack with hashcat
 hashcat -m 31300 hashes-current-md5.txt wordlist.txt

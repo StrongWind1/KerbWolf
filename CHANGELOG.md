@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- `kw-roast -t user@domain` looks the name up as a `userPrincipalName` in LDAP and requests the ticket for the account that owns it.
+- `kw-extract` reads NTLM from HTTP `Negotiate` headers (bare or SPNEGO-wrapped NTLMSSP), which is what WinRM and most IIS sites use.
+- `kw-extract` reads SMB1 basic-security logons: the challenge is taken from the NEGOTIATE response.
+- `kw-extract` reads pcapng Simple Packet Blocks and uses the link type of each packet's own interface.
+
+### Changed
+
+- `kw-extract -o` no longer overwrites an existing file; like `kw-roast`, `kw-asrep` and `kw-timeroast`, it writes to `name_1.ext`, `name_2.ext` and so on.
+- Hashcat mode lookups return 0 for etypes 19 and 20, because hashcat has no mode for AES-SHA2.
+- `kw-timeroast` sends the 120-byte request once per RID whatever `--password` is, because that format cannot select the password. Its hashes go to `<name>-sha512.txt` instead of `<name>-current-sha512.txt` and `<name>-previous-sha512.txt`.
+
+### Removed
+
+- John the Ripper output and the `--format {hashcat,john}` option of `kw-roast`, `kw-asrep` and `kw-extract`. Hashes are always written in the hashcat layout. John did not load the lines written for DES hashes.
+
+### Fixed
+
+- `--version` and the banner of every command report the installed package version instead of a hard-coded `1.0.0`.
+- `kw-extract` reassembles TCP streams by sequence number. Retransmitted and out-of-order segments used to be appended in capture order and gave a wrong hash without a warning.
+- `tcpdump -w - | kw-extract -` prints its hashes when stopped with Ctrl-C. They used to be discarded.
+- DES hashes get the account's real spelling in the user field. The KDC sends the salt for DES replies as PA-PW-SALT, which was not read, so a target or logon typed in another case gave a hash that could not crack. This affects `kw-asrep`, `kw-roast` and `kw-extract`.
+- `kw-extract` gives AS-REQ pre-auth hashes the account's real spelling when the capture holds the salt for it.
+- `kw-roast` reads the salt of `DONT_REQ_PREAUTH` service accounts, so their hashes are no longer written with an unverified name and a warning.
+- `kw-timeroast -r 1-` and `-r -` no longer try to build a list of two billion RIDs.
+
 ## [1.1.0] - 2026-10-28
 
 ### Added
@@ -29,7 +58,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - RFC 8009 AES-SHA2 encryption types (etype 19: AES128-CTS-HMAC-SHA256-128, etype 20: AES256-CTS-HMAC-SHA384-192) for all three attack types: TGS-REP roast, AS-REP roast, and TGT acquisition.
 - `-e aes128-sha2` and `-e aes256-sha2` etype flags for `kw-roast`, `kw-asrep`, and `kw-tgt`.
 - Windows Server 2025 string-to-key implementation: PBKDF2 with 4096 iterations (not RFC 8009 default 32768) + KDF-HMAC-SHA2 second pass with etype name salt prefix.
-- 6 new hashcat-compatible hash formats: `$krb5tgs$19/$20`, `$krb5asrep$19/$20`, `$krb5pa$19/$20` (hashcat modes 39400/39500/39600/39700/39800/39900).
+- 6 new hashcat-compatible hash formats: `$krb5tgs$19/$20`, `$krb5asrep$19/$20`, `$krb5pa$19/$20`.
 - Total hash format count: 21 Kerberos + 2 SNTP + 2 NTLM = 25 formats.
 - ETYPE-INFO2 salt probing for all non-RC4 hashes. Every AES hash now uses an ETYPE-INFO2-verified salt or warns the user that casing may be wrong. This ensures AES hashes actually crack.
 - sAMAccountName-first TGS-REQ: kw-roast now sends the sAMAccountName (not SPN) as the TGS-REQ sname, so the KDC echoes the correct account name and pcap extraction produces crackable hashes.

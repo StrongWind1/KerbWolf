@@ -4,7 +4,7 @@
 
 When a user or service authenticates in Active Directory, the KDC hands out encrypted tickets. These tickets are encrypted with a key derived from the account's password. Get your hands on one of those encrypted blobs and you can try to crack the encryption offline by guessing passwords until one produces a key that decrypts correctly. That is roasting.
 
-KerbWolf covers 4 attack types and 7 encryption types (including RFC 8009 AES-SHA2), producing 25 hash formats compatible with hashcat and John the Ripper. In addition to Kerberos, it extracts NTLM and MS-SNTP (timeroast) hashes from pcap captures.
+KerbWolf covers 4 attack types and 7 encryption types (including RFC 8009 AES-SHA2), producing 25 hash formats. hashcat has a mode for all of them except the six AES-SHA2 formats and the 120-byte MS-SNTP format. In addition to Kerberos, it extracts NTLM and MS-SNTP (timeroast) hashes from pcap captures.
 
 The Kerberos authentication flow that we are targeting:
 
@@ -57,11 +57,11 @@ When users authenticate, their AS-REQ contains an encrypted timestamp. Capture i
 
 **Tool:** `kw-extract` &nbsp;|&nbsp; **Auth required:** No (offline pcap parsing)
 
-`kw-extract` also extracts NTLM hashes (9 transports: SMB, HTTP, WinRM, LDAP, DCE-RPC, SMTP, POP3, IMAP, Telnet), MS-SNTP timeroast hashes, and plaintext credentials from LDAP simple binds — all from the same pcap in one pass.
+`kw-extract` reads the other two Kerberos hash types out of the same capture: the enc-part of every AS-REP (including ordinary pre-authenticated password logons; smartcard and FAST-armored logons are not password-crackable) and the ticket in every TGS-REP. It also extracts NTLM hashes (9 transports: SMB, HTTP, WinRM, LDAP, DCE-RPC, SMTP, POP3, IMAP, Telnet), MS-SNTP timeroast hashes, and plaintext credentials from LDAP simple binds — all in one pass.
 
 ### Timeroasting (MS-SNTP)
 
-Domain controllers respond to authenticated NTP requests from computer, gMSA, and trust accounts. The response contains a hash of the account's NT password. No authentication is needed to request these hashes -- just a valid RID. Targets machine accounts, which often have weak or default passwords.
+Domain controllers respond to authenticated NTP requests from computer, gMSA, and trust accounts. The response contains a hash keyed with the account's NT hash. No authentication is needed to request these hashes -- just a valid RID. Machine account passwords are normally long and random, so the attack pays off on the exceptions: pre-created or pre-Windows 2000 computer accounts, manually set passwords, and trust accounts.
 
 **Tool:** `kw-timeroast` &nbsp;|&nbsp; **Auth required:** No &nbsp;|&nbsp; **Two formats:** 68-byte MD5 (hashcat 31300) + 120-byte KDF+HMAC-SHA512
 
@@ -70,14 +70,14 @@ Domain controllers respond to authenticated NTP requests from computer, gMSA, an
 
 ## Attack matrix
 
-KerbWolf covers 7 encryption types × 4 attack types. See the [Hash Reference](hashcat-modes.md) for the full mode matrix, hash format tables, and cracking examples.
+KerbWolf covers three Kerberos attacks across 7 encryption types, plus timeroasting. See the [Hash Reference](hashcat-modes.md) for the full mode matrix, hash format tables, and cracking examples.
 
 ### Timeroasting matrix
 
 | # | Format | Algorithm | Hash format | Hashcat mode |
 |---|--------|-----------|-------------|-------------|
 | 1 | 68-byte Authenticator | `MD5(NTOWFv1 \|\| salt)` | `$sntp-ms$<hash>$<salt>` | 31300 |
-| 2 | 120-byte ExtendedAuthenticator | KDF(SP800-108, HMAC-SHA512) + HMAC-SHA512 | `$sntp-ms-sha512$<RID>$<hash>$<salt>` | proposed |
+| 2 | 120-byte ExtendedAuthenticator | KDF(SP800-108, HMAC-SHA512) + HMAC-SHA512 | `$sntp-ms-sha512$<RID>$<hash>$<salt>` | none |
 
 ---
 
@@ -91,7 +91,7 @@ pip install .
 uv tool install .
 ```
 
-You'll need Python 3.11+ and system Kerberos libraries (`libkrb5-dev` on Debian, `krb5-devel` on RHEL). See the [installation guide](../getting-started/installation.md) for details.
+You'll need Python 3.11 to 3.14 and system Kerberos libraries (`libkrb5-dev` on Debian, `krb5-devel` on RHEL). See the [installation guide](../getting-started/installation.md) for details.
 
 ### Typical workflow
 
@@ -102,7 +102,7 @@ flowchart LR
     C --> D["kw-roast --ldap<br/>Kerberoast"]
     C --> E["kw-asrep --ldap<br/>AS-REP Roast"]
     D & E --> F["hashes.txt"]
-    F --> G["hashcat / john<br/>Crack offline"]
+    F --> G["hashcat<br/>Crack offline"]
     G --> H["Passwords!"]
 
     Z["Packet capture<br/>(tcpdump, Wireshark)"] --> Y["kw-extract<br/>Parse pcap"]
@@ -125,7 +125,7 @@ kw-tgt -d CORP.LOCAL --dc-ip 10.0.0.1 -u admin -p 'Password1!' -o admin.ccache
 kw-roast -k -c admin.ccache --ldap -o hashes.txt
 ```
 
-Domain and username come from the ccache, so `-d` and `-u` aren't needed. DC is found via DNS SRV. No DNS? Add `--dc-ip`.
+Domain and username come from the ccache, so `-d` and `-u` aren't needed. DC is found via DNS SRV. No DNS? Add `--dc-ip`, and give the system Kerberos library a `krb5.conf` for the LDAP bind (see [Kerberos LDAP setup](#kerberos-ldap-setup)).
 
 **3. Crack with hashcat:**
 
@@ -151,44 +151,46 @@ tcpdump -i eth0 -w - port 88 | kw-extract -
 
 ### DC resolution
 
-KerbWolf resolves the DC through a chain: SRV first, then explicit flags override, then domain A/AAAA as fallback.
+`kw-roast`, `kw-asrep` and `kw-tgt` resolve the DC through a chain: SRV first, then explicit flags override, then domain A/AAAA as fallback. `kw-timeroast` takes the DC as a positional argument and does no lookup.
 
 ```mermaid
 flowchart TD
-    A["Start: need DC IP + hostname"] --> B{"-k -c ccache?"}
-    B -->|Yes| C["Extract domain + user<br/>from ccache principal"]
+    A["Start: need DC IP + hostname"] --> B{"-k with -c<br/>or KRB5CCNAME?"}
+    B -->|Yes| C["Domain and user: -d / -u if given,<br/>otherwise the ccache principal"]
     B -->|No| D["Use -d domain and -u user"]
 
     C & D --> E["DNS SRV lookup<br/>_kerberos._tcp.DOMAIN"]
-    E --> F{"SRV found?"}
+    E --> F{"SRV found and<br/>its target resolves?"}
     F -->|Yes| G["dc_ip + dc_hostname from SRV"]
     F -->|No| G2["dc_ip + dc_hostname unset"]
 
-    G & G2 --> H{"--dc-ip provided?"}
+    G & G2 --> H{"--dc-ip given?"}
     H -->|IP address| I["dc_ip = --dc-ip<br/>(overrides SRV)"]
-    H -->|Hostname| I2["Resolve hostname → IP<br/>dc_hostname = --dc-ip"]
-    H -->|No| J{"dc_ip set from SRV?"}
+    H -->|Hostname| I2["dc_hostname = --dc-ip<br/>dc_ip = its address,<br/>or the SRV address if it does not resolve"]
+    H -->|No| M
+
+    I2 -->|"does not resolve<br/>and no SRV address"| O["Error: cannot resolve"]
+    I & I2 --> M{"--dc-hostname given?"}
+    M -->|Yes| M2["dc_hostname = --dc-hostname<br/>(always wins)"]
+    M -->|No| J
+    M2 --> J{"dc_ip set?"}
 
     J -->|No| K["Resolve domain A/AAAA"]
-    J -->|Yes| L["Keep SRV result"]
+    J -->|Yes| R
+    K -->|Found| R{"dc_hostname set?"}
+    K -->|Failed| O2["Error: use --dc-ip"]
 
-    I & I2 --> M{"--dc-hostname?"}
-    M -->|Yes| M2["dc_hostname = --dc-hostname"]
-    M -->|No| M3["Keep dc_hostname<br/>(from SRV or --dc-ip)"]
-
-    K -->|Found| N["dc_ip = domain IP<br/>dc_hostname = ⚠ missing"]
-    K -->|Failed| O["Error: use --dc-ip"]
-
-    L & M2 & M3 --> P["DC IP + hostname ready"]
-    N --> Q["DC IP only<br/>Kerberos LDAP will need<br/>RootDSE lookup for hostname"]
+    R -->|Yes| P["DC IP + hostname ready"]
+    R -->|No| Q["DC IP only<br/>Kerberos LDAP will need<br/>RootDSE lookup for hostname"]
 
     style P fill:#1a3a1a,stroke:#6bcb77
     style Q fill:#4a4a20,stroke:#ffd93d
     style O fill:#4a2020,stroke:#ff6b6b
+    style O2 fill:#4a2020,stroke:#ff6b6b
 ```
 
 !!! warning "Kerberos LDAP needs a hostname"
-    GSSAPI authentication constructs an SPN like `ldap/DC01.corp.local`. If KerbWolf only has a DC IP (no hostname from SRV or `--dc-hostname`), it will attempt an anonymous RootDSE lookup to discover the DC's `dnsHostName`. If that fails, use `--dc-hostname` explicitly.
+    GSSAPI authentication constructs an SPN like `ldap/DC01.corp.local`. If KerbWolf only has a DC IP (no hostname from SRV or `--dc-hostname`), it attempts an anonymous RootDSE lookup to discover the DC's `dnsHostName`, and falls back to the domain name if that fails. If the bind is then refused, pass `--dc-hostname` explicitly.
 
 ### Kerberos LDAP setup
 

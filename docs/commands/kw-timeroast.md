@@ -36,8 +36,9 @@ attack:
                         extended=120-byte KDF+HMAC-SHA512, both=send both per
                         RID
   --password {current,previous,both}
-                        Which password to request: current (default),
-                        previous, or both
+                        Which password the 68-byte request asks for: current
+                        (default), previous, or both. The 120-byte format
+                        cannot select it
 
 ldap:
   --ldap                Query LDAP for computer accounts (requires auth)
@@ -64,8 +65,8 @@ network:
 
 output:
   -o FILE, --output FILE
-                        Write hashes to file (splits by password age and hash
-                        type)
+                        Write hashes to file (splits by hash type and password
+                        age)
   --rid-prefix          Prepend account name (or RID) to each output line
   --wordlist FILE       Write cracking wordlist (lowercase names, with and
                         without 14-char truncation)
@@ -82,14 +83,14 @@ Examples:
 
 ## Description
 
-Sends NTP authentication requests to a domain controller and extracts password-equivalent hashes. The DC computes and returns a hash for any valid computer or gMSA RID without requiring credentials.
+Sends NTP authentication requests to a domain controller and extracts crackable hashes keyed with the account's NT hash. The DC computes and returns a hash for any valid computer or gMSA RID without requiring credentials.
 
 Two packet formats are supported:
 
 | Format | Size | Algorithm | Hashcat mode |
 |--------|------|-----------|-------------|
 | Authenticator | 68 bytes | `MD5(NTOWFv1 \|\| salt)` | 31300 |
-| ExtendedAuthenticator | 120 bytes | KDF(SP800-108, HMAC-SHA512) + HMAC-SHA512 | proposed |
+| ExtendedAuthenticator | 120 bytes | KDF(SP800-108, HMAC-SHA512) + HMAC-SHA512 | none |
 
 ### Timeroastable account types
 
@@ -116,10 +117,10 @@ Tested on Windows Server 2022 (Build 20348) and Server 2025 (Build 26100):
 
 | Flag | Description |
 |------|-------------|
-| `-r RANGE`, `--rids RANGE` | RID range to scan (default: 500-10000). Supports: `1`, `1-100`, `1-`, `-100`, `-`, `1-100,500-600` |
+| `-r RANGE`, `--rids RANGE` | RID range to scan (default: 500-10000). Supports: `1`, `1-100`, `1-`, `-100`, `-`, `1-100,500-600`. An open-ended range (`1-`, `-`) runs to RID 2147483647; in practice the scan ends when the DC has been silent for `--timeout` seconds |
 | `-R FILE`, `--rids-file FILE` | File with RID ranges, one per line (same syntax, `#` comments) |
 | `--format {auth,extended,both}` | Packet format. `auth` = 68-byte MD5 (default). `extended` = 120-byte KDF+HMAC-SHA512. `both` = send both per RID. |
-| `--password {current,previous,both}` | Which password to request. `current` (default), `previous`, or `both`. For 68-byte, bit 31 selects the password. For 120-byte, no wire-level distinction is possible. |
+| `--password {current,previous,both}` | Which password the 68-byte request asks for: `current` (default), `previous`, or `both`. Bit 31 of the Key Identifier selects it. The 120-byte format cannot select the password, so its request is sent once per RID whatever this is set to. |
 
 ### LDAP options
 
@@ -137,7 +138,7 @@ LDAP mode queries the DC for computer and gMSA accounts, extracts their RIDs fro
 | `-c FILE`, `--ccache FILE` | Kerberos ccache file |
 | `--dc-hostname HOST` | DC FQDN for Kerberos SPN (auto-detected if omitted) |
 
-`--ldap` takes priority over `-r`/`-R`: when `--ldap` is set, RIDs and account names both come from LDAP. When `--ldap` is not set, `-r`/`-R` provides RIDs (or the default range 500-10000).
+`--ldap` takes priority over `-r`/`-R`: when `--ldap` is set, RIDs and account names both come from LDAP, and `-d` is required. When `--ldap` is not set, `-R` provides the RIDs if given, otherwise `-r`, otherwise the default range 500-10000.
 
 ### Network options
 
@@ -152,23 +153,22 @@ LDAP mode queries the DC for computer and gMSA accounts, extracts their RIDs fro
 
 | Flag | Description |
 |------|-------------|
-| `-o FILE`, `--output FILE` | Write hashes to file. Splits by password age and hash type (up to 4 files). |
-| `--rid-prefix` | Prepend account name (or RID) to each output line. |
+| `-o FILE`, `--output FILE` | Write hashes to file. Splits by hash type and, for the 68-byte format, password age (up to 3 files). |
+| `--rid-prefix` | Prepend account name (or RID) to each output line. Load a file written this way with `hashcat --username`. |
 | `--wordlist FILE` | Write cracking wordlist (requires `--ldap`). Outputs lowercase names without `$`, both full and 14-char truncated. |
 | `-v`, `--verbose` | Increase verbosity (`-v` for info, `-vv` for debug) |
 
 ## Output files
 
-When using `-o hashes.txt`, output is split into up to 4 files:
+When using `-o hashes.txt`, output is split into up to 3 files:
 
 | File | Contents |
 |------|----------|
 | `hashes-current-md5.txt` | 68-byte current password hashes |
-| `hashes-current-sha512.txt` | 120-byte current password hashes |
 | `hashes-previous-md5.txt` | 68-byte previous password hashes |
-| `hashes-previous-sha512.txt` | 120-byte previous password hashes |
+| `hashes-sha512.txt` | 120-byte hashes. The format cannot select the password, so these are not split by age |
 
-Only files with at least one hash are created.
+Only files with at least one hash are created. An existing file is never overwritten: `_1`, `_2` and so on is appended to the name instead. If `-o` has no extension, `.txt` is used.
 
 ## Hash formats
 
@@ -178,7 +178,7 @@ Only files with at least one hash are created.
 $sntp-ms$<32hex_digest>$<96hex_salt>
 ```
 
-The RID is not part of the hash string. It is preserved in the output line prefix (e.g., `1103:$sntp-ms$...`) for account mapping.
+The RID is not part of the hash string. With `--rid-prefix`, each line is written as `<name-or-RID>:$sntp-ms$...` for account mapping; the name is used in LDAP mode and the RID otherwise. hashcat reads such a file with `--username`.
 
 **120-byte KDF+HMAC-SHA512** (no hashcat module yet):
 
@@ -216,21 +216,25 @@ kw-timeroast 10.0.0.1 --ldap -d CORP.LOCAL -u admin -H :aabbccdd...
 # LDAP + wordlist for cracking default passwords
 kw-timeroast 10.0.0.1 --ldap -d CORP.LOCAL -u admin -p pass --wordlist crack.txt
 
-# Both formats and both passwords (4 packets per RID)
+# Both formats and both passwords (3 packets per RID: two 68-byte, one 120-byte)
 kw-timeroast 10.0.0.1 --format both --password both -o hashes.txt
 
 # Account names in output
-kw-timeroast 10.0.0.1 --ldap -d CORP.LOCAL -u admin -p pass --rid-prefix
+kw-timeroast 10.0.0.1 --ldap -d CORP.LOCAL -u admin -p pass --rid-prefix -o named.txt
 
 # Crack the MD5 hashes
 hashcat -m 31300 hashes-current-md5.txt wordlist.txt
+
+# Crack a file written with --rid-prefix
+hashcat -m 31300 --username named-current-md5.txt wordlist.txt
 ```
 
 ## Notes
 
 - **No authentication needed** for blind RID scanning. LDAP mode requires credentials.
-- **Targets computer and gMSA accounts.** MSA, dMSA, and user accounts do not respond to MS-SNTP.
+- **IPv4 only.** NTP requests are sent over an IPv4 UDP socket.
+- **Targets computer, gMSA and trust accounts.** MSA, dMSA, and user accounts do not respond to MS-SNTP.
 - **68-byte format is the primary attack.** Hashcat mode 31300 cracks these hashes.
 - **120-byte format** uses a stronger algorithm (KDF+HMAC-SHA512 with the RID as context). No hashcat module exists yet, but the hashes are captured for future cracking.
-- **Previous password** on machine accounts: per the spec, machine accounts do not keep password history. The DC returns the current password for both current and previous selectors. Trust accounts may have a previous password.
+- **Previous password** on machine accounts: per the spec, machine accounts do not keep password history. The DC returns the current password for both current and previous selectors (against a lab DC, the current and previous hashes of the same accounts cracked to the same passwords). Trust accounts may have a previous password.
 - **LDAP filter** finds `(|(objectClass=computer)(objectClass=msDS-GroupManagedServiceAccount))` with no disabled-account exclusion — the NTP probe determines what responds.
