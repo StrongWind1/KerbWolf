@@ -15,7 +15,6 @@ from kerbwolf.models import (
     UF_WORKSTATION_TRUST_ACCOUNT,
     EncryptionType,
     HashcatMode,
-    HashFormat,
     KDCError,
     KerberosCredential,
     KerbWolfError,
@@ -115,7 +114,7 @@ class TestEtypeByName:
 
 
 # ---------------------------------------------------------------------------
-# TransportProtocol / HashFormat
+# TransportProtocol
 # ---------------------------------------------------------------------------
 
 
@@ -128,14 +127,6 @@ class TestTransportProtocol:
 
     def test_from_string(self):
         assert TransportProtocol("tcp") == TransportProtocol.TCP
-
-
-class TestHashFormat:
-    def test_hashcat(self):
-        assert HashFormat.HASHCAT == "hashcat"
-
-    def test_john(self):
-        assert HashFormat.JOHN == "john"
 
 
 # ---------------------------------------------------------------------------
@@ -187,16 +178,11 @@ class TestHashcatMode:
         assert HashcatMode.KRB5_PA_DES_CBC_CRC == 39300
         assert HashcatMode.KRB5_PA_DES_CBC_MD5 == 39000
 
-    def test_aes_sha2_modes(self):
-        assert HashcatMode.KRB5_TGS_AES128_SHA256 == 39400
-        assert HashcatMode.KRB5_TGS_AES256_SHA384 == 39500
-        assert HashcatMode.KRB5_ASREP_AES128_SHA256 == 39600
-        assert HashcatMode.KRB5_ASREP_AES256_SHA384 == 39700
-        assert HashcatMode.KRB5_PA_AES128_SHA256 == 39800
-        assert HashcatMode.KRB5_PA_AES256_SHA384 == 39900
+    def test_no_aes_sha2_modes(self):
+        assert not [m for m in HashcatMode if "SHA256" in m.name or "SHA384" in m.name]
 
     def test_total_modes(self):
-        assert len(HashcatMode) == 24
+        assert len(HashcatMode) == 18
 
 
 # ---------------------------------------------------------------------------

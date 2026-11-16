@@ -16,12 +16,13 @@ from __future__ import annotations
 
 import enum
 import logging
+import signal
 import socket
 import struct
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, BinaryIO
+from typing import TYPE_CHECKING, Any, BinaryIO
 
 from impacket.krb5 import constants as krb_constants
 from impacket.krb5.asn1 import (
@@ -35,7 +36,11 @@ from impacket.krb5.asn1 import (
 )
 from pyasn1.codec.der import decoder
 
+from kerbwolf.core.asreq import salt_from_padata
 from kerbwolf.models import KerbWolfError
+
+if TYPE_CHECKING:
+    from types import FrameType
 
 _log = logging.getLogger(__name__)
 
@@ -54,6 +59,9 @@ _PCAP_MAGIC_NS_BE = 0x4D3CB2A1
 # Pcapng Section Header Block.
 _PCAPNG_SHB_TYPE = 0x0A0D0D0A
 _PCAPNG_BYTE_ORDER_MAGIC = 0x1A2B3C4D
+_PCAPNG_IDB_TYPE = 1  # Interface Description Block
+_PCAPNG_SPB_TYPE = 3  # Simple Packet Block
+_PCAPNG_EPB_TYPE = 6  # Enhanced Packet Block
 
 # Link layer types.
 _LINKTYPE_ETHERNET = 1
@@ -153,7 +161,7 @@ def parse_pcap(path: str) -> list[CapturedHash]:
     Pass ``"-"`` to read from stdin (e.g. ``tcpdump -w - | ...``).
     """
     if path == "-":
-        return _parse_stream(sys.stdin.buffer)
+        return _parse_stdin()
 
     with Path(path).open("rb") as fh:
         return _parse_stream(fh)
@@ -189,6 +197,30 @@ def parse_pcap_with_salts(path: str) -> tuple[list[CapturedHash], SaltHints]:
 # ---------------------------------------------------------------------------
 # Native pcap/pcapng parser
 # ---------------------------------------------------------------------------
+
+
+def _parse_stdin() -> list[CapturedHash]:
+    """Parse a capture piped in on stdin.
+
+    In ``tcpdump -w - | kw-extract -`` a Ctrl-C reaches both processes.
+    tcpdump flushes what it has buffered and exits, so the first interrupt
+    is held back here and reading continues to the end of the pipe.  A
+    second interrupt stops at once; the parsers keep what they had read.
+    """
+    interrupted = False
+
+    def _on_sigint(_signum: int, _frame: FrameType | None) -> None:
+        nonlocal interrupted
+        if interrupted:
+            raise KeyboardInterrupt
+        interrupted = True
+        _log.info("Interrupted: reading the rest of the capture (interrupt again to stop now)")
+
+    previous = signal.signal(signal.SIGINT, _on_sigint)
+    try:
+        return _parse_stream(sys.stdin.buffer)
+    finally:
+        signal.signal(signal.SIGINT, previous)
 
 
 def _parse_stream(fh: BinaryIO) -> list[CapturedHash]:
@@ -255,16 +287,19 @@ def _parse_pcap(
 
     results: list[CapturedHash] = []
     pkt_count = 0
-    while True:
-        rec_hdr = fh.read(16)
-        if len(rec_hdr) < 16:  # noqa: PLR2004
-            break
-        _ts_sec, _ts_usec, incl_len, _orig_len = struct.unpack(f"{byte_order}IIII", rec_hdr)
-        pkt_data = fh.read(incl_len)
-        if len(pkt_data) < incl_len:
-            break
-        pkt_count += 1
-        results.extend(_process_packet(pkt_data, link_type, tcp_streams, ntlm_sessions))
+    try:
+        while True:
+            rec_hdr = fh.read(16)
+            if len(rec_hdr) < 16:  # noqa: PLR2004
+                break
+            _ts_sec, _ts_usec, incl_len, _orig_len = struct.unpack(f"{byte_order}IIII", rec_hdr)
+            pkt_data = fh.read(incl_len)
+            if len(pkt_data) < incl_len:
+                break
+            pkt_count += 1
+            results.extend(_process_packet(pkt_data, link_type, tcp_streams, ntlm_sessions))
+    except KeyboardInterrupt:
+        _log.info("Interrupted: keeping what was read so far")
 
     _log.info("Pcap: %d packets, %d hashes extracted", pkt_count, len(results))
     return results
@@ -287,31 +322,44 @@ def _parse_pcapng(
     block_len = struct.unpack(f"{byte_order}I", shb_rest[:4])[0]
     fh.read(block_len - 12)  # skip rest of SHB
 
-    link_type = _LINKTYPE_ETHERNET
+    # One link type per Interface Description Block, in file order.  A packet
+    # block names its interface by that index.
+    link_types: list[int] = []
     results: list[CapturedHash] = []
 
-    while True:
-        block_header = fh.read(8)
-        if len(block_header) < 8:  # noqa: PLR2004
-            break
+    try:
+        while True:
+            block_header = fh.read(8)
+            if len(block_header) < 8:  # noqa: PLR2004
+                break
 
-        block_type, block_total_len = struct.unpack(f"{byte_order}II", block_header)
-        body_len = block_total_len - 12
-        if body_len < 0:
-            break
-        body = fh.read(body_len)
-        fh.read(4)  # trailing block_total_length
+            block_type, block_total_len = struct.unpack(f"{byte_order}II", block_header)
+            body_len = block_total_len - 12
+            if body_len < 0:
+                break
+            body = fh.read(body_len)
+            fh.read(4)  # trailing block_total_length
 
-        if block_type == 1 and len(body) >= 8:  # noqa: PLR2004 - IDB
-            link_type = struct.unpack(f"{byte_order}HH", body[:4])[0]
+            if block_type == _PCAPNG_IDB_TYPE and len(body) >= 8:  # noqa: PLR2004
+                link_types.append(struct.unpack(f"{byte_order}HH", body[:4])[0])
 
-        elif block_type == 6 and len(body) >= 20:  # noqa: PLR2004 - EPB
-            _iface_id, _ts_hi, _ts_lo, cap_len, _orig_len = struct.unpack(
-                f"{byte_order}IIIII",
-                body[:20],
-            )
-            pkt_data = body[20 : 20 + cap_len]
-            results.extend(_process_packet(pkt_data, link_type, tcp_streams, ntlm_sessions))
+            elif block_type == _PCAPNG_EPB_TYPE and len(body) >= 20:  # noqa: PLR2004
+                iface_id, _ts_hi, _ts_lo, cap_len, _orig_len = struct.unpack(
+                    f"{byte_order}IIIII",
+                    body[:20],
+                )
+                link_type = link_types[iface_id] if iface_id < len(link_types) else _LINKTYPE_ETHERNET
+                pkt_data = body[20 : 20 + cap_len]
+                results.extend(_process_packet(pkt_data, link_type, tcp_streams, ntlm_sessions))
+
+            elif block_type == _PCAPNG_SPB_TYPE and len(body) >= 4:  # noqa: PLR2004
+                # A Simple Packet Block has no interface field: it belongs to interface 0.
+                orig_len = struct.unpack(f"{byte_order}I", body[:4])[0]
+                link_type = link_types[0] if link_types else _LINKTYPE_ETHERNET
+                pkt_data = body[4 : 4 + orig_len]
+                results.extend(_process_packet(pkt_data, link_type, tcp_streams, ntlm_sessions))
+    except KeyboardInterrupt:
+        _log.info("Interrupted: keeping what was read so far")
 
     return results
 
@@ -329,9 +377,10 @@ def _process_packet(
 ) -> list[CapturedHash]:
     """Process a raw packet, routing TCP through stream reassembly.
 
-    TCP packets are buffered per connection.  Complete application messages
-    are extracted from the buffer after each segment.  UDP packets (SNTP)
-    are passed directly to the existing extractor.
+    TCP payloads are put in sequence order per connection, so retransmitted
+    and out-of-order segments do not corrupt a message.  Complete application
+    messages are extracted from the stream after each segment.  UDP packets
+    (SNTP) are passed directly to the existing extractor.
     """
     from kerbwolf.core.ntlmssp import _LDAP_PORT, _NTLM_PORTS, extract_ldap_simple_from_stream, extract_ntlm_from_stream  # noqa: PLC0415
 
@@ -342,18 +391,21 @@ def _process_packet(
     # Try TCP reassembly path.
     tcp_info = _parse_tcp_info(ip_data)
     if tcp_info is not None:
-        payload, src_ip, src_port, dst_ip, dst_port, tcp_flags = tcp_info
+        payload, src_ip, src_port, dst_ip, dst_port, tcp_flags, seq = tcp_info
         conn_key = (src_ip, src_port, dst_ip, dst_port)
 
-        # Reset buffer on SYN (new connection).
+        # A SYN starts a new connection: forget the old stream.  The SYN
+        # itself takes one sequence number, so data starts one past it.
         if tcp_flags & _TCP_FLAG_SYN:
-            tcp_streams.pop(conn_key, None)
+            seq = (seq + 1) % _TCP_SEQ_MODULUS
+            tcp_streams[conn_key] = TcpStream()
+            tcp_streams[conn_key].next_seq = seq
 
-        # Append payload to stream buffer.
+        # Add the payload to the stream in sequence order.
         if payload:
             if conn_key not in tcp_streams:
-                tcp_streams[conn_key] = bytearray()
-            tcp_streams[conn_key].extend(payload)
+                tcp_streams[conn_key] = TcpStream()
+            _add_tcp_segment(tcp_streams[conn_key], seq, payload)
 
         results: list[CapturedHash] = []
 
@@ -371,9 +423,12 @@ def _process_packet(
         if _LDAP_PORT in {src_port, dst_port} and conn_key in tcp_streams:
             results.extend(extract_ldap_simple_from_stream(tcp_streams[conn_key]))
 
-        # Clean up empty buffers.
-        if conn_key in tcp_streams and not tcp_streams[conn_key]:
-            del tcp_streams[conn_key]
+        # A stream is kept while the connection is open, because its position
+        # is what orders the next segment.  Drop it once the sender is done.
+        if tcp_flags & (_TCP_FLAG_FIN | _TCP_FLAG_RST) and conn_key in tcp_streams:
+            stream = tcp_streams[conn_key]
+            if not stream and not stream.pending:
+                del tcp_streams[conn_key]
 
         return results
 
@@ -497,16 +552,86 @@ def _strip_ip_transport(ip_data: bytes) -> tuple[bytes | None, int, int, int]:
 
 
 # TCP stream type for reassembly.
-TcpStreams = dict[tuple[str, int, str, int], bytearray]
+class TcpStream(bytearray):
+    """The in-order bytes of one direction of a TCP connection.
 
-# TCP SYN flag (byte 13 of TCP header).
+    The bytearray itself is what the protocol extractors read and consume.
+    ``next_seq`` is the sequence number of the next byte it expects, and
+    ``pending`` holds segments that arrived ahead of it, by sequence number.
+    """
+
+    def __init__(self) -> None:
+        """Start an empty stream that takes its position from the first segment."""
+        super().__init__()
+        self.next_seq: int | None = None
+        self.pending: dict[int, bytes] = {}
+
+
+TcpStreams = dict[tuple[str, int, str, int], TcpStream]
+
+# TCP flags (byte 13 of the TCP header).
+_TCP_FLAG_FIN = 0x01
 _TCP_FLAG_SYN = 0x02
+_TCP_FLAG_RST = 0x04
+
+_TCP_SEQ_MODULUS = 1 << 32
+_TCP_SEQ_HALF = 1 << 31
+
+# Segments held back while waiting for a gap to fill.  A gap that is still
+# open after this many later segments is a packet the capture missed.
+_TCP_MAX_PENDING_SEGMENTS = 256
 
 
-def _parse_tcp_info(ip_data: bytes) -> tuple[bytes, str, int, str, int, int] | None:
+def _seq_distance(seq: int, base: int) -> int:
+    """Return how far *seq* is ahead of *base* (negative if behind), allowing for wraparound."""
+    return ((seq - base + _TCP_SEQ_HALF) % _TCP_SEQ_MODULUS) - _TCP_SEQ_HALF
+
+
+def _append_in_order(stream: TcpStream, seq: int, payload: bytes) -> bool:
+    """Append *payload* if it continues the stream.  Return ``False`` if it is ahead of it.
+
+    Bytes the stream already has (a retransmission, or the overlapping head
+    of a segment) are dropped.
+    """
+    if stream.next_seq is None:
+        stream.next_seq = seq
+
+    ahead = _seq_distance(seq, stream.next_seq)
+    if ahead > 0:
+        return False
+
+    fresh = payload[-ahead:]
+    stream.extend(fresh)
+    stream.next_seq = (stream.next_seq + len(fresh)) % _TCP_SEQ_MODULUS
+    return True
+
+
+def _add_tcp_segment(stream: TcpStream, seq: int, payload: bytes) -> None:
+    """Add one TCP segment to *stream*, putting out-of-order segments back in order."""
+    if not _append_in_order(stream, seq, payload):
+        stream.pending.setdefault(seq, payload)
+        if len(stream.pending) <= _TCP_MAX_PENDING_SEGMENTS or stream.next_seq is None:
+            return
+        # The gap is a packet the capture never saw.  What is buffered can no
+        # longer be completed, so drop it and resume at the earliest held segment.
+        base = stream.next_seq
+        stream.clear()
+        stream.next_seq = min(stream.pending, key=lambda held: _seq_distance(held, base))
+
+    # Segments that were waiting may now fit.
+    progressed = True
+    while progressed and stream.pending:
+        progressed = False
+        for held_seq in list(stream.pending):
+            if _append_in_order(stream, held_seq, stream.pending[held_seq]):
+                del stream.pending[held_seq]
+                progressed = True
+
+
+def _parse_tcp_info(ip_data: bytes) -> tuple[bytes, str, int, str, int, int, int] | None:
     """Parse IP + TCP headers, returning payload and connection info with flags.
 
-    Returns ``(payload, src_ip, src_port, dst_ip, dst_port, tcp_flags)``
+    Returns ``(payload, src_ip, src_port, dst_ip, dst_port, tcp_flags, seq)``
     or ``None`` for non-TCP or unparseable packets.
     """
     if len(ip_data) < 20:  # noqa: PLR2004
@@ -532,11 +657,11 @@ def _parse_tcp_info(ip_data: bytes) -> tuple[bytes, str, int, str, int, int] | N
     if proto != _IP_PROTO_TCP or len(transport_data) < 20:  # noqa: PLR2004
         return None
 
-    src_port, dst_port = struct.unpack("!HH", transport_data[:4])
+    src_port, dst_port, seq = struct.unpack("!HHI", transport_data[:8])
     tcp_flags = transport_data[13]
     data_offset = ((transport_data[12] >> 4) & 0xF) * 4
     payload = transport_data[data_offset:]
-    return payload, src_ip, src_port, dst_ip, dst_port, tcp_flags
+    return payload, src_ip, src_port, dst_ip, dst_port, tcp_flags, seq
 
 
 # ---------------------------------------------------------------------------
@@ -643,21 +768,11 @@ def _try_parse_asrep(data: bytes) -> list[CapturedHash]:
 
 
 def _extract_etype_info2_salt(as_rep: Any) -> str:  # noqa: ANN401 - pyasn1 decoded object
-    """Extract the first ETYPE-INFO2 salt from an AS-REP's padata."""
+    """Extract the salt from an AS-REP's padata (ETYPE-INFO2, or PA-PW-SALT for DES)."""
     try:
-        padata = as_rep["padata"]
-        if padata is None or not hasattr(padata, "hasValue") or not padata.hasValue():
-            return ""
-        for pa_data in padata:
-            pa_type = int(pa_data["padata-type"])
-            if pa_type == krb_constants.PreAuthenticationDataTypes.PA_ETYPE_INFO2.value:
-                etype_info2 = decoder.decode(pa_data["padata-value"], asn1Spec=ETYPE_INFO2())[0]
-                for entry in etype_info2:
-                    salt_val = entry["salt"]
-                    if salt_val is not None and salt_val.hasValue():
-                        return str(salt_val)
+        return salt_from_padata(as_rep["padata"]) or ""
     except Exception:  # noqa: BLE001
-        _log.debug("Failed to extract ETYPE-INFO2 salt from AS-REP", exc_info=True)
+        _log.debug("Failed to extract the salt from AS-REP padata", exc_info=True)
     return ""
 
 

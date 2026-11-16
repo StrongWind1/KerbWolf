@@ -504,7 +504,6 @@ class TestTryExtractNtlm:
 class TestCapturedToResultNtlm:
     def test_ntlmv2_result(self):
         from kerbwolf.attacks.extract import _captured_to_result
-        from kerbwolf.models import HashFormat
 
         h = CapturedHash(
             attack=AttackType.NTLMV2,
@@ -516,7 +515,7 @@ class TestCapturedToResultNtlm:
             challenge_hex="bb" * 8,
             ntlm_blob_hex="cc" * 32,
         )
-        result = _captured_to_result(h, HashFormat.HASHCAT)
+        result = _captured_to_result(h)
         assert isinstance(result, RoastResult)
         assert result.hashcat_mode == HashcatMode.NTLMV2
         assert "admin" in result.hash_string
@@ -525,7 +524,6 @@ class TestCapturedToResultNtlm:
 
     def test_ntlmv1_result(self):
         from kerbwolf.attacks.extract import _captured_to_result
-        from kerbwolf.models import HashFormat
 
         h = CapturedHash(
             attack=AttackType.NTLMV1,
@@ -537,7 +535,7 @@ class TestCapturedToResultNtlm:
             challenge_hex="ee" * 8,
             lm_hex="ff" * 24,
         )
-        result = _captured_to_result(h, HashFormat.HASHCAT)
+        result = _captured_to_result(h)
         assert result.hashcat_mode == HashcatMode.NTLMV1
         assert "user::DOMAIN:" in result.hash_string
 
@@ -1182,7 +1180,6 @@ class TestCapturedToResultLdapSimple:
     def test_ldap_simple_result(self):
         from kerbwolf.attacks.extract import _captured_to_result
         from kerbwolf.core.capture import AttackType, CapturedHash
-        from kerbwolf.models import HashFormat
 
         h = CapturedHash(
             attack=AttackType.LDAP_SIMPLE,
@@ -1192,14 +1189,13 @@ class TestCapturedToResultLdapSimple:
             etype=0,
             cipher_hex=b"Password1!".hex(),
         )
-        result = _captured_to_result(h, HashFormat.HASHCAT)
+        result = _captured_to_result(h)
         assert result.hash_string == "cn=admin,dc=corp,dc=local:Password1!"
         assert result.hashcat_mode == 0
 
     def test_ldap_simple_empty_password(self):
         from kerbwolf.attacks.extract import _captured_to_result
         from kerbwolf.core.capture import AttackType, CapturedHash
-        from kerbwolf.models import HashFormat
 
         h = CapturedHash(
             attack=AttackType.LDAP_SIMPLE,
@@ -1209,7 +1205,7 @@ class TestCapturedToResultLdapSimple:
             etype=0,
             cipher_hex="",
         )
-        result = _captured_to_result(h, HashFormat.HASHCAT)
+        result = _captured_to_result(h)
         assert result.hash_string == "cn=svc,dc=corp,dc=local:"
 
 
@@ -1225,3 +1221,97 @@ class TestCliLdapSimpleSummary:
         _output_results(results, None, Logger())
         err = capsys.readouterr().err
         assert "LDAP-Simple" in err
+
+
+# ---------------------------------------------------------------------------
+# SMB1 basic security: challenge in the NEGOTIATE response, raw LM/NT in SESSION_SETUP
+# ---------------------------------------------------------------------------
+
+
+def _smb1_header(command: int, *, reply: bool = False) -> bytes:
+    flags = 0x80 if reply else 0x00
+    return b"\xffSMB" + bytes([command]) + b"\x00" * 4 + bytes([flags]) + b"\x00" * 22
+
+
+def _smb1_negotiate_response(challenge: bytes, *, capabilities: int = 0) -> bytes:
+    params = struct.pack("<HBHHIIIIQhB", 0, 3, 50, 1, 16644, 65536, 0, capabilities, 0, 0, len(challenge))
+    data = challenge + b"WORKGROUP\x00"
+    return _smb1_header(0x72, reply=True) + bytes([17]) + params + struct.pack("<H", len(data)) + data
+
+
+def _smb1_basic_session_setup(lm: bytes, nt: bytes, user: bytes, domain: bytes) -> bytes:
+    params = b"\xff\x00\x00\x00" + struct.pack("<HHHIHHII", 4356, 50, 1, 0, len(lm), len(nt), 0, 0)
+    data = lm + nt + user + b"\x00" + domain + b"\x00Unix\x00Samba\x00"
+    return _smb1_header(0x73) + bytes([13]) + params + struct.pack("<H", len(data)) + data
+
+
+def _netbios(message: bytes) -> bytearray:
+    return bytearray(b"\x00" + struct.pack("!I", len(message))[1:] + message)
+
+
+class TestSmb1BasicSecurity:
+    SERVER_TO_CLIENT = ("10.0.0.2", 445, "10.0.0.1", 50000)
+    CLIENT_TO_SERVER = ("10.0.0.1", 50000, "10.0.0.2", 445)
+
+    def test_challenge_from_negotiate_response_pairs_with_raw_auth(self):
+        from kerbwolf.core.ntlmssp import extract_ntlm_from_stream
+
+        challenge = bytes.fromhex("0102030405060708")
+        sessions: NtlmSessions = {}
+
+        negotiate = _netbios(_smb1_negotiate_response(challenge))
+        assert extract_ntlm_from_stream(negotiate, self.SERVER_TO_CLIENT, 445, sessions) == []
+        assert sessions[self.SERVER_TO_CLIENT] == challenge
+
+        setup = _netbios(_smb1_basic_session_setup(b"\x11" * 24, b"\x22" * 24, b"alice", b"CORP"))
+        results = extract_ntlm_from_stream(setup, self.CLIENT_TO_SERVER, 445, sessions)
+
+        assert len(results) == 1
+        assert results[0].attack == AttackType.NTLMV1
+        assert results[0].username == "alice"
+        assert results[0].realm == "CORP"
+        assert results[0].challenge_hex == challenge.hex()
+        assert results[0].cipher_hex == "22" * 24
+
+    def test_extended_security_negotiate_response_has_no_challenge(self):
+        from kerbwolf.core.ntlmssp import extract_ntlm_from_stream
+
+        sessions: NtlmSessions = {}
+        negotiate = _netbios(_smb1_negotiate_response(b"\xaa" * 8, capabilities=0x80000000))
+        assert extract_ntlm_from_stream(negotiate, self.SERVER_TO_CLIENT, 445, sessions) == []
+        assert sessions == {}
+
+    def test_raw_auth_without_a_captured_challenge_yields_nothing(self):
+        from kerbwolf.core.ntlmssp import extract_ntlm_from_stream
+
+        setup = _netbios(_smb1_basic_session_setup(b"\x11" * 24, b"\x22" * 24, b"alice", b"CORP"))
+        assert extract_ntlm_from_stream(setup, self.CLIENT_TO_SERVER, 445, {}) == []
+
+
+class TestHttpNegotiateScheme:
+    def test_bare_ntlmssp_under_negotiate(self):
+        import base64
+
+        token = _build_ntlmssp_type2()
+        payload = b"HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Negotiate " + base64.b64encode(token) + b"\r\n\r\n"
+        assert _extract_http_ntlm_tokens(payload) == [token]
+
+    def test_spnego_wrapped_ntlmssp_under_negotiate(self):
+        import base64
+
+        from impacket import spnego
+
+        token = _build_ntlmssp_type2()
+        wrapped = spnego.SPNEGO_NegTokenResp()
+        wrapped["NegState"] = b"\x01"
+        wrapped["SupportedMech"] = spnego.TypesMech["NTLMSSP - Microsoft NTLM Security Support Provider"]
+        wrapped["ResponseToken"] = token
+        payload = b"HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Negotiate " + base64.b64encode(wrapped.getData()) + b"\r\n\r\n"
+        assert _extract_http_ntlm_tokens(payload) == [token]
+
+    def test_kerberos_token_under_negotiate_is_skipped(self):
+        import base64
+
+        kerberos_like = b"\x60\x82\x05\x00\x06\x09\x2a\x86\x48\x86\xf7\x12\x01\x02\x02" + b"\x00" * 32
+        payload = b"GET / HTTP/1.1\r\nAuthorization: Negotiate " + base64.b64encode(kerberos_like) + b"\r\n\r\n"
+        assert _extract_http_ntlm_tokens(payload) == []

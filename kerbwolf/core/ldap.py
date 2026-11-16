@@ -211,6 +211,26 @@ def resolve_spns(conn: ldap3.Connection, domain: str, spns: list[str]) -> dict[s
     return result
 
 
+def resolve_upns(conn: ldap3.Connection, domain: str, upns: list[str]) -> dict[str, str]:
+    """Resolve userPrincipalNames to their account's sAMAccountName via LDAP.
+
+    Returns ``{upn: sAMAccountName}`` for each UPN that matched an enabled
+    account.  UPNs that match nothing are omitted.
+    """
+    base_dn = _base_dn(domain)
+    result: dict[str, str] = {}
+    for upn in upns:
+        safe_upn = upn.replace("\\", "\\5c").replace("(", "\\28").replace(")", "\\29").replace("*", "\\2a").replace("\x00", "\\00")
+        ldap_filter = f"(&(userPrincipalName={safe_upn})(!(UserAccountControl:1.2.840.113556.1.4.803:=2)))"
+        entries = _paged_search(conn, base_dn, ldap_filter, ["sAMAccountName"])
+        if entries:
+            result[upn] = str(entries[0]["sAMAccountName"])
+            _log.debug("UPN %s → %s", upn, result[upn])
+        else:
+            _log.debug("UPN %s: no matching account", upn)
+    return result
+
+
 def resolve_account_casing(conn: ldap3.Connection, domain: str, usernames: list[str]) -> dict[str, str]:
     """Resolve sAMAccountNames to their correctly-cased values via LDAP.
 
@@ -237,11 +257,11 @@ def resolve_account_casing(conn: ldap3.Connection, domain: str, usernames: list[
 
 
 def find_timeroastable(conn: ldap3.Connection, domain: str) -> list[TimeroastAccount]:
-    """Find all enabled computer and gMSA accounts (timeroastable via MS-SNTP).
+    """Find all computer and gMSA accounts (timeroastable via MS-SNTP).
 
     Both ``computer`` and ``msDS-GroupManagedServiceAccount`` (gMSA) objects
-    respond to MS-SNTP - both have ``objectCategory=computer`` so a single
-    filter catches them.  MSAs, dMSAs, and user objects do NOT respond
+    respond to MS-SNTP; the filter matches either object class, with no
+    disabled-account exclusion.  MSAs, dMSAs, and user objects do NOT respond
     (confirmed on Server 2022/2025).  Trust accounts may respond but
     require a separate query.
 

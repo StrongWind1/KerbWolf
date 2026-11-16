@@ -11,7 +11,7 @@ from kerbwolf.attacks.asreproast import asreproast
 from kerbwolf.cli._common import collect_targets, ldap_connect_from_args, ldap_discover_all_users, output_results, parse_etypes, print_header, resolve_context
 from kerbwolf.core.ldap import find_asreproastable
 from kerbwolf.log import Logger
-from kerbwolf.models import HashFormat, KerberosContext, KerbWolfError, TransportProtocol
+from kerbwolf.models import KerberosContext, KerbWolfError, TransportProtocol
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -69,7 +69,6 @@ def _build_parser() -> argparse.ArgumentParser:
     grp = parser.add_argument_group("output")
     grp.add_argument("-e", "--enctype", action="append", metavar="ETYPE", default=None, help="Encryption type(s) in preference order, repeatable or comma-separated (choices: des-cbc-crc, des-cbc-md5, rc4, aes128, aes256; default: rc4)")
     grp.add_argument("-o", "--output", metavar="FILE", help="Write hashes to file")
-    grp.add_argument("--format", choices=["hashcat", "john"], default="hashcat", dest="hash_format", help="Hash output format (default: hashcat)")
 
     return parser
 
@@ -117,7 +116,6 @@ def main(argv: list[str] | None = None) -> None:
 
     etypes = parse_etypes(args.enctype)
     transport = TransportProtocol(args.transport)
-    hash_format = HashFormat(args.hash_format)
 
     # -- header --
     target_desc = f"{len(targets)} target(s)"
@@ -135,7 +133,6 @@ def main(argv: list[str] | None = None) -> None:
             ("Etype", etype_desc),
             ("Targets", target_desc),
             ("Transport", transport.value),
-            ("Format", hash_format.value),
             *([("Output", args.output)] if args.output else []),
         ],
     )
@@ -148,7 +145,6 @@ def main(argv: list[str] | None = None) -> None:
             dc_ip=ctx.dc_ip,
             etypes=etypes,
             target_users=targets,
-            hash_format=hash_format,
             transport=transport,
             timeout=ctx.timeout,
         )

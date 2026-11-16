@@ -6,12 +6,15 @@ from __future__ import annotations
 import argparse
 from collections import Counter
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from kerbwolf import __version__
 from kerbwolf.attacks.extract import extract_from_pcap
-from kerbwolf.cli._common import print_header
+from kerbwolf.cli._common import print_header, safe_output_path
 from kerbwolf.log import Logger
-from kerbwolf.models import HashFormat, RoastResult
+
+if TYPE_CHECKING:
+    from kerbwolf.models import RoastResult
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -37,7 +40,6 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("pcap", nargs="*", help="Pcap/pcapng file(s) to parse (use - for stdin)")
     parser.add_argument("-d", "--dir", metavar="DIR", dest="dirs", action="append", help="Recursively scan directory for .pcap/.pcapng files (repeatable)")
     parser.add_argument("-o", "--output", metavar="FILE", help="Write hashes to file")
-    parser.add_argument("--format", choices=["hashcat", "john"], default="hashcat", dest="hash_format", help="Hash output format (default: hashcat)")
 
     return parser
 
@@ -63,7 +65,6 @@ def main(argv: list[str] | None = None) -> None:
         parser.error("no pcap files: specify files as arguments or use --dir")
 
     logger = Logger(args.verbose)
-    hash_format = HashFormat(args.hash_format)
 
     file_desc = ", ".join(pcap_paths) if len(pcap_paths) <= 3 else f"{len(pcap_paths)} file(s)"  # noqa: PLR2004
     print_header(
@@ -71,7 +72,6 @@ def main(argv: list[str] | None = None) -> None:
         [
             ("Attack", "AS-REQ / AS-REP / TGS-REP / Timeroast / NTLM / LDAP"),
             ("Files", file_desc),
-            ("Format", hash_format.value),
             *([("Output", args.output)] if args.output else []),
         ],
     )
@@ -81,7 +81,7 @@ def main(argv: list[str] | None = None) -> None:
     for pcap_path in pcap_paths:
         logger.info("Parsing: %s", pcap_path)
         try:
-            results = extract_from_pcap(pcap_path, hash_format=hash_format)
+            results = extract_from_pcap(pcap_path)
             all_results.extend(results)
             if results:
                 logger.verbose("  %d hash(es) from %s", len(results), pcap_path)
@@ -127,9 +127,10 @@ def _output_results(results: list[RoastResult], output: str | None, logger: Logg
     logger.success("Extracted %d hash(es): %s", len(lines), summary)
 
     if output is not None:
-        Path(output).parent.mkdir(parents=True, exist_ok=True)
-        Path(output).write_text("\n".join(lines) + "\n")
-        logger.success("Wrote to %s", output)
+        out_path = safe_output_path(output)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text("\n".join(lines) + "\n")
+        logger.success("Wrote to %s", out_path)
 
 
 if __name__ == "__main__":

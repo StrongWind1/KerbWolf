@@ -9,9 +9,9 @@ all common NTLM transports, plus cleartext passwords from LDAP simple binds:
 - LDAP (port 389) - SASL/SPNEGO (NTLM) and simple bind (cleartext)
 - SMTP (ports 25/587) - [MS-SMTPNTLM]
 - POP3 (port 110) - [MS-POP3]
-- IMAP (port 143) - [MS-OXIMAP]
+- IMAP (port 143) - [MS-OXIMAP4]
 - Telnet (port 23) - [MS-TNAP]
-- DCE-RPC (port 135) - [MS-RPCE] §2.2.2.4
+- DCE-RPC (port 135) - [MS-RPCE] §2.2.2.11
 
 NTLM authentication spans two packets in the same TCP connection:
 - **Type 2** (CHALLENGE_MESSAGE): server sends 8-byte ServerChallenge
@@ -64,7 +64,13 @@ _NTLM_ESS_ZERO_PAD = b"\x00" * 16
 # SMB signatures.
 _SMB1_SIGNATURE = b"\xffSMB"
 _SMB2_SIGNATURE = b"\xfeSMB"
+_SMB1_NEGOTIATE = 0x72
 _SMB1_SESSION_SETUP = 0x73
+_SMB1_HEADER_LEN = 32
+_SMB1_FLAGS_REPLY = 0x80
+_SMB1_NEGOTIATE_NTLM012_WORDS = 17  # WordCount of an NT LM 0.12 negotiate response
+_SMB1_CAP_EXTENDED_SECURITY = 0x80000000
+_SMB1_CHALLENGE_LEN = 8
 _SMB2_SESSION_SETUP = 0x0001
 
 # NTLMSSP negotiate flag for Unicode strings.
@@ -197,6 +203,12 @@ def _extract_ntlm_from_smb_message(
         if token is not None and len(token) > _NTLMSSP_TYPE_OFFSET:
             results.extend(_process_ntlm_tokens([token], conn_key, sessions))
 
+    # SMB1 basic security: the server's challenge travels in the NEGOTIATE
+    # response, not in an NTLMSSP Type 2, so record it for the raw auth below.
+    challenge = _extract_smb1_negotiate_challenge(smb_data)
+    if challenge is not None:
+        sessions[conn_key] = challenge
+
     # Try SMB1 raw auth (WordCount=13).
     if len(smb_data) >= 33 and smb_data[:4] == _SMB1_SIGNATURE and smb_data[4] == _SMB1_SESSION_SETUP and smb_data[32] == 13:  # noqa: PLR2004
         raw = _extract_smb1_raw_auth_from_data(smb_data, sessions, src_ip, src_port, dst_ip, dst_port)
@@ -215,6 +227,33 @@ def _extract_smb_blob_from_data(smb_data: bytes) -> bytes | None:
     if smb_data[:4] == _SMB1_SIGNATURE:
         return _extract_smb1_session_setup_blob(smb_data)
     return None
+
+
+def _extract_smb1_negotiate_challenge(data: bytes) -> bytes | None:
+    """Return the 8-byte challenge of an SMB1 NEGOTIATE response, or ``None``.
+
+    Only a response for the NT LM 0.12 dialect that did not negotiate
+    extended security carries one ([MS-SMB] 2.2.4.5.2.1).  With extended
+    security the same position holds the server GUID and a SPNEGO blob,
+    and the challenge arrives later in an NTLMSSP Type 2.
+    """
+    params_start = _SMB1_HEADER_LEN + 1
+    params_len = _SMB1_NEGOTIATE_NTLM012_WORDS * 2
+    challenge_start = params_start + params_len + 2  # after the parameters and ByteCount
+
+    if len(data) < challenge_start + _SMB1_CHALLENGE_LEN or data[:4] != _SMB1_SIGNATURE:
+        return None
+    if data[4] != _SMB1_NEGOTIATE or not data[9] & _SMB1_FLAGS_REPLY:
+        return None
+    if data[_SMB1_HEADER_LEN] != _SMB1_NEGOTIATE_NTLM012_WORDS:
+        return None
+
+    capabilities = struct.unpack("<I", data[params_start + 19 : params_start + 23])[0]
+    challenge_len = data[params_start + 33]
+    if capabilities & _SMB1_CAP_EXTENDED_SECURITY or challenge_len != _SMB1_CHALLENGE_LEN:
+        return None
+
+    return data[challenge_start : challenge_start + _SMB1_CHALLENGE_LEN]
 
 
 def _extract_smb1_raw_auth_from_data(
@@ -572,24 +611,29 @@ def _decode_smb1_identity_strings(data: bytes, *, is_unicode: bool) -> tuple[str
 # HTTP NTLM extraction
 # ---------------------------------------------------------------------------
 
-# Match Authorization: NTLM <base64> or WWW-Authenticate: NTLM <base64>
+# Match an NTLM or Negotiate token in the four HTTP authentication headers.
 _HTTP_NTLM_RE = re.compile(
     rb"(?:Authorization|WWW-Authenticate|Proxy-Authenticate|Proxy-Authorization)"
-    rb":\s*NTLM\s+([A-Za-z0-9+/=]+)",
+    rb":\s*(?:NTLM|Negotiate)\s+([A-Za-z0-9+/=]+)",
     re.IGNORECASE,
 )
 
 
 def _extract_http_ntlm_tokens(payload: bytes) -> list[bytes]:
-    """Extract NTLMSSP tokens from HTTP Authorization/Authenticate headers."""
+    """Extract NTLMSSP tokens from HTTP Authorization/Authenticate headers.
+
+    The ``NTLM`` scheme carries a bare NTLMSSP token.  ``Negotiate`` (what
+    WinRM and most IIS sites offer) carries either a bare NTLMSSP token or
+    one wrapped in SPNEGO; a Kerberos token under ``Negotiate`` is skipped.
+    """
     tokens: list[bytes] = []
     for match in _HTTP_NTLM_RE.finditer(payload):
         try:
-            raw = base64.b64decode(match.group(1))
-            if raw[:8] == _NTLMSSP_SIGNATURE:
-                tokens.append(raw)
+            token = _unwrap_spnego(base64.b64decode(match.group(1)))
         except Exception:  # noqa: BLE001, S112
             continue
+        if token is not None:
+            tokens.append(token)
     return tokens
 
 
@@ -628,7 +672,7 @@ def _extract_ldap_ntlm_token(payload: bytes) -> bytes | None:
 def _extract_dcerpc_ntlm_tokens(payload: bytes) -> list[bytes]:
     """Extract NTLMSSP tokens from DCE-RPC auth verifiers.
 
-    DCE-RPC carries NTLMSSP in auth trailers per [MS-RPCE] §2.2.2.4.
+    DCE-RPC carries NTLMSSP in auth trailers per [MS-RPCE] §2.2.2.11.
     Rather than fully parsing the PDU framing, we scan for the NTLMSSP
     signature — unique enough to avoid false positives in practice.
 
@@ -844,7 +888,7 @@ def _extract_pop3_ntlm_tokens(payload: bytes) -> list[bytes]:
 
 
 # ---------------------------------------------------------------------------
-# IMAP NTLM extraction (MS-OXIMAP, port 143)
+# IMAP NTLM extraction (MS-OXIMAP4, port 143)
 # ---------------------------------------------------------------------------
 
 # IMAP uses the same challenge format as POP3: "+ <base64>"
@@ -855,7 +899,7 @@ _IMAP_AUTH_NTLM_RE = re.compile(rb"AUTHENTICATE\s+NTLM\s+([A-Za-z0-9+/=]+)", re.
 def _extract_imap_ntlm_tokens(payload: bytes) -> list[bytes]:
     """Extract NTLMSSP tokens from IMAP AUTHENTICATE NTLM exchange.
 
-    Per [MS-OXIMAP]:
+    Per [MS-OXIMAP4]:
     - Client sends ``tag AUTHENTICATE NTLM [base64-Type1]``
     - Server sends challenge as ``+ <base64>``
     - Client sends Type 3 as bare base64 line

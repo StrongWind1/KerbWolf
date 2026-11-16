@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """AS-REP Roast - request TGTs without pre-auth and extract hashes.
 
-Supports all 5 Windows encryption types uniformly.  When spraying
+Works the same way for every encryption type.  When spraying
 (``--ldap-all``), KDC errors like ``PREAUTH_REQUIRED`` are silently
 skipped - only accounts that actually return an AS-REP produce output.
 """
@@ -15,7 +15,7 @@ from pyasn1.codec.der import decoder
 
 from kerbwolf.core.asreq import extract_salt_from_asrep, request_asrep_no_preauth
 from kerbwolf.hashcat import asrep_hashcat_mode, format_asrep_hash
-from kerbwolf.models import EncryptionType, HashFormat, KDCError, RoastResult, TransportProtocol
+from kerbwolf.models import EncryptionType, KDCError, RoastResult, TransportProtocol
 
 _log = logging.getLogger(__name__)
 
@@ -26,7 +26,6 @@ def asreproast(
     dc_ip: str,
     etypes: tuple[EncryptionType, ...] = (EncryptionType.RC4_HMAC,),
     target_users: list[str] | None = None,
-    hash_format: HashFormat = HashFormat.HASHCAT,
     transport: TransportProtocol = TransportProtocol.TCP,
     timeout: float = 10.0,
 ) -> list[RoastResult]:
@@ -80,7 +79,7 @@ def asreproast(
             if enc_etype != EncryptionType.RC4_HMAC:
                 _log.warning("%s: no ETYPE-INFO2 in AS-REP — AES hash may not crack if username casing is wrong", username)
 
-        hash_string = format_asrep_hash(raw_asrep, hash_user, hash_realm, fmt=hash_format)
+        hash_string = format_asrep_hash(raw_asrep, hash_user, hash_realm)
 
         results.append(
             RoastResult(

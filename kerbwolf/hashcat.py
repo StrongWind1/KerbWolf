@@ -17,8 +17,10 @@ Timeroasting (MS-SNTP):      - $sntp-ms$  (mode 31300, MD5)
 NTLM:                         - Net-NTLMv1/ESS  (mode 5500)
                               - Net-NTLMv2      (mode 5600)
 
-RC4/AES Kerberos hashes crack to the account password.
-DES hashes crack to the 56-bit DES key.
+Every Kerberos hash cracks to the account password.  hashcat's DES
+modes run the DES string-to-key on each candidate, the same way the
+RC4 and AES modes derive their keys.  hashcat has no mode for etypes
+19 and 20; those hashes are still formatted.
 """
 
 from __future__ import annotations
@@ -28,10 +30,10 @@ from binascii import hexlify
 from impacket.krb5.asn1 import AS_REP, TGS_REP
 from pyasn1.codec.der import decoder
 
-from kerbwolf.models import HashcatMode, HashFormat
+from kerbwolf.models import HashcatMode
 
 # ---------------------------------------------------------------------------
-# Etype → hashcat mode lookups
+# Etype → hashcat mode lookups (etypes 19 and 20 have no hashcat mode)
 # ---------------------------------------------------------------------------
 
 _TGS_MODE: dict[int, int] = {
@@ -39,8 +41,6 @@ _TGS_MODE: dict[int, int] = {
     3: HashcatMode.KRB5_TGS_DES_CBC_MD5,
     17: HashcatMode.KRB5_TGS_AES128,
     18: HashcatMode.KRB5_TGS_AES256,
-    19: HashcatMode.KRB5_TGS_AES128_SHA256,
-    20: HashcatMode.KRB5_TGS_AES256_SHA384,
     23: HashcatMode.KRB5_TGS_RC4,
 }
 
@@ -49,8 +49,6 @@ _ASREP_MODE: dict[int, int] = {
     3: HashcatMode.KRB5_ASREP_DES_CBC_MD5,
     17: HashcatMode.KRB5_ASREP_AES128,
     18: HashcatMode.KRB5_ASREP_AES256,
-    19: HashcatMode.KRB5_ASREP_AES128_SHA256,
-    20: HashcatMode.KRB5_ASREP_AES256_SHA384,
     23: HashcatMode.KRB5_ASREP_RC4,
 }
 
@@ -59,24 +57,22 @@ _PA_MODE: dict[int, int] = {
     3: HashcatMode.KRB5_PA_DES_CBC_MD5,
     17: HashcatMode.KRB5_PA_AES128,
     18: HashcatMode.KRB5_PA_AES256,
-    19: HashcatMode.KRB5_PA_AES128_SHA256,
-    20: HashcatMode.KRB5_PA_AES256_SHA384,
     23: HashcatMode.KRB5_PA_RC4,
 }
 
 
 def tgs_hashcat_mode(etype: int) -> int:
-    """Return the hashcat mode number for a TGS-REP Roast hash."""
+    """Return the hashcat mode number for a TGS-REP Roast hash, or 0 if hashcat has none for *etype*."""
     return _TGS_MODE.get(etype, 0)
 
 
 def asrep_hashcat_mode(etype: int) -> int:
-    """Return the hashcat mode number for an AS-REP Roast hash."""
+    """Return the hashcat mode number for an AS-REP Roast hash, or 0 if hashcat has none for *etype*."""
     return _ASREP_MODE.get(etype, 0)
 
 
 def pa_hashcat_mode(etype: int) -> int:
-    """Return the hashcat mode number for an AS-REQ Pre-Auth hash."""
+    """Return the hashcat mode number for an AS-REQ Pre-Auth hash, or 0 if hashcat has none for *etype*."""
     return _PA_MODE.get(etype, 0)
 
 
@@ -89,9 +85,7 @@ def format_tgs_hash(
     tgs_rep_bytes: bytes,
     username: str,
     realm: str,
-    spn: str,
     *,
-    fmt: HashFormat = HashFormat.HASHCAT,
     is_asreq: bool = False,
 ) -> str:
     """Format a TGS-REP ticket cipher as a crackable hash.
@@ -103,8 +97,6 @@ def format_tgs_hash(
         tgs_rep_bytes: Raw TGS-REP (or AS-REP when *is_asreq* is True).
         username: Service account username.
         realm: Kerberos realm (uppercase).
-        spn: Service Principal Name.
-        fmt: Output format.
         is_asreq: Decode as AS-REP (for AS-REQ Kerberoasting via Charlie Clark technique).
 
     """
@@ -113,7 +105,7 @@ def format_tgs_hash(
     etype = int(decoded["ticket"]["enc-part"]["etype"])
     cipher = decoded["ticket"]["enc-part"]["cipher"].asOctets()
 
-    return _format_krb5_hash("krb5tgs", etype, username, realm, cipher, spn=spn, fmt=fmt)
+    return _format_krb5_hash("krb5tgs", etype, username, realm, cipher)
 
 
 def format_tgs_hash_raw(
@@ -121,12 +113,9 @@ def format_tgs_hash_raw(
     etype: int,
     username: str,
     realm: str,
-    spn: str,
-    *,
-    fmt: HashFormat = HashFormat.HASHCAT,
 ) -> str:
     """Format a TGS-REP hash from pre-extracted cipher bytes and etype."""
-    return _format_krb5_hash("krb5tgs", etype, username, realm, cipher, spn=spn, fmt=fmt)
+    return _format_krb5_hash("krb5tgs", etype, username, realm, cipher)
 
 
 # ---------------------------------------------------------------------------
@@ -138,8 +127,6 @@ def format_asrep_hash(
     as_rep_bytes: bytes,
     username: str,
     realm: str,
-    *,
-    fmt: HashFormat = HashFormat.HASHCAT,
 ) -> str:
     """Format an AS-REP enc-part cipher as a crackable hash.
 
@@ -150,7 +137,7 @@ def format_asrep_hash(
     etype = int(decoded["enc-part"]["etype"])
     cipher = decoded["enc-part"]["cipher"].asOctets()
 
-    return _format_krb5_hash("krb5asrep", etype, username, realm, cipher, fmt=fmt)
+    return _format_krb5_hash("krb5asrep", etype, username, realm, cipher)
 
 
 def format_asrep_hash_raw(
@@ -158,11 +145,9 @@ def format_asrep_hash_raw(
     etype: int,
     username: str,
     realm: str,
-    *,
-    fmt: HashFormat = HashFormat.HASHCAT,
 ) -> str:
     """Format an AS-REP hash from pre-extracted cipher bytes and etype."""
-    return _format_krb5_hash("krb5asrep", etype, username, realm, cipher, fmt=fmt)
+    return _format_krb5_hash("krb5asrep", etype, username, realm, cipher)
 
 
 # ---------------------------------------------------------------------------
@@ -261,15 +246,13 @@ def format_pa_hash(
     etype: int,
     username: str,
     realm: str,
-    *,
-    fmt: HashFormat = HashFormat.HASHCAT,
 ) -> str:
     """Format a captured PA-ENC-TIMESTAMP cipher as a crackable hash.
 
     The cipher bytes are the raw encrypted timestamp extracted from
     the AS-REQ padata (PA-ENC-TIMESTAMP EncryptedData cipher field).
     """
-    return _format_krb5_hash("krb5pa", etype, username, realm, enc_timestamp_cipher, fmt=fmt)
+    return _format_krb5_hash("krb5pa", etype, username, realm, enc_timestamp_cipher)
 
 
 # ---------------------------------------------------------------------------
@@ -302,67 +285,18 @@ def _format_krb5_hash(
     username: str,
     realm: str,
     cipher: bytes,
-    *,
-    spn: str | None = None,
-    fmt: HashFormat = HashFormat.HASHCAT,
 ) -> str:
     """Format a Kerberos hash string for any attack type and etype.
 
-    Canonical output (hashcat always emits; also accepted on input):
+    Canonical output (the layout every hashcat Kerberos mode accepts):
 
         $krb5tgs$E$user$realm$checksum$encrypted
         $krb5asrep$E$user$realm$checksum$encrypted
-        $krb5pa$E$user$realm$checksum$encrypted   (etypes 17, 18, 23)
+        $krb5pa$E$user$realm$checksum$encrypted   (etypes 17, 18, 19, 20, 23)
         $krb5pa$E$user$realm$data                  (etypes 1, 3 - integrity embedded)
     """
-    if fmt == HashFormat.JOHN:
-        safe_spn = spn.replace(":", "~") if spn is not None else None
-        return _john_format(prefix, etype, username, realm, cipher, safe_spn)
-
     if prefix == "krb5pa" and etype in {1, 3}:
         return f"${prefix}${etype}${username}${realm}${hexlify(cipher).decode()}"
 
     checksum, encrypted = _split_cipher(etype, cipher)
     return f"${prefix}${etype}${username}${realm}${checksum}${encrypted}"
-
-
-def _john_format(prefix: str, etype: int, username: str, realm: str, cipher: bytes, spn: str | None) -> str:
-    """John the Ripper format.
-
-    John accepts the hashcat format for most Kerberos types.  Where the
-    format differs, we emit the john-native format instead.
-
-    Verified against john source: krb5pa-md5_fmt_plug.c, krb5pa-sha1_fmt_plug.c,
-    krb5_tgs_fmt_plug.c, krb5_tgsrep_common_plug.c, krb5_asrep_common_plug.c.
-    """
-    cipher_hex = hexlify(cipher).decode()
-
-    if etype == 23:  # noqa: PLR2004 - RC4
-        checksum = cipher_hex[:32]
-        edata2 = cipher_hex[32:]
-        if prefix == "krb5tgs":
-            # john krb5tgs: $krb5tgs$23$*user$realm$spn*$checksum$edata2
-            return f"${prefix}${etype}$*{username}${realm}${spn}*${checksum}${edata2}"
-        if prefix == "krb5asrep":
-            # john krb5asrep: $krb5asrep$23$checksum$edata2
-            return f"${prefix}${etype}${checksum}${edata2}"
-        # john krb5pa-md5: $krb5pa$23$user$realm$$edata2checksum
-        return f"${prefix}${etype}${username}${realm}$${edata2}{checksum}"
-
-    if etype in {17, 18}:  # AES
-        checksum = hexlify(cipher[-12:]).decode()
-        edata2 = hexlify(cipher[:-12]).decode()
-        if prefix == "krb5tgs":
-            # john krb5tgs-sha1: $krb5tgs$<etype>$user$realm$checksum$edata2
-            return f"${prefix}${etype}${username}${realm}${checksum}${edata2}"
-        if prefix == "krb5asrep":
-            # john krb5asrep AES: $krb5asrep$<etype>$REALMuser$edata2$checksum
-            return f"${prefix}${etype}${realm}{username}${edata2}${checksum}"
-        # john krb5pa-sha1: $krb5pa$<etype>$user$realm$$edata2checksum
-        return f"${prefix}${etype}${username}${realm}$${edata2}{checksum}"
-
-    # DES (1, 3) - john krb5-3 format: $krb3$REALMuser$cipher
-    if etype == 3:  # noqa: PLR2004
-        return f"$krb3${realm}{username}${cipher_hex}"
-    # DES-CBC-CRC (etype 1) - no john format exists, use hashcat.
-    return _format_krb5_hash(prefix, etype, username, realm, cipher, spn=spn, fmt=HashFormat.HASHCAT)

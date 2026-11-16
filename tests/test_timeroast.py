@@ -93,31 +93,58 @@ class TestTimeroastAttack:
         assert results.current[0].hash_string.startswith("$sntp-ms$")
 
     def test_sha512_results(self):
-        """120-byte response with SigHashID=0x01 goes into current list as SHA512."""
+        """120-byte response with SigHashID=0x01 goes into the extended list as SHA512."""
         current = [_mock_response(1000, is_extended=True, sig_hash_id=0x01)]
         with patch("kerbwolf.attacks.timeroast.ntp_roast", return_value=current):
             results = timeroast(dc_ip="10.0.0.1", rids=[1000], fmt="extended")
-        assert len(results.current) == 1
-        assert results.current[0].hash_string.startswith("$sntp-ms-sha512$")
-        assert results.current[0].hashcat_mode == 0
+        assert results.current == []
+        assert len(results.extended) == 1
+        assert results.extended[0].hash_string.startswith("$sntp-ms-sha512$")
+        assert results.extended[0].hashcat_mode == 0
 
     def test_sha512_in_results(self):
         """120-byte response with SigHashID=0x01 produces SHA512 hash."""
         resp = [_mock_response(1000, is_extended=True, sig_hash_id=0x01)]
         with patch("kerbwolf.attacks.timeroast.ntp_roast", return_value=resp):
             results = timeroast(dc_ip="10.0.0.1", rids=[1000], fmt="extended")
-        # SHA512 goes into current list
-        assert len(results.current) == 1
-        assert results.current[0].hash_string.startswith("$sntp-ms-sha512$")
-        assert results.current[0].hashcat_mode == 0
+        assert len(results.extended) == 1
+        assert results.extended[0].hash_string.startswith("$sntp-ms-sha512$")
+        assert results.extended[0].hashcat_mode == 0
 
     def test_extended_always_sha512(self):
         """120-byte response always produces SHA512 hash, even with SigHashID=0x00."""
         current = [_mock_response(1000, is_extended=True, sig_hash_id=0x00)]
         with patch("kerbwolf.attacks.timeroast.ntp_roast", return_value=current):
             results = timeroast(dc_ip="10.0.0.1", rids=[1000], fmt="extended")
-        assert len(results.current) == 1
-        assert results.current[0].hash_string.startswith("$sntp-ms-sha512$")
+        assert len(results.extended) == 1
+        assert results.extended[0].hash_string.startswith("$sntp-ms-sha512$")
+
+    def test_extended_is_sent_once_whatever_the_password_selection(self):
+        """The 120-byte request cannot select the password, so it is never repeated."""
+        for password in ("current", "previous", "both"):
+            with patch("kerbwolf.attacks.timeroast.ntp_roast", return_value=[_mock_response(1000, is_extended=True)]) as mock:
+                results = timeroast(dc_ip="10.0.0.1", rids=[1000], fmt="extended", password=password)
+            assert mock.call_count == 1
+            assert len(results.extended) == 1
+            assert results.current == []
+            assert results.previous == []
+
+    def test_both_formats_both_passwords_is_three_passes(self):
+        with patch("kerbwolf.attacks.timeroast.ntp_roast", return_value=[]) as mock:
+            timeroast(dc_ip="10.0.0.1", rids=[1000], fmt="both", password="both")
+        passes = [(c.kwargs["extended"], c.kwargs["old_pwd"]) for c in mock.call_args_list]
+        assert passes == [(False, False), (False, True), (True, False)]
+
+    def test_open_ended_range_is_not_expanded(self):
+        """A range object is handed to every pass as it is, so ``1-`` costs no memory."""
+        from kerbwolf.cli.timeroast import _parse_rid_ranges
+
+        rids = _parse_rid_ranges("1-")
+        with patch("kerbwolf.attacks.timeroast.ntp_roast", return_value=[]) as mock:
+            timeroast(dc_ip="10.0.0.1", rids=rids, fmt="both", password="both")
+        assert all(call.args[1] is rids for call in mock.call_args_list)
+        assert next(iter(rids)) == 1
+        assert next(iter(rids)) == 1  # walkable again from the start
 
     def test_rid_stored_as_username(self):
         with patch("kerbwolf.attacks.timeroast.ntp_roast", return_value=[_mock_response(1234)]):

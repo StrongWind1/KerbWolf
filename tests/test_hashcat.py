@@ -9,7 +9,7 @@ from kerbwolf.hashcat import (
     pa_hashcat_mode,
     tgs_hashcat_mode,
 )
-from kerbwolf.models import HashcatMode, HashFormat
+from kerbwolf.models import HashcatMode
 
 # ---------------------------------------------------------------------------
 # TGS-REP Roast mode lookups
@@ -95,25 +95,20 @@ class TestFormatTgsRC4:
     CIPHER = b"\xaa" * 16 + b"\xbb" * 32  # 16-byte checksum + 32-byte edata2
 
     def test_hashcat_prefix(self):
-        h = format_tgs_hash_raw(self.CIPHER, 23, "svc", "DOMAIN.LOCAL", "http/web", fmt=HashFormat.HASHCAT)
+        h = format_tgs_hash_raw(self.CIPHER, 23, "svc", "DOMAIN.LOCAL")
         assert h.startswith("$krb5tgs$23$")
 
     def test_hashcat_contains_user_realm(self):
-        h = format_tgs_hash_raw(self.CIPHER, 23, "svc", "DOMAIN.LOCAL", "http/web")
+        h = format_tgs_hash_raw(self.CIPHER, 23, "svc", "DOMAIN.LOCAL")
         assert "$svc$" in h
         assert "$DOMAIN.LOCAL$" in h
 
     def test_hashcat_checksum_is_first_32_hex(self):
-        h = format_tgs_hash_raw(self.CIPHER, 23, "u", "R", "s")
+        h = format_tgs_hash_raw(self.CIPHER, 23, "u", "R")
         parts = h.split("$")
         # checksum should be 32 hex chars (16 bytes)
         checksum_part = parts[-2]
         assert len(checksum_part) == 32
-
-    def test_spn_not_in_canonical_output(self):
-        h = format_tgs_hash_raw(self.CIPHER, 23, "u", "R", "svc:1433")
-        assert "svc:1433" not in h
-        assert "*" not in h
 
 
 # ---------------------------------------------------------------------------
@@ -125,15 +120,15 @@ class TestFormatTgsAES:
     CIPHER = b"\xcc" * 50 + b"\xdd" * 12  # data + 12-byte checksum at end
 
     def test_aes128_prefix(self):
-        h = format_tgs_hash_raw(self.CIPHER, 17, "u", "R", "s")
+        h = format_tgs_hash_raw(self.CIPHER, 17, "u", "R")
         assert h.startswith("$krb5tgs$17$")
 
     def test_aes256_prefix(self):
-        h = format_tgs_hash_raw(self.CIPHER, 18, "u", "R", "s")
+        h = format_tgs_hash_raw(self.CIPHER, 18, "u", "R")
         assert h.startswith("$krb5tgs$18$")
 
     def test_aes_checksum_is_last_24_hex(self):
-        h = format_tgs_hash_raw(self.CIPHER, 17, "u", "R", "s")
+        h = format_tgs_hash_raw(self.CIPHER, 17, "u", "R")
         parts = h.split("$")
         checksum_part = parts[-2]
         assert len(checksum_part) == 24  # 12 bytes = 24 hex
@@ -148,15 +143,15 @@ class TestFormatTgsDES:
     CIPHER = b"\xee" * 64
 
     def test_des_md5_prefix(self):
-        h = format_tgs_hash_raw(self.CIPHER, 3, "u", "R", "s")
+        h = format_tgs_hash_raw(self.CIPHER, 3, "u", "R")
         assert h.startswith("$krb5tgs$3$")
 
     def test_des_crc_prefix(self):
-        h = format_tgs_hash_raw(self.CIPHER, 1, "u", "R", "s")
+        h = format_tgs_hash_raw(self.CIPHER, 1, "u", "R")
         assert h.startswith("$krb5tgs$1$")
 
     def test_des_checksum_edata2_split(self):
-        h = format_tgs_hash_raw(self.CIPHER, 3, "u", "R", "s")
+        h = format_tgs_hash_raw(self.CIPHER, 3, "u", "R")
         parts = h.split("$")
         checksum = parts[-2]
         edata2 = parts[-1]
@@ -228,45 +223,3 @@ class TestFormatPaHash:
         h = format_pa_hash(cipher, 23, "admin", "CORP.LOCAL")
         assert "admin" in h
         assert "CORP.LOCAL" in h
-
-
-# ---------------------------------------------------------------------------
-# John format
-# ---------------------------------------------------------------------------
-
-
-class TestJohnFormat:
-    def test_tgs_rc4_john(self):
-        cipher = b"\xaa" * 16 + b"\xbb" * 32
-        h = format_tgs_hash_raw(cipher, 23, "u", "R", "http/web", fmt=HashFormat.JOHN)
-        assert h.startswith("$krb5tgs$23$*u$R$http/web*$")
-
-    def test_asrep_rc4_john(self):
-        cipher = b"\xcc" * 48
-        h = format_asrep_hash_raw(cipher, 23, "user", "REALM", fmt=HashFormat.JOHN)
-        assert h.startswith("$krb5asrep$23$")
-
-    def test_tgs_aes_john(self):
-        cipher = b"\xdd" * 62
-        h = format_tgs_hash_raw(cipher, 18, "u", "R", "s", fmt=HashFormat.JOHN)
-        assert h.startswith("$krb5tgs$18$u$R$")
-
-    def test_asrep_aes_john(self):
-        cipher = b"\xee" * 62
-        h = format_asrep_hash_raw(cipher, 17, "user", "REALM", fmt=HashFormat.JOHN)
-        assert h.startswith("$krb5asrep$17$REALMuser$")
-
-    def test_pa_rc4_john(self):
-        cipher = b"\xff" * 52
-        h = format_pa_hash(cipher, 23, "user", "REALM", fmt=HashFormat.JOHN)
-        assert h.startswith("$krb5pa$23$user$REALM$$")
-
-    def test_pa_aes_john(self):
-        cipher = b"\xaa" * 56
-        h = format_pa_hash(cipher, 18, "user", "REALM", fmt=HashFormat.JOHN)
-        assert h.startswith("$krb5pa$18$user$REALM$$")
-
-    def test_des_john(self):
-        cipher = b"\xbb" * 40
-        h = format_tgs_hash_raw(cipher, 3, "user", "REALM", "spn", fmt=HashFormat.JOHN)
-        assert h.startswith("$krb3$REALMuser$")

@@ -47,34 +47,29 @@ PA_AES_CIPHER = PA_AES_TIMESTAMP + PA_AES_CHECKSUM  # 56 bytes → 112 hex total
 
 class TestMode13100Format:
     def test_structure(self):
-        h = format_tgs_hash_raw(RC4_CIPHER, 23, "svc_sql", "EVIL.CORP", "MSSQLSvc/db01.evil.corp")
+        h = format_tgs_hash_raw(RC4_CIPHER, 23, "svc_sql", "EVIL.CORP")
         assert h.startswith("$krb5tgs$23$svc_sql$EVIL.CORP$")
 
     def test_full_format_regex(self):
-        h = format_tgs_hash_raw(RC4_CIPHER, 23, "svc", "REALM", "http/web")
+        h = format_tgs_hash_raw(RC4_CIPHER, 23, "svc", "REALM")
         pattern = r"^\$krb5tgs\$23\$svc\$REALM\$[a-f0-9]{32}\$[a-f0-9]+$"
         assert re.match(pattern, h), f"Format mismatch: {h}"
 
     def test_checksum_is_first_16_bytes(self):
-        h = format_tgs_hash_raw(RC4_CIPHER, 23, "u", "R", "s")
+        h = format_tgs_hash_raw(RC4_CIPHER, 23, "u", "R")
         parts = h.split("$")
         checksum = parts[-2]
         assert checksum == "aa" * 16
 
     def test_edata2_is_remaining_bytes(self):
-        h = format_tgs_hash_raw(RC4_CIPHER, 23, "u", "R", "s")
+        h = format_tgs_hash_raw(RC4_CIPHER, 23, "u", "R")
         edata2 = h.split("$")[-1]
         assert edata2 == "bb" * 40
 
     def test_edata2_minimum_64_hex(self):
-        h = format_tgs_hash_raw(RC4_CIPHER, 23, "u", "R", "s")
+        h = format_tgs_hash_raw(RC4_CIPHER, 23, "u", "R")
         edata2 = h.split("$")[-1]
         assert len(edata2) >= 64
-
-    def test_spn_not_in_canonical_hash(self):
-        h = format_tgs_hash_raw(RC4_CIPHER, 23, "u", "R", "MSSQLSvc/db01:1433")
-        assert "*" not in h
-        assert "MSSQLSvc" not in h
 
 
 # ---------------------------------------------------------------------------
@@ -85,29 +80,29 @@ class TestMode13100Format:
 
 class TestMode19600Format:
     def test_structure(self):
-        h = format_tgs_hash_raw(AES_CIPHER, 17, "svc", "EVIL.CORP", "http/web")
+        h = format_tgs_hash_raw(AES_CIPHER, 17, "svc", "EVIL.CORP")
         assert h.startswith("$krb5tgs$17$svc$EVIL.CORP$")
 
     def test_full_format_regex(self):
-        h = format_tgs_hash_raw(AES_CIPHER, 17, "svc", "REALM", "http/web")
+        h = format_tgs_hash_raw(AES_CIPHER, 17, "svc", "REALM")
         pattern = r"^\$krb5tgs\$17\$svc\$REALM\$[a-f0-9]{24}\$[a-f0-9]+$"
         assert re.match(pattern, h), f"Format mismatch: {h}"
 
     def test_checksum_is_last_12_bytes(self):
-        h = format_tgs_hash_raw(AES_CIPHER, 17, "u", "R", "s")
+        h = format_tgs_hash_raw(AES_CIPHER, 17, "u", "R")
         parts = h.split("$")
         checksum = parts[-2]  # second to last (before edata2)
         assert checksum == "dd" * 12
         assert len(checksum) == 24
 
     def test_edata2_is_all_but_last_12(self):
-        h = format_tgs_hash_raw(AES_CIPHER, 17, "u", "R", "s")
+        h = format_tgs_hash_raw(AES_CIPHER, 17, "u", "R")
         edata2 = h.split("$")[-1]
         assert edata2 == "cc" * 40
 
     def test_user_required_nonempty(self):
         """Hashcat requires user field >= 1 char for AES."""
-        h = format_tgs_hash_raw(AES_CIPHER, 17, "a", "R", "s")
+        h = format_tgs_hash_raw(AES_CIPHER, 17, "a", "R")
         parts = h.split("$")
         assert parts[3] == "a"
 
@@ -120,12 +115,12 @@ class TestMode19600Format:
 
 class TestMode19700Format:
     def test_signature(self):
-        h = format_tgs_hash_raw(AES_CIPHER, 18, "svc", "REALM", "http/web")
+        h = format_tgs_hash_raw(AES_CIPHER, 18, "svc", "REALM")
         assert h.startswith("$krb5tgs$18$")
 
     def test_same_structure_as_19600(self):
-        h17 = format_tgs_hash_raw(AES_CIPHER, 17, "u", "R", "s")
-        h18 = format_tgs_hash_raw(AES_CIPHER, 18, "u", "R", "s")
+        h17 = format_tgs_hash_raw(AES_CIPHER, 17, "u", "R")
+        h18 = format_tgs_hash_raw(AES_CIPHER, 18, "u", "R")
         assert h17.replace("$17$", "$18$") == h18
 
 
@@ -353,7 +348,7 @@ class TestMode31300Format:
 class TestHexCase:
     def test_tgs_rc4_lowercase(self):
         cipher = bytes(range(256)) * 2  # includes all byte values
-        h = format_tgs_hash_raw(cipher[:64], 23, "u", "R", "s")
+        h = format_tgs_hash_raw(cipher[:64], 23, "u", "R")
         hex_parts = h.split("$")[-2:]
         for part in hex_parts:
             assert part == part.lower()

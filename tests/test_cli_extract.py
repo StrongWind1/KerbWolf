@@ -45,6 +45,17 @@ class TestExtractOutputResults:
         assert "$krb5pa$23$hash1" in content
         assert "$krb5asrep$18$hash2" in content
 
+    def test_file_output_does_not_overwrite(self, tmp_path, capsys):
+        from kerbwolf.cli.extract import _output_results
+        from kerbwolf.log import Logger
+
+        results = [RoastResult(username="u", realm="R", spn="s", etype=23, hash_string="$krb5pa$23$new", hashcat_mode=7500)]
+        outfile = tmp_path / "out.txt"
+        outfile.write_text("existing\n")
+        _output_results(results, str(outfile), Logger())
+        assert outfile.read_text() == "existing\n"
+        assert (tmp_path / "out_1.txt").read_text() == "$krb5pa$23$new\n"
+
     def test_attack_type_summary(self, capsys):
         from kerbwolf.cli.extract import _output_results
         from kerbwolf.log import Logger
@@ -103,12 +114,6 @@ class TestExtractParser:
 
         args = _build_parser().parse_args(["f.pcap", "-o", "out.txt"])
         assert args.output == "out.txt"
-
-    def test_format_flag(self):
-        from kerbwolf.cli.extract import _build_parser
-
-        args = _build_parser().parse_args(["f.pcap", "--format", "john"])
-        assert args.hash_format == "john"
 
     def test_verbose_flag(self):
         from kerbwolf.cli.extract import _build_parser

@@ -346,3 +346,88 @@ class TestIpv6ExtensionIntegration:
         _payload, _src_port, dst_port, proto = _strip_ip_transport(ipv6)
         assert proto == 6
         assert dst_port == 445
+
+
+# ---------------------------------------------------------------------------
+# pcapng: Simple Packet Blocks, one link type per interface, interrupted reads
+# ---------------------------------------------------------------------------
+
+
+def _sntp_ip_packet(rid: int) -> bytes:
+    """IPv4 + UDP carrying a 68-byte MS-SNTP response for *rid*."""
+    ntp = b"\x24" + b"\x00" * 47 + struct.pack("<I", rid) + b"\xdd" * 16
+    udp = struct.pack("!HHH", 123, 54321, 8 + len(ntp)) + b"\x00\x00" + ntp
+    return bytes([0x45, 0x00]) + struct.pack("!H", 20 + len(udp)) + b"\x00" * 5 + bytes([17]) + b"\x00" * 10 + udp
+
+
+def _pcapng_block(block_type: int, body: bytes) -> bytes:
+    body += b"\x00" * (-len(body) % 4)
+    total = 12 + len(body)
+    return struct.pack("<II", block_type, total) + body + struct.pack("<I", total)
+
+
+def _pcapng_header() -> bytes:
+    return _pcapng_block(0x0A0D0D0A, struct.pack("<IHHq", 0x1A2B3C4D, 1, 0, -1))
+
+
+def _pcapng_idb(link_type: int) -> bytes:
+    return _pcapng_block(1, struct.pack("<HHI", link_type, 0, 262144))
+
+
+def _pcapng_epb(iface: int, packet: bytes) -> bytes:
+    return _pcapng_block(6, struct.pack("<IIIII", iface, 0, 0, len(packet), len(packet)) + packet)
+
+
+def _pcapng_spb(packet: bytes) -> bytes:
+    return _pcapng_block(3, struct.pack("<I", len(packet)) + packet)
+
+
+class TestPcapngBlocks:
+    ETHERNET = b"\x00" * 12 + b"\x08\x00"
+
+    def test_simple_packet_block_is_read(self, tmp_path):
+        f = tmp_path / "spb.pcapng"
+        f.write_bytes(_pcapng_header() + _pcapng_idb(1) + _pcapng_spb(self.ETHERNET + _sntp_ip_packet(1001)))
+        hashes = parse_pcap(str(f))
+        assert [h.rid for h in hashes] == [1001]
+
+    def test_each_packet_uses_its_own_interface_link_type(self, tmp_path):
+        """Interface 0 is Ethernet and interface 1 is raw IP; packets from both parse."""
+        f = tmp_path / "two_ifaces.pcapng"
+        f.write_bytes(_pcapng_header() + _pcapng_idb(1) + _pcapng_idb(101) + _pcapng_epb(0, self.ETHERNET + _sntp_ip_packet(1001)) + _pcapng_epb(1, _sntp_ip_packet(1002)) + _pcapng_epb(0, self.ETHERNET + _sntp_ip_packet(1003)))
+        assert [h.rid for h in parse_pcap(str(f))] == [1001, 1002, 1003]
+
+
+class _InterruptedReader:
+    """A binary stream that raises KeyboardInterrupt once *limit* bytes have been handed out."""
+
+    def __init__(self, data: bytes, limit: int) -> None:
+        self._data = data
+        self._pos = 0
+        self._limit = limit
+
+    def read(self, size: int) -> bytes:
+        if self._pos >= self._limit:
+            raise KeyboardInterrupt
+        chunk = self._data[self._pos : self._pos + size]
+        self._pos += len(chunk)
+        return chunk
+
+
+class TestInterruptedCapture:
+    def test_pcap_keeps_hashes_read_before_the_interrupt(self):
+        from kerbwolf.core.capture import _parse_stream
+
+        packet = b"\x00" * 12 + b"\x08\x00" + _sntp_ip_packet(1001)
+        record = struct.pack("<IIII", 0, 0, len(packet), len(packet)) + packet
+        header = struct.pack("<IHHiIII", 0xA1B2C3D4, 2, 4, 0, 0, 65535, 1)
+        stream = _InterruptedReader(header + record + record, limit=len(header) + len(record))
+        assert [h.rid for h in _parse_stream(stream)] == [1001]
+
+    def test_pcapng_keeps_hashes_read_before_the_interrupt(self):
+        from kerbwolf.core.capture import _parse_stream
+
+        packet = b"\x00" * 12 + b"\x08\x00" + _sntp_ip_packet(1001)
+        head = _pcapng_header() + _pcapng_idb(1) + _pcapng_epb(0, packet)
+        stream = _InterruptedReader(head + _pcapng_epb(0, packet), limit=len(head))
+        assert [h.rid for h in _parse_stream(stream)] == [1001]

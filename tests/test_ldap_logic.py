@@ -343,3 +343,35 @@ class TestPagedSearch:
         result = _paged_search(conn, "DC=corp", "(filter)", ["attr"])
         # First page has e1, e2. After first search mock runs, entries become e3, result becomes no cookie
         assert conn.search.call_count >= 1
+
+
+# ---------------------------------------------------------------------------
+# resolve_upns
+# ---------------------------------------------------------------------------
+
+
+class TestResolveUpns:
+    def test_upn_resolves_to_samaccountname(self):
+        from kerbwolf.core.ldap import resolve_upns
+
+        entry = MagicMock()
+        entry.__getitem__.return_value = "jsmith"
+        with patch("kerbwolf.core.ldap._paged_search", return_value=[entry]) as search:
+            result = resolve_upns(MagicMock(), "corp.local", ["john.smith@corp.local"])
+        assert result == {"john.smith@corp.local": "jsmith"}
+        ldap_filter = search.call_args.args[2]
+        assert "(userPrincipalName=john.smith@corp.local)" in ldap_filter
+        assert "1.2.840.113556.1.4.803:=2" in ldap_filter  # disabled accounts excluded
+
+    def test_unknown_upn_is_omitted(self):
+        from kerbwolf.core.ldap import resolve_upns
+
+        with patch("kerbwolf.core.ldap._paged_search", return_value=[]):
+            assert resolve_upns(MagicMock(), "corp.local", ["nobody@corp.local"]) == {}
+
+    def test_filter_metacharacters_are_escaped(self):
+        from kerbwolf.core.ldap import resolve_upns
+
+        with patch("kerbwolf.core.ldap._paged_search", return_value=[]) as search:
+            resolve_upns(MagicMock(), "corp.local", ["a*(b)@corp.local"])
+        assert "(userPrincipalName=a\\2a\\28b\\29@corp.local)" in search.call_args.args[2]

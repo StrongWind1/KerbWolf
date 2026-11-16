@@ -12,6 +12,7 @@ from __future__ import annotations
 import datetime as dt
 import logging
 import secrets
+from typing import Any
 
 from impacket.krb5 import constants as krb_constants
 from impacket.krb5.asn1 import (
@@ -294,25 +295,17 @@ def _parse_salt_string(salt: str, realm: str) -> tuple[str, str] | None:
     return probed_user, realm_upper
 
 
-def extract_salt_from_asrep(as_rep_bytes: bytes, realm: str) -> tuple[str, str] | None:
-    """Extract the ETYPE-INFO2 salt from an AS-REP's padata.
+def salt_from_padata(padata: Any) -> str | None:  # noqa: ANN401 - pyasn1 decoded object
+    """Return the string-to-key salt carried in a PA-DATA sequence, or ``None``.
 
-    The KDC includes PA-ETYPE-INFO2 in AS-REP padata even for
-    ``DONT_REQUIRE_PREAUTH`` accounts.  The salt contains the
-    correctly-cased ``REALM + sAMAccountName``, which is the
-    authoritative source for the hash ``$user$`` field.
-
-    Returns ``(username, realm)`` parsed from the salt, or ``None``
-    if the AS-REP has no usable ETYPE-INFO2.
+    A KDC sends the salt as PA-ETYPE-INFO2 for RC4 and AES, and as
+    PA-PW-SALT for the DES encryption types.  ETYPE-INFO2 wins when
+    both are present.
     """
-    try:
-        decoded = decoder.decode(as_rep_bytes, asn1Spec=AS_REP())[0]
-        padata = decoded["padata"]
-        if padata is None or not hasattr(padata, "hasValue") or not padata.hasValue():
-            return None
-    except Exception:  # noqa: BLE001
+    if padata is None or not hasattr(padata, "hasValue") or not padata.hasValue():
         return None
 
+    pw_salt: str | None = None
     for pa_data in padata:
         pa_type = int(pa_data["padata-type"])
         if pa_type == krb_constants.PreAuthenticationDataTypes.PA_ETYPE_INFO2.value:
@@ -323,8 +316,33 @@ def extract_salt_from_asrep(as_rep_bytes: bytes, realm: str) -> tuple[str, str] 
             for entry in etype_info2:
                 salt_val = entry["salt"]
                 if salt_val is not None and salt_val.hasValue():
-                    return _parse_salt_string(str(salt_val), realm)
-    return None
+                    return str(salt_val)
+        elif pa_type == krb_constants.PreAuthenticationDataTypes.PA_PW_SALT.value and pw_salt is None:
+            pw_salt = bytes(pa_data["padata-value"]).decode("utf-8", errors="replace")
+    return pw_salt
+
+
+def extract_salt_from_asrep(as_rep_bytes: bytes, realm: str) -> tuple[str, str] | None:
+    """Extract the salt from an AS-REP's padata.
+
+    The KDC includes the salt in AS-REP padata even for
+    ``DONT_REQUIRE_PREAUTH`` accounts: PA-ETYPE-INFO2 for RC4 and AES,
+    PA-PW-SALT for DES.  The salt contains the correctly-cased
+    ``REALM + sAMAccountName``, which is the authoritative source for
+    the hash ``$user$`` field.
+
+    Returns ``(username, realm)`` parsed from the salt, or ``None``
+    if the AS-REP carries no usable salt.
+    """
+    try:
+        decoded = decoder.decode(as_rep_bytes, asn1Spec=AS_REP())[0]
+    except Exception:  # noqa: BLE001
+        return None
+
+    salt = salt_from_padata(decoded["padata"])
+    if salt is None:
+        return None
+    return _parse_salt_string(salt, realm)
 
 
 def probe_account_salt(
@@ -360,7 +378,12 @@ def _retrieve_salt_any_etype(
     transport: TransportProtocol,
     timeout: float = 10.0,
 ) -> str | None:
-    """Send a bare AS-REQ and return the first ETYPE-INFO2 salt, or ``None``."""
+    """Send a bare AS-REQ and return the salt the KDC answers with, or ``None``.
+
+    An account that requires pre-authentication answers ``PREAUTH_REQUIRED``
+    with the salt in the error.  One that does not answers with an AS-REP,
+    whose padata carries the same salt.
+    """
     etypes = (
         int(krb_constants.EncryptionTypes.aes256_cts_hmac_sha1_96.value),
         int(krb_constants.EncryptionTypes.aes128_cts_hmac_sha1_96.value),
@@ -372,7 +395,11 @@ def _retrieve_salt_any_etype(
     try:
         krb_error = decoder.decode(response, asn1Spec=KRB_ERROR())[0]
     except Exception:  # noqa: BLE001
-        return None
+        try:
+            as_rep = decoder.decode(response, asn1Spec=AS_REP())[0]
+        except Exception:  # noqa: BLE001
+            return None
+        return salt_from_padata(as_rep["padata"])
 
     error_code = int(krb_error["error-code"])
     if error_code != krb_constants.ErrorCodes.KDC_ERR_PREAUTH_REQUIRED.value:
@@ -393,24 +420,17 @@ def _retrieve_salt_any_etype(
 
 
 def _extract_salt_from_asrep(response: bytes, etype_int: int, username: str, realm: str) -> str:
-    """Extract salt from an AS-REP's PA-DATA (ETYPE-INFO2).
+    """Extract salt from an AS-REP's PA-DATA (ETYPE-INFO2 or PA-PW-SALT).
 
     When DONT_REQUIRE_PREAUTH is set, the KDC returns an AS-REP instead of
-    PREAUTH_REQUIRED.  The AS-REP still carries ETYPE-INFO2 in its padata.
+    PREAUTH_REQUIRED.  The AS-REP still carries the salt in its padata.
     """
     try:
         as_rep = decoder.decode(response, asn1Spec=AS_REP())[0]
-        pa_data_seq = as_rep["padata"]
-        if pa_data_seq is not None and pa_data_seq.hasValue():
-            for pa_data in pa_data_seq:
-                pa_type = int(pa_data["padata-type"])
-                if pa_type == krb_constants.PreAuthenticationDataTypes.PA_ETYPE_INFO2.value:
-                    etype_info2 = decoder.decode(pa_data["padata-value"], asn1Spec=ETYPE_INFO2())[0]
-                    for entry in etype_info2:
-                        salt_val = entry["salt"]
-                        if salt_val is not None and salt_val.hasValue():
-                            _log.debug("Extracted salt from AS-REP ETYPE-INFO2")
-                            return str(salt_val)
+        salt = salt_from_padata(as_rep["padata"])
+        if salt is not None:
+            _log.debug("Extracted salt from AS-REP padata")
+            return salt
     except Exception:  # noqa: BLE001
         _log.debug("Failed to parse AS-REP padata", exc_info=True)
     _log.debug("No salt in AS-REP, using computed salt for etype %d", etype_int)

@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 """Tests for all CLI modules - argument parsing, credentials, targets, output."""
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 
 
@@ -322,6 +324,13 @@ class TestPrintHeader:
         captured = capsys.readouterr()
         assert __version__ in captured.err
 
+    def test_version_matches_package_metadata(self):
+        from importlib.metadata import version
+
+        from kerbwolf import __version__
+
+        assert __version__ == version("kerbwolf")
+
     def test_field_alignment(self, capsys):
         from kerbwolf.cli._common import print_header
 
@@ -367,3 +376,38 @@ class TestOutputResults:
         results = [RoastResult(username="u", realm="R", spn="s", etype=EncryptionType.AES256_CTS_HMAC_SHA1_96, hash_string="$krb5tgs$18$test", hashcat_mode=19700)]
         output_results(results, None, Logger())
         assert "$krb5tgs$18$test" in capsys.readouterr().out
+
+
+class TestResolveTargets:
+    def _run(self, targets, *, spns=None, upns=None):
+        from kerbwolf.cli.kerberoast import _resolve_spn_targets
+        from kerbwolf.log import Logger
+
+        with (
+            patch("kerbwolf.cli.kerberoast.ldap_connect_from_args", return_value=MagicMock()),
+            patch("kerbwolf.cli.kerberoast.resolve_spns", return_value=spns or {}),
+            patch("kerbwolf.cli.kerberoast.resolve_upns", return_value=upns or {}),
+        ):
+            return _resolve_spn_targets(targets, MagicMock(), Logger(), MagicMock(domain="corp.local"))
+
+    def test_upn_target_replaced_by_account_name(self):
+        assert self._run(["john.smith@corp.local"], upns={"john.smith@corp.local": "jsmith"}) == ["jsmith"]
+
+    def test_spn_and_upn_and_plain_name_together(self):
+        result = self._run(
+            ["MSSQLSvc/db01", "john.smith@corp.local", "svc_web"],
+            spns={"MSSQLSvc/db01": "svc_sql"},
+            upns={"john.smith@corp.local": "jsmith"},
+        )
+        assert result == ["svc_sql", "jsmith", "svc_web"]
+
+    def test_unresolved_upn_is_kept(self):
+        assert self._run(["nobody@corp.local"]) == ["nobody@corp.local"]
+
+    def test_plain_names_need_no_ldap(self):
+        from kerbwolf.cli.kerberoast import _resolve_spn_targets
+        from kerbwolf.log import Logger
+
+        with patch("kerbwolf.cli.kerberoast.ldap_connect_from_args") as connect:
+            assert _resolve_spn_targets(["svc_a", "svc_b"], MagicMock(), Logger(), MagicMock()) == ["svc_a", "svc_b"]
+        connect.assert_not_called()

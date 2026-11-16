@@ -338,10 +338,10 @@ class TestKerberosStreamExtraction:
 class TestTcpReassemblyPipeline:
     """Test TCP reassembly through _process_packet."""
 
-    def _build_ethernet_ipv4_tcp(self, src_ip_bytes, src_port, dst_ip_bytes, dst_port, payload, *, syn=False):
+    def _build_ethernet_ipv4_tcp(self, src_ip_bytes, src_port, dst_ip_bytes, dst_port, payload, *, syn=False, seq=0):
         """Build Ethernet + IPv4 + TCP packet."""
         flags_byte = 0x02 if syn else 0x10  # SYN or ACK
-        tcp_header = struct.pack("!HH", src_port, dst_port) + b"\x00" * 8
+        tcp_header = struct.pack("!HHI", src_port, dst_port, seq) + b"\x00" * 4
         tcp_header += bytes([0x50, flags_byte]) + b"\x00" * 6  # data_offset=5, flags
         ip_payload = tcp_header + payload
         ip_header = bytes([0x45, 0x00]) + struct.pack("!H", 20 + len(ip_payload))
@@ -368,10 +368,47 @@ class TestTcpReassemblyPipeline:
         assert len(tcp_streams) == 1  # Buffer exists
 
         # Segment 2: remaining bytes
-        pkt2 = self._build_ethernet_ipv4_tcp(src, 12345, dst, 88, full_msg[60:])
+        pkt2 = self._build_ethernet_ipv4_tcp(src, 12345, dst, 88, full_msg[60:], seq=60)
         _process_packet(pkt2, 1, tcp_streams, ntlm_sessions)
         # Buffer should be consumed (message was complete, even if ASN.1 parsing fails)
         assert len(tcp_streams) == 0 or len(next(iter(tcp_streams.values()))) == 0
+
+    def _stream_after(self, segments):
+        """Feed ``(seq, payload)`` segments of one flow and return the reassembled stream bytes."""
+        src = b"\x0a\x00\x00\x01"
+        dst = b"\x0a\x00\x00\x02"
+        tcp_streams: TcpStreams = {}
+        for seq, payload in segments:
+            # Port 9999 has no extractor, so nothing consumes the stream.
+            _process_packet(self._build_ethernet_ipv4_tcp(src, 12345, dst, 9999, payload, seq=seq), 1, tcp_streams, {})
+        return bytes(tcp_streams["10.0.0.1", 12345, "10.0.0.2", 9999])
+
+    def test_out_of_order_segments_are_reordered(self):
+        assert self._stream_after([(1000, b"AAAA"), (1008, b"CCCC"), (1004, b"BBBB")]) == b"AAAABBBBCCCC"
+
+    def test_retransmitted_segment_is_dropped(self):
+        assert self._stream_after([(1000, b"AAAA"), (1000, b"AAAA"), (1004, b"BBBB"), (1000, b"AAAA")]) == b"AAAABBBB"
+
+    def test_overlapping_segment_adds_only_new_bytes(self):
+        assert self._stream_after([(1000, b"AAAA"), (1002, b"AABBBB")]) == b"AAAABBBB"
+
+    def test_sequence_number_wraparound(self):
+        assert self._stream_after([(0xFFFFFFFE, b"AAAA"), (2, b"BBBB")]) == b"AAAABBBB"
+
+    def test_gap_that_never_fills_is_skipped(self):
+        # The segment at 1004 is missing from the capture; later segments keep arriving.
+        later = [(1008 + 4 * i, b"%04d" % i) for i in range(300)]
+        stream = self._stream_after([(1000, b"AAAA"), *later])
+        assert stream.endswith(b"0298" + b"0299")
+        assert not stream.startswith(b"AAAA")
+
+    def test_syn_sets_the_start_of_the_stream(self):
+        src = b"\x0a\x00\x00\x01"
+        dst = b"\x0a\x00\x00\x02"
+        tcp_streams: TcpStreams = {}
+        _process_packet(self._build_ethernet_ipv4_tcp(src, 12345, dst, 9999, b"", syn=True, seq=499), 1, tcp_streams, {})
+        _process_packet(self._build_ethernet_ipv4_tcp(src, 12345, dst, 9999, b"AAAA", seq=500), 1, tcp_streams, {})
+        assert bytes(tcp_streams["10.0.0.1", 12345, "10.0.0.2", 9999]) == b"AAAA"
 
     def test_syn_resets_buffer(self):
         """TCP SYN flag clears any existing buffer for the connection."""

@@ -10,9 +10,9 @@ from kerbwolf import __version__
 from kerbwolf.attacks.kerberoast import kerberoast, kerberoast_no_preauth
 from kerbwolf.cli._common import build_credential, collect_targets, ldap_connect_from_args, ldap_discover_all_users, output_results, parse_etypes, print_header, resolve_context
 from kerbwolf.core.ccache import load_tgt_from_ccache
-from kerbwolf.core.ldap import find_kerberoastable, resolve_spns
+from kerbwolf.core.ldap import find_kerberoastable, resolve_spns, resolve_upns
 from kerbwolf.log import Logger
-from kerbwolf.models import HashFormat, KerberosContext, KerbWolfError, RoastResult, TransportProtocol
+from kerbwolf.models import KerberosContext, KerbWolfError, RoastResult, TransportProtocol
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -72,7 +72,6 @@ def _build_parser() -> argparse.ArgumentParser:
     grp = parser.add_argument_group("output")
     grp.add_argument("-e", "--enctype", action="append", metavar="ETYPE", default=None, help="Encryption type(s) in preference order, repeatable or comma-separated (choices: des-cbc-crc, des-cbc-md5, rc4, aes128, aes256; default: rc4)")
     grp.add_argument("-o", "--output", metavar="FILE", help="Write hashes to file")
-    grp.add_argument("--format", choices=["hashcat", "john"], default="hashcat", dest="hash_format", help="Hash output format (default: hashcat)")
 
     return parser
 
@@ -124,7 +123,6 @@ def main(argv: list[str] | None = None) -> None:
 
     etypes = parse_etypes(args.enctype)
     transport = TransportProtocol(args.transport)
-    hash_format = HashFormat(args.hash_format)
 
     # -- header --
     auth = "ccache" if args.kerberos else args.user or "-"
@@ -146,7 +144,6 @@ def main(argv: list[str] | None = None) -> None:
             ("Etype", etype_desc),
             ("Targets", target_desc),
             ("Transport", transport.value),
-            ("Format", hash_format.value),
             *([("Output", args.output)] if args.output else []),
         ],
     )
@@ -162,7 +159,6 @@ def main(argv: list[str] | None = None) -> None:
                 dc_ip=ctx.dc_ip,
                 etypes=etypes,
                 target_users=targets,
-                hash_format=hash_format,
                 transport=transport,
                 timeout=ctx.timeout,
             )
@@ -174,7 +170,6 @@ def main(argv: list[str] | None = None) -> None:
                 domain=ctx.domain,
                 etypes=etypes,
                 target_spns=targets,
-                hash_format=hash_format,
                 transport=transport,
                 timeout=ctx.timeout,
                 tgt=tgt_bytes,
@@ -189,7 +184,6 @@ def main(argv: list[str] | None = None) -> None:
                 dc_ip=ctx.dc_ip,
                 etypes=etypes,
                 target_spns=targets,
-                hash_format=hash_format,
                 transport=transport,
                 timeout=ctx.timeout,
             )
@@ -229,25 +223,33 @@ def _ldap_discover(args: argparse.Namespace, logger: Logger, ctx: KerberosContex
 
 
 def _resolve_spn_targets(targets: list[str], args: argparse.Namespace, logger: Logger, ctx: KerberosContext) -> list[str]:
-    """Replace any SPN targets in the list with their resolved sAMAccountNames.
+    """Replace SPN and UPN targets in the list with their account's sAMAccountName.
 
-    Opens an LDAP connection to resolve SPNs (targets containing ``/``).
-    The resolved sAMAccountName replaces the SPN in the target list so
-    the TGS-REQ sends the sAMAccountName as sname.  SPNs that can't be
-    resolved stay as-is (salt probe warning will fire for AES etypes).
+    Opens an LDAP connection to resolve SPNs (targets containing ``/``)
+    and UPNs (targets containing ``@``).  The resolved sAMAccountName
+    replaces the target so the TGS-REQ sends the sAMAccountName as sname.
+    A target that can't be resolved stays as it is: an SPN is sent as the
+    sname (salt probe warning will fire for AES etypes), and a UPN is sent
+    as the part before the ``@``.
     """
     spn_targets = [t for t in targets if "/" in t]
-    if not spn_targets:
+    upn_targets = [t for t in targets if "@" in t and "/" not in t]
+    if not spn_targets and not upn_targets:
         return targets
 
     try:
         conn = ldap_connect_from_args(args, logger, ctx)
     except SystemExit:
-        logger.verbose("LDAP unavailable — SPN targets will use raw SPN as sname")
+        logger.verbose("LDAP unavailable — SPN targets will use raw SPN as sname, UPN targets the name before the @")
         return targets
 
-    logger.info("LDAP: resolving %d SPN target(s) to sAMAccountName", len(spn_targets))
-    resolved = resolve_spns(conn, ctx.domain, spn_targets)
+    resolved: dict[str, str] = {}
+    if spn_targets:
+        logger.info("LDAP: resolving %d SPN target(s) to sAMAccountName", len(spn_targets))
+        resolved.update(resolve_spns(conn, ctx.domain, spn_targets))
+    if upn_targets:
+        logger.info("LDAP: resolving %d UPN target(s) to sAMAccountName", len(upn_targets))
+        resolved.update(resolve_upns(conn, ctx.domain, upn_targets))
     conn.unbind()
 
     result: list[str] = []
@@ -258,6 +260,8 @@ def _resolve_spn_targets(targets: list[str], args: argparse.Namespace, logger: L
         else:
             if "/" in t:
                 logger.warning("SPN %s: could not resolve to sAMAccountName", t)
+            elif "@" in t:
+                logger.warning("UPN %s: no account has this userPrincipalName; using the name before the @", t)
             result.append(t)
     return list(dict.fromkeys(result))
 

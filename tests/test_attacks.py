@@ -4,7 +4,7 @@
 from unittest.mock import patch
 
 from kerbwolf.core.capture import AttackType, CapturedHash
-from kerbwolf.models import HashFormat, RoastResult
+from kerbwolf.models import RoastResult
 
 # ---------------------------------------------------------------------------
 # kerberoast - empty targets
@@ -54,7 +54,7 @@ class TestCapturedToResult:
         from kerbwolf.attacks.extract import _captured_to_result
 
         h = CapturedHash(attack=AttackType.AS_REQ, username="u", realm="R", spn="krbtgt/R", etype=23, cipher_hex="aa" * 52)
-        result = _captured_to_result(h, HashFormat.HASHCAT)
+        result = _captured_to_result(h)
         assert isinstance(result, RoastResult)
         assert result.hash_string.startswith("$krb5pa$23$")
         assert result.username == "u"
@@ -63,29 +63,37 @@ class TestCapturedToResult:
         from kerbwolf.attacks.extract import _captured_to_result
 
         h = CapturedHash(attack=AttackType.AS_REP, username="u", realm="R", spn="krbtgt/R", etype=18, cipher_hex="bb" * 60)
-        result = _captured_to_result(h, HashFormat.HASHCAT)
+        result = _captured_to_result(h)
         assert result.hash_string.startswith("$krb5asrep$18$")
 
     def test_tgsrep_attack(self):
         from kerbwolf.attacks.extract import _captured_to_result
 
         h = CapturedHash(attack=AttackType.TGS_REP, username="u", realm="R", spn="http/web", etype=23, cipher_hex="cc" * 48)
-        result = _captured_to_result(h, HashFormat.HASHCAT)
+        result = _captured_to_result(h)
         assert result.hash_string.startswith("$krb5tgs$23$")
 
     def test_des_etype(self):
         from kerbwolf.attacks.extract import _captured_to_result
 
         h = CapturedHash(attack=AttackType.TGS_REP, username="u", realm="R", spn="s", etype=3, cipher_hex="dd" * 64)
-        result = _captured_to_result(h, HashFormat.HASHCAT)
+        result = _captured_to_result(h)
         assert result.hash_string.startswith("$krb5tgs$3$")
 
-    def test_john_format(self):
+    def test_asreq_user_corrected_from_salt_hint(self):
         from kerbwolf.attacks.extract import _captured_to_result
 
-        h = CapturedHash(attack=AttackType.AS_REQ, username="u", realm="R", spn="krbtgt/R", etype=23, cipher_hex="ee" * 52)
-        result = _captured_to_result(h, HashFormat.JOHN)
-        assert "$krb5pa$" in result.hash_string
+        h = CapturedHash(attack=AttackType.AS_REQ, username="ALICE", realm="CORP.LOCAL", spn="krbtgt/CORP.LOCAL", etype=18, cipher_hex="ee" * 56)
+        result = _captured_to_result(h, {"alice": "CORP.LOCALAlice"})
+        assert result.hash_string.startswith("$krb5pa$18$Alice$CORP.LOCAL$")
+        assert result.username == "Alice"
+
+    def test_asreq_user_kept_without_salt_hint(self):
+        from kerbwolf.attacks.extract import _captured_to_result
+
+        h = CapturedHash(attack=AttackType.AS_REQ, username="ALICE", realm="CORP.LOCAL", spn="krbtgt/CORP.LOCAL", etype=18, cipher_hex="ee" * 56)
+        result = _captured_to_result(h, {})
+        assert result.hash_string.startswith("$krb5pa$18$ALICE$CORP.LOCAL$")
 
     def test_sntp_md5(self):
         from kerbwolf.attacks.extract import _captured_to_result
@@ -100,7 +108,7 @@ class TestCapturedToResult:
             salt_hex="bb" * 48,
             rid=1000,
         )
-        result = _captured_to_result(h, HashFormat.HASHCAT)
+        result = _captured_to_result(h)
         assert result.hash_string.startswith("$sntp-ms$")
         assert result.hashcat_mode == 31300
 
@@ -117,7 +125,7 @@ class TestCapturedToResult:
             salt_hex="dd" * 48,
             rid=2000,
         )
-        result = _captured_to_result(h, HashFormat.HASHCAT)
+        result = _captured_to_result(h)
         assert result.hash_string.startswith("$sntp-ms-sha512$2000$")
         assert result.hashcat_mode == 0
 

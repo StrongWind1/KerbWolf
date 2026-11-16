@@ -14,10 +14,10 @@ from dataclasses import dataclass
 class EncryptionType(enum.IntEnum):
     """Kerberos encryption types supported by Windows.
 
-    DES types are disabled by default since Server 2008 but can be
-    re-enabled via GPO.  RC4 is deprecated since Server 2016 and
-    disabled in Server 2025.  AES-SHA2 types (RFC 8009) require
-    Server 2025.
+    DES types are disabled by default since Windows 7 / Server 2008 R2
+    (re-enabled by policy) and removed in Server 2025.  RC4 is deprecated;
+    Server 2025 KDCs no longer issue RC4 TGTs.  AES-SHA2 types (RFC 8009)
+    are present in Windows 11 24H2 and Server 2025 but disabled by default.
     """
 
     DES_CBC_CRC = 1
@@ -72,36 +72,23 @@ class TransportProtocol(enum.StrEnum):
 
 
 # ---------------------------------------------------------------------------
-# Hash output format
-# ---------------------------------------------------------------------------
-
-
-class HashFormat(enum.StrEnum):
-    """Output format for crackable hashes."""
-
-    HASHCAT = "hashcat"
-    JOHN = "john"
-
-
-# ---------------------------------------------------------------------------
 # Hashcat mode numbers
 #
-# Hashcat mode numbers for every Kerberos hash type KerbWolf
-# generates, plus SNTP and NTLM.  Mode numbers match the
-# feat/kerberos-complete branch of hashcat.
+# Hashcat mode numbers for the hash types KerbWolf generates that
+# hashcat can load.  The numbers are the ones in hashcat master.
+# hashcat has no mode for AES-SHA2 (etypes 19 and 20) or for the
+# 120-byte MS-SNTP format, so those have no entry here.
 # ---------------------------------------------------------------------------
 
 
 class HashcatMode(enum.IntEnum):
-    """Hashcat mode numbers for Kerberos hash types."""
+    """Hashcat mode numbers for Kerberos, MS-SNTP, and NTLM hash types."""
 
     # TGS-REP Roast (Kerberoast)
     KRB5_TGS_DES_CBC_MD5 = 38500
     KRB5_TGS_DES_CBC_CRC = 39100
     KRB5_TGS_AES128 = 19600
     KRB5_TGS_AES256 = 19700
-    KRB5_TGS_AES128_SHA256 = 39400
-    KRB5_TGS_AES256_SHA384 = 39500
     KRB5_TGS_RC4 = 13100
 
     # AS-REP Roast
@@ -109,8 +96,6 @@ class HashcatMode(enum.IntEnum):
     KRB5_ASREP_DES_CBC_CRC = 39200
     KRB5_ASREP_AES128 = 32100
     KRB5_ASREP_AES256 = 32200
-    KRB5_ASREP_AES128_SHA256 = 39600
-    KRB5_ASREP_AES256_SHA384 = 39700
     KRB5_ASREP_RC4 = 18200
 
     # AS-REQ Pre-Auth
@@ -118,8 +103,6 @@ class HashcatMode(enum.IntEnum):
     KRB5_PA_DES_CBC_MD5 = 39000
     KRB5_PA_AES128 = 19800
     KRB5_PA_AES256 = 19900
-    KRB5_PA_AES128_SHA256 = 39800
-    KRB5_PA_AES256_SHA384 = 39900
     KRB5_PA_RC4 = 7500
 
     # Timeroasting (MS-SNTP)  # noqa: ERA001

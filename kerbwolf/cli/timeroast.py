@@ -16,7 +16,7 @@ from kerbwolf.core.ldap import find_timeroastable
 from kerbwolf.log import Logger
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Iterable, Iterator
 
     from kerbwolf.models import RoastResult, TimeroastAccount
 
@@ -29,7 +29,23 @@ _MAX_RID = (1 << 31) - 1
 # ---------------------------------------------------------------------------
 
 
-def _parse_rid_ranges(arg: str) -> Iterable[int]:
+class RidRanges:
+    """RID ranges from ``-r`` or ``-R``.
+
+    Iterable any number of times, and never expanded into a list: ``1-``
+    covers two billion RIDs, which a scan walks until the DC stops answering.
+    """
+
+    def __init__(self, ranges: list[range]) -> None:
+        """Store the ranges in the order they were given."""
+        self._ranges = ranges
+
+    def __iter__(self) -> Iterator[int]:
+        """Yield every RID of every range, in order."""
+        return chain.from_iterable(self._ranges)
+
+
+def _parse_rid_ranges(arg: str) -> RidRanges:
     """Parse flexible RID ranges.
 
     Supports:
@@ -41,12 +57,15 @@ def _parse_rid_ranges(arg: str) -> Iterable[int]:
     - ``1,3,5``     comma-separated singles
     - ``1-100,500-600,1000``  mixed
     """
-    ranges: list[range | list[int]] = []
+    return RidRanges(_parse_ranges(arg))
+
+
+def _parse_ranges(arg: str) -> list[range]:
+    ranges: list[range] = []
     for raw_part in arg.split(","):
         part = raw_part.strip()
         if not part:
             continue
-
         if part == "-":
             ranges.append(range(_MAX_RID + 1))
         elif part.startswith("-"):
@@ -63,9 +82,8 @@ def _parse_rid_ranges(arg: str) -> Iterable[int]:
                 raise argparse.ArgumentTypeError(msg)
             ranges.append(range(start, end + 1))
         else:
-            ranges.append([int(part)])
-
-    return chain(*ranges)
+            ranges.append(range(int(part), int(part) + 1))
+    return ranges
 
 
 # ---------------------------------------------------------------------------
@@ -121,7 +139,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--password",
         choices=["current", "previous", "both"],
         default="current",
-        help="Which password to request: current (default), previous, or both",
+        help="Which password the 68-byte request asks for: current (default), previous, or both. The 120-byte format cannot select it",
     )
 
     # -- LDAP options ---------------------------------------------------------
@@ -145,21 +163,21 @@ def _build_parser() -> argparse.ArgumentParser:
 
     # -- Output options -------------------------------------------------------
     grp = parser.add_argument_group("output")
-    grp.add_argument("-o", "--output", metavar="FILE", help="Write hashes to file (splits by password age and hash type)")
+    grp.add_argument("-o", "--output", metavar="FILE", help="Write hashes to file (splits by hash type and password age)")
     grp.add_argument("--rid-prefix", action="store_true", help="Prepend account name (or RID) to each output line")
     grp.add_argument("--wordlist", metavar="FILE", help="Write cracking wordlist (lowercase names, with and without 14-char truncation)")
 
     return parser
 
 
-def _load_rids_from_file(path: str) -> Iterable[int]:
+def _load_rids_from_file(path: str) -> RidRanges:
     """Load RID ranges from a file, one range expression per line."""
-    ranges: list[Iterable[int]] = []
+    ranges: list[range] = []
     for line in Path(path).read_text().splitlines():
         stripped = line.strip()
         if stripped and not stripped.startswith("#"):
-            ranges.append(_parse_rid_ranges(stripped))
-    return chain(*ranges)
+            ranges.extend(_parse_ranges(stripped))
+    return RidRanges(ranges)
 
 
 # ---------------------------------------------------------------------------
@@ -249,48 +267,31 @@ def _format_line(result: RoastResult, *, rid_prefix: bool) -> str:
     return result.hash_string
 
 
-def _is_md5(result: RoastResult) -> bool:
-    return result.hash_string.startswith(_SNTP_MD5_PREFIX)
-
-
-def _is_sha512(result: RoastResult) -> bool:
-    return result.hash_string.startswith(_SNTP_SHA512_PREFIX)
-
-
-def _split_by_type(results: list[RoastResult]) -> tuple[list[RoastResult], list[RoastResult]]:
-    """Split results into (md5_list, sha512_list)."""
-    md5 = [r for r in results if _is_md5(r)]
-    sha512 = [r for r in results if _is_sha512(r)]
-    return md5, sha512
-
-
 def _print_results(
     current: list[RoastResult],
     previous: list[RoastResult],
+    extended: list[RoastResult],
     logger: Logger,
     *,
     rid_prefix: bool,
 ) -> None:
     """Print all hashes to stdout."""
-    if not current and not previous:
+    if not current and not previous and not extended:
         logger.warning("No hashes extracted.")
         return
 
-    for r in current:
-        tag = "md5" if _is_md5(r) else "sha512"
-        logger.info("%s (current, %s)", r.username, tag)
-        print(_format_line(r, rid_prefix=rid_prefix))
-
-    for r in previous:
-        tag = "md5" if _is_md5(r) else "sha512"
-        logger.info("%s (previous, %s)", r.username, tag)
-        print(_format_line(r, rid_prefix=rid_prefix))
+    for label, results in (("current, md5", current), ("previous, md5", previous), ("sha512", extended)):
+        for r in results:
+            logger.info("%s (%s)", r.username, label)
+            print(_format_line(r, rid_prefix=rid_prefix))
 
     parts = []
     if current:
-        parts.append(f"{len(current)} current")
+        parts.append(f"{len(current)} current md5")
     if previous:
-        parts.append(f"{len(previous)} previous")
+        parts.append(f"{len(previous)} previous md5")
+    if extended:
+        parts.append(f"{len(extended)} sha512")
     logger.success("%s hash(es) captured", ", ".join(parts))
 
 
@@ -315,19 +316,19 @@ def _write_file(
 def _write_results(
     current: list[RoastResult],
     previous: list[RoastResult],
+    extended: list[RoastResult],
     output: str | None,
     logger: Logger,
     *,
     rid_prefix: bool,
 ) -> None:
-    """Write hashes to files, split by password age and hash type.
+    """Write hashes to files, split by hash type and, for the 68-byte format, password age.
 
     Output file naming (given ``-o hashes.txt``)::
 
-        hashes-current-md5.txt       68B current password hashes
-        hashes-current-sha512.txt    120B current password hashes
-        hashes-previous-md5.txt      68B previous password hashes
-        hashes-previous-sha512.txt   120B previous password hashes
+        hashes-current-md5.txt     68B current password hashes
+        hashes-previous-md5.txt    68B previous password hashes
+        hashes-sha512.txt          120B hashes (the format cannot select the password)
 
     Files are only created when they contain at least one hash.
     """
@@ -342,13 +343,9 @@ def _write_results(
     def _path(tag: str) -> str:
         return str(parent / f"{stem}-{tag}{suffix}")
 
-    cur_md5, cur_sha512 = _split_by_type(current)
-    prev_md5, prev_sha512 = _split_by_type(previous)
-
-    _write_file(cur_md5, _path("current-md5"), logger, rid_prefix=rid_prefix, label="current md5")
-    _write_file(cur_sha512, _path("current-sha512"), logger, rid_prefix=rid_prefix, label="current sha512")
-    _write_file(prev_md5, _path("previous-md5"), logger, rid_prefix=rid_prefix, label="previous md5")
-    _write_file(prev_sha512, _path("previous-sha512"), logger, rid_prefix=rid_prefix, label="previous sha512")
+    _write_file(current, _path("current-md5"), logger, rid_prefix=rid_prefix, label="current md5")
+    _write_file(previous, _path("previous-md5"), logger, rid_prefix=rid_prefix, label="previous md5")
+    _write_file(extended, _path("sha512"), logger, rid_prefix=rid_prefix, label="sha512")
 
 
 # ---------------------------------------------------------------------------
@@ -376,8 +373,8 @@ def main(argv: list[str] | None = None) -> None:
     elif args.rids_file:
         rids = _load_rids_from_file(args.rids_file)
         rid_desc = f"from {args.rids_file}"
-    elif args.rids is not None:
-        rids = [int(r) for r in args.rids]
+    elif isinstance(args.rids, RidRanges):
+        rids = args.rids
         rid_desc = "custom range"
     else:
         rids = None
@@ -428,12 +425,14 @@ def main(argv: list[str] | None = None) -> None:
     _print_results(
         results.current,
         results.previous,
+        results.extended,
         logger,
         rid_prefix=args.rid_prefix,
     )
     _write_results(
         results.current,
         results.previous,
+        results.extended,
         args.output,
         logger,
         rid_prefix=args.rid_prefix,
