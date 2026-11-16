@@ -10,7 +10,7 @@
 
 <!-- How did you verify the changes? -->
 
-- [ ] `make check` passes (lint + typecheck + tests)
+- [ ] `make check` passes (lint + typecheck + tests + strict docs build)
 - [ ] New/changed behavior is covered by tests
 - [ ] Documentation updated (if applicable)
 

@@ -1,7 +1,8 @@
 name: Docs
 
 # Build the documentation on every push to main and every PR (the test), and
-# deploy it to GitHub Pages on a v* tag (the publish). No deploy on PRs.
+# deploy it to GitHub Pages on a v* tag or a manual run (the publish). No
+# deploy on PRs. The published site is served at https://strongwind.dev/KerbWolf/.
 
 "on":
   push:

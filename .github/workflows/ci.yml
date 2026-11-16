@@ -1,6 +1,7 @@
 name: CI
 
-# Build / lint / format / typecheck / test on every push to main and every PR.
+# Lint / format / typecheck / test / build, plus YAML and workflow lint, on
+# every push to main and every PR. The strict docs build runs in docs.yml.
 # This is the tough gate: it must be green before a release can be published
 # (publish.yml re-checks this workflow's conclusion for the release commit).
 

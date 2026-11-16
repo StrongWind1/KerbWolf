@@ -39,7 +39,7 @@ dependencies = [
 
 [project.urls]
 Repository = "https://github.com/StrongWind1/KerbWolf"
-Documentation = "https://strongwind1.github.io/KerbWolf/"
+Documentation = "https://strongwind.dev/KerbWolf/"
 Changelog = "https://github.com/StrongWind1/KerbWolf/blob/main/CHANGELOG.md"
 Issues = "https://github.com/StrongWind1/KerbWolf/issues"
 
@@ -95,7 +95,6 @@ convention = "google"
 [tool.ruff.lint.per-file-ignores]
 "kerbwolf/core/ntlmssp.py" = ["PLR0917"]
 "kerbwolf/core/crypto.py" = ["S304"]
-"kerbwolf/hashcat.py" = ["PLR0917"]
 "tests/**" = [
   "D",       # docstrings — tests
   "S101",    # assert — pytest idiom

@@ -10,14 +10,14 @@ assignees: ""
 A clear description of what happened.
 
 **Command**
-The exact `kw-roast` command you ran (redact sensitive values):
+The exact command you ran (`kw-roast`, `kw-asrep`, `kw-tgt`, `kw-extract` or `kw-timeroast`; redact sensitive values):
 
 ```bash
 kw-roast ...
 ```
 
 **Output**
-Paste the full output (use `-vvv` for trace-level detail where supported):
+Paste the full output (add `-vv` for debug detail):
 
 ```
 ...
@@ -29,5 +29,5 @@ What you expected to happen.
 **Environment**
 - OS: [e.g. Kali 2025.1, Ubuntu 24.04]
 - Python version: [e.g. 3.12.3]
-- KerbWolf version: [e.g. 1.0.0]
+- KerbWolf version: [output of `kw-roast --version`, e.g. 1.1.0]
 - Install method: [e.g. uv, pipx, pip]
