@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-11-15
+
 ### Added
 
 - `kw-roast -t user@domain` looks the name up as a `userPrincipalName` in LDAP and requests the ticket for the account that owns it.

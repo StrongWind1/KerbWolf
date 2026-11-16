@@ -38,7 +38,7 @@ kw-tgt --version
 kw-timeroast --version
 ```
 
-Each command prints its name and the installed package version, for example `kw-roast 1.1.0`.
+Each command prints its name and the installed package version, for example `kw-roast 2.0.0`.
 
 ## Run checks
 
