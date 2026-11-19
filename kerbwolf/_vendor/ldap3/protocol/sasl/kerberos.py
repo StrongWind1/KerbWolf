@@ -209,7 +209,7 @@ def _common_process_end_token_get_security_layers(negotiated_token, session_secu
     if server_security_layers in (0, NO_SECURITY_LAYER):
         if negotiated_token[1:] != '\x00\x00\x00':
             raise LDAPCommunicationError("Server max buffer size must be 0 if no security layer")
-    security_layer = CONFIDENTIALITY_PROTECTION if session_security else NO_SECURITY_LAYER 
+    security_layer = CONFIDENTIALITY_PROTECTION if session_security else NO_SECURITY_LAYER
     if not (server_security_layers & security_layer):
         raise LDAPCommunicationError("Server doesn't support the security level asked")
 

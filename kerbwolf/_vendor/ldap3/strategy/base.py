@@ -925,9 +925,9 @@ class BaseStrategy(object):
                             message_chunk = encoded_message[offset:offset + chunk_size]
                             wrapped_message = self.connection.krb_ctx.wrap(message_chunk, True).message
                             wrapped_message = int(len(wrapped_message)).to_bytes(4, 'big') + wrapped_message
-    
+
                             wrapped_messages = wrapped_messages + wrapped_message
-    
+
                             offset += chunk_size
 
                         encoded_message = wrapped_messages

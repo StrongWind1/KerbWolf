@@ -55,4 +55,3 @@ def post_read_control(attributes, criticality=False):
     return the value in `Connection.result` after the operation took place.
     """
     return _read_control('1.3.6.1.1.13.2', attributes, criticality)
-

@@ -92,4 +92,3 @@ def hashed(algorithm, value, salt=None, raw=False, encoding='utf-8'):
         if raw:
             return digest
         return ('{%s}' % algorithm) + b64encode(digest).decode('ascii')
-

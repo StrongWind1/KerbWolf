@@ -133,10 +133,10 @@ class SyncStrategy(BaseStrategy):
                             calculated_signature = bytes.fromhex(md5_hmac(kis, sasl_sec_num + sasl_received_data)[0:20])
                             if sasl_signature != calculated_signature:
                                 raise LDAPSignatureVerificationFailedError("Signature verification failed for the recieved LDAP message number " + str(int.from_bytes(sasl_sec_num, 'big')) + ". Expected signature " + calculated_signature.hex() + " but got " + sasl_signature.hex() + ".")
- 
+
                         elif self.connection.authentication == NTLM:
                             sasl_received_data = self.connection.ntlm_client.unseal(sasl_received_data[:sasl_buffer_length])
-                        
+
                         elif self.connection.sasl_mechanism == GSSAPI:
                             if posix_gssapi_unavailable:
                                 import winkerberos
@@ -144,7 +144,7 @@ class SyncStrategy(BaseStrategy):
                                 sasl_received_data = base64.b64decode(winkerberos.authGSSClientResponse(self.connection.krb_ctx))
                             else:
                                 sasl_received_data = self.connection.krb_ctx.unwrap(sasl_received_data[:sasl_buffer_length]).message
-                        
+
                         sasl_total_bytes_received = 0
                         unprocessed += sasl_received_data
                         sasl_received_data = b''

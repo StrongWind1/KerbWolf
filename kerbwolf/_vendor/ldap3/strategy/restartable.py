@@ -210,7 +210,7 @@ class RestartableStrategy(SyncStrategy):
 
             if not isinstance(self.restartable_tries, bool):
                 counter -= 1
-        
+
         return False, None # failed to reconnect
 
     def post_send_single_response(self, message_id):

@@ -678,6 +678,3 @@ class Server(object):
 
     def has_feature(self, feature):
         return self._check_info_property('feature', feature)
-
-
-

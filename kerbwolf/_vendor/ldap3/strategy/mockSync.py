@@ -131,4 +131,3 @@ class MockSyncStrategy(MockBaseStrategy, SyncStrategy):  # class inheritance seq
                 log(PROTOCOL, 'operation result <%s> for <%s>', result, self.connection)
             raise LDAPOperationResult(result=result['result'], description=result['description'], dn=result['dn'], message=result['message'], response_type=result['type'])
         return responses
-

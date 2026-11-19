@@ -54,4 +54,3 @@ class StartTransaction(ExtendedOperation):
             self.response_value = build_control('2.16.840.1.113719.1.27.103.7', True, grouping_cookie_value, encode_control_value=True)  # groupingControl
         except TypeError:
             self.response_value = None
-

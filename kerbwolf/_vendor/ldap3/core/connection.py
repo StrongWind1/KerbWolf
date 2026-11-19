@@ -307,7 +307,7 @@ class Connection(object):
                     log(ERROR, '%s for <%s>', self.last_error, self)
                 raise LDAPInvalidValueError(self.last_error)
             self.session_security = session_security
-            
+
             port_err = check_port_and_port_list(source_port, source_port_list)
             if port_err:
                 if log_enabled(ERROR):

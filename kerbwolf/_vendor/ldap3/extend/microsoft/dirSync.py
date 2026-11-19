@@ -92,4 +92,3 @@ class DirSync(object):
             raise LDAPExtensionError('Missing DirSync control in response from server')
         else:
             raise LDAPExtensionError('error %r in DirSync' % result)
-

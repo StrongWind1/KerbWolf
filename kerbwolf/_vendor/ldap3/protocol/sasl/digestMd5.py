@@ -89,7 +89,7 @@ def sasl_digest_md5(connection, controls):
     if 'realm' not in server_directives or 'nonce' not in server_directives or 'algorithm' not in server_directives:  # mandatory directives, as per RFC2831
         abort_sasl_negotiation(connection, controls)
         return None
-    
+
 
     # step Two of RFC2831
     # TODO support more ciphers and give choice to user

@@ -543,11 +543,11 @@ class NtlmClient(object):
             signing_key = self.client_signing_key
         else:
             signing_key = self.server_signing_key
-        
+
         version = pack("<I", 1)
         checksum = hmac.new(signing_key, seqnum + message, digestmod=hashlib.md5).digest()[:8]
         return version + checksum + seqnum
-    
+
     # https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-nlmp/a92716d5-d164-4960-9e15-300f4eef44a8
     def seal(self, message):
         payload = self.sign(message, pack("<I", self.sequence_number)) + self.client_handle.encrypt(message)
