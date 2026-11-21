@@ -71,6 +71,12 @@ jobs:
           node-version: 24
           cache: npm
 
+      - name: Install system dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libkrb5-dev
+
       - name: Install site checkers
         run: |
           set -euo pipefail
