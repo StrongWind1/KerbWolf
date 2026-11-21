@@ -19,7 +19,7 @@ kw-roast ...
 **Output**
 Paste the full output (add `-vv` for debug detail):
 
-```
+```text
 ...
 ```
 
@@ -27,6 +27,8 @@ Paste the full output (add `-vv` for debug detail):
 What you expected to happen.
 
 **Environment**
+Your setup:
+
 - OS: [e.g. Kali 2025.1, Ubuntu 24.04]
 - Python version: [e.g. 3.12.3]
 - KerbWolf version: [output of `kw-roast --version`, e.g. 2.0.0]
