@@ -1,2 +1,7 @@
 threat-models:
   - local
+
+# Vendored third-party code (ldap3), kept as upstream ships it and already
+# excluded from ruff; analyse only the code this project maintains.
+paths-ignore:
+  - kerbwolf/_vendor
