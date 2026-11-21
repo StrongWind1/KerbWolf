@@ -258,3 +258,6 @@ __marimo__/
 specs/
 scripts/
 corpus/
+
+# Built-site checkers (npm ci)
+node_modules/
