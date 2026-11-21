@@ -230,6 +230,51 @@ class KerberosContext:
 
 
 # ---------------------------------------------------------------------------
+# Captured hashes (pcap extraction)
+# ---------------------------------------------------------------------------
+
+
+class AttackType(enum.StrEnum):
+    """Which message the hash was extracted from."""
+
+    AS_REQ = "AS-REQ"
+    AS_REP = "AS-REP"
+    TGS_REP = "TGS-REP"
+    SNTP_MD5 = "SNTP-MD5"
+    SNTP_SHA512 = "SNTP-SHA512"
+    NTLMV1 = "NTLMv1"
+    NTLMV2 = "NTLMv2"
+    LDAP_SIMPLE = "LDAP-Simple"
+    SALT_HINT = "SALT-HINT"
+
+
+@dataclass(frozen=True)
+class CapturedHash:
+    """One roastable hash extracted from a pcap packet.
+
+    For Kerberos hashes, ``cipher_hex`` holds the raw cipher bytes (hex).
+    For SNTP hashes, ``cipher_hex`` holds the checksum (hex), ``salt_hex``
+    holds the 48-byte NTP header (hex), and ``rid`` holds the account RID.
+    """
+
+    attack: AttackType
+    username: str
+    realm: str
+    spn: str
+    etype: int
+    cipher_hex: str
+    # SNTP-specific fields (populated only for SNTP_MD5/SNTP_SHA512).
+    salt_hex: str = ""
+    rid: int = 0
+    # NTLM-specific fields (populated only for NTLMV1/NTLMV2).
+    challenge_hex: str = ""
+    lm_hex: str = ""
+    ntlm_blob_hex: str = ""
+    # ETYPE-INFO2 salt from AS-REP padata (populated only for AS-REP).
+    padata_salt: str = ""
+
+
+# ---------------------------------------------------------------------------
 # Errors
 # ---------------------------------------------------------------------------
 

@@ -14,13 +14,11 @@ Extracts from network captures:
 
 from __future__ import annotations
 
-import enum
 import logging
 import signal
 import socket
 import struct
 import sys
-from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, BinaryIO
 
@@ -37,7 +35,9 @@ from impacket.krb5.asn1 import (
 from pyasn1.codec.der import decoder
 
 from kerbwolf.core.asreq import salt_from_padata
-from kerbwolf.models import KerbWolfError
+from kerbwolf.core.ipv6 import skip_ipv6_extensions
+from kerbwolf.core.ntlmssp import _LDAP_PORT, _NTLM_PORTS, extract_ldap_simple_from_stream, extract_ntlm_from_stream
+from kerbwolf.models import AttackType, CapturedHash, KerbWolfError
 
 if TYPE_CHECKING:
     from types import FrameType
@@ -75,73 +75,12 @@ _ETHERTYPE_IPV6 = 0x86DD
 _IP_PROTO_TCP = 6
 _IP_PROTO_UDP = 17
 
-# IPv6 extension header types that must be skipped to reach TCP/UDP.
-# Each has a Next Header field at byte 0 and a Header Extension Length at byte 1.
-_IPV6_EXTENSION_HEADERS = frozenset(
-    {
-        0,  # Hop-by-Hop Options
-        43,  # Routing
-        44,  # Fragment
-        50,  # ESP (Encapsulating Security Payload)
-        51,  # AH (Authentication Header)
-        60,  # Destination Options
-        135,  # Mobility
-        139,  # HIP (Host Identity Protocol)
-        140,  # Shim6
-    }
-)
-
 # MS-SNTP packet lengths (format detection by length, not header fields).
 _SNTP_AUTH_LEN = 68  # Authenticator (MS-SNTP 2.2.1/2.2.2)
 _SNTP_EXT_AUTH_LEN = 120  # ExtendedAuthenticator (MS-SNTP 2.2.3/2.2.4)
 
 # MS-SNTP 2.2.1: Key Identifier bit 31 selects current (0) or old (1) password.
 _SNTP_KEY_SELECTOR_OLD = 1 << 31
-
-
-# ---------------------------------------------------------------------------
-# Data model
-# ---------------------------------------------------------------------------
-
-
-class AttackType(enum.StrEnum):
-    """Which message the hash was extracted from."""
-
-    AS_REQ = "AS-REQ"
-    AS_REP = "AS-REP"
-    TGS_REP = "TGS-REP"
-    SNTP_MD5 = "SNTP-MD5"
-    SNTP_SHA512 = "SNTP-SHA512"
-    NTLMV1 = "NTLMv1"
-    NTLMV2 = "NTLMv2"
-    LDAP_SIMPLE = "LDAP-Simple"
-    SALT_HINT = "SALT-HINT"
-
-
-@dataclass(frozen=True)
-class CapturedHash:
-    """One roastable hash extracted from a pcap packet.
-
-    For Kerberos hashes, ``cipher_hex`` holds the raw cipher bytes (hex).
-    For SNTP hashes, ``cipher_hex`` holds the checksum (hex), ``salt_hex``
-    holds the 48-byte NTP header (hex), and ``rid`` holds the account RID.
-    """
-
-    attack: AttackType
-    username: str
-    realm: str
-    spn: str
-    etype: int
-    cipher_hex: str
-    # SNTP-specific fields (populated only for SNTP_MD5/SNTP_SHA512).
-    salt_hex: str = ""
-    rid: int = 0
-    # NTLM-specific fields (populated only for NTLMV1/NTLMV2).
-    challenge_hex: str = ""
-    lm_hex: str = ""
-    ntlm_blob_hex: str = ""
-    # ETYPE-INFO2 salt from AS-REP padata (populated only for AS-REP).
-    padata_salt: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -382,8 +321,6 @@ def _process_packet(
     messages are extracted from the stream after each segment.  UDP packets
     (SNTP) are passed directly to the existing extractor.
     """
-    from kerbwolf.core.ntlmssp import _LDAP_PORT, _NTLM_PORTS, extract_ldap_simple_from_stream, extract_ntlm_from_stream  # noqa: PLC0415
-
     ip_data = _strip_link_layer(pkt_data, link_type)
     if ip_data is None:
         return []
@@ -494,33 +431,6 @@ def _strip_link_layer(pkt_data: bytes, link_type: int) -> bytes | None:
     return None
 
 
-def _skip_ipv6_extensions(next_header: int, data: bytes) -> tuple[int, bytes]:
-    """Walk IPv6 extension header chain to reach the transport layer.
-
-    Returns ``(proto, transport_data)`` where *proto* is the final Next Header
-    value (e.g. TCP=6 or UDP=17) and *transport_data* starts at the transport
-    header.  Handles Hop-by-Hop, Routing, Fragment, Destination Options, AH,
-    and other standard extension headers per RFC 8200 section 4.
-    """
-    offset = 0
-    proto = next_header
-    while proto in _IPV6_EXTENSION_HEADERS and offset < len(data):
-        if proto == 44:  # noqa: PLR2004 - Fragment header is fixed 8 bytes
-            if offset + 8 > len(data):
-                break
-            proto = data[offset]
-            offset += 8
-        else:
-            # All other extension headers: Next Header at byte 0,
-            # Header Extension Length at byte 1 (in 8-octet units, not counting first 8).
-            if offset + 2 > len(data):
-                break
-            proto = data[offset]
-            ext_len = (data[offset + 1] + 1) * 8
-            offset += ext_len
-    return int(proto), data[offset:]
-
-
 def _strip_ip_transport(ip_data: bytes) -> tuple[bytes | None, int, int, int]:
     """Parse IP + TCP/UDP headers.  Returns ``(payload, src_port, dst_port, proto)``."""
     if len(ip_data) < 20:  # noqa: PLR2004
@@ -535,7 +445,7 @@ def _strip_ip_transport(ip_data: bytes) -> tuple[bytes | None, int, int, int]:
     elif version == 6:  # noqa: PLR2004
         if len(ip_data) < 40:  # noqa: PLR2004
             return None, 0, 0, 0
-        proto, transport_data = _skip_ipv6_extensions(ip_data[6], ip_data[40:])
+        proto, transport_data = skip_ipv6_extensions(ip_data[6], ip_data[40:])
     else:
         return None, 0, 0, 0
 
@@ -650,7 +560,7 @@ def _parse_tcp_info(ip_data: bytes) -> tuple[bytes, str, int, str, int, int, int
             return None
         src_ip = socket.inet_ntop(socket.AF_INET6, ip_data[8:24])
         dst_ip = socket.inet_ntop(socket.AF_INET6, ip_data[24:40])
-        proto, transport_data = _skip_ipv6_extensions(ip_data[6], ip_data[40:])
+        proto, transport_data = skip_ipv6_extensions(ip_data[6], ip_data[40:])
     else:
         return None
 

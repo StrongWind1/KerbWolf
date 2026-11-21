@@ -34,8 +34,8 @@ import struct
 
 from impacket import ntlm, spnego
 
-from kerbwolf.core.capture import AttackType, CapturedHash
-from kerbwolf.core.capture import _skip_ipv6_extensions as _skip_ipv6_ext
+from kerbwolf.core.ipv6 import skip_ipv6_extensions
+from kerbwolf.models import AttackType, CapturedHash
 
 _log = logging.getLogger(__name__)
 
@@ -352,7 +352,7 @@ def _strip_ip_transport_full(
             return None
         src_ip = socket.inet_ntop(socket.AF_INET6, ip_data[8:24])
         dst_ip = socket.inet_ntop(socket.AF_INET6, ip_data[24:40])
-        proto, transport_data = _skip_ipv6_ext(ip_data[6], ip_data[40:])
+        proto, transport_data = skip_ipv6_extensions(ip_data[6], ip_data[40:])
     else:
         return None
 
@@ -701,7 +701,6 @@ _BER_SHORT_FORM_MAX = 0x80  # lengths < this use single-byte short form (X.690 Â
 _BER_INDEFINITE = 0x80  # length byte 0x80 = indefinite form, invalid in DER/LDAP
 _BER_INTEGER_TAG = 0x02  # UNIVERSAL PRIMITIVE INTEGER
 _BER_OCTET_STRING_TAG = 0x04  # UNIVERSAL PRIMITIVE OCTET STRING
-_BER_SEQUENCE_TAG = 0x30  # UNIVERSAL CONSTRUCTED SEQUENCE
 _LDAP_BIND_REQUEST_TAG = 0x60  # APPLICATION 0 CONSTRUCTED = LDAPv3 BindRequest
 _LDAP_SIMPLE_AUTH_TAG = 0x80  # CONTEXT PRIMITIVE 0 = simple authentication choice
 

@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 
 from kerbwolf.core.asreq import _parse_salt_string
-from kerbwolf.core.capture import AttackType, CapturedHash, SaltHints, parse_pcap_with_salts
+from kerbwolf.core.capture import SaltHints, parse_pcap_with_salts
 from kerbwolf.hashcat import (
     asrep_hashcat_mode,
     format_asrep_hash_raw,
@@ -27,7 +27,7 @@ from kerbwolf.hashcat import (
     pa_hashcat_mode,
     tgs_hashcat_mode,
 )
-from kerbwolf.models import HashcatMode, RoastResult
+from kerbwolf.models import AttackType, CapturedHash, HashcatMode, RoastResult
 
 _log = logging.getLogger(__name__)
 

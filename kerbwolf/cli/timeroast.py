@@ -256,9 +256,6 @@ _FMT_LABELS = {
     "both": "Both (68B + 120B)",
 }
 
-_SNTP_MD5_PREFIX = "$sntp-ms$"
-_SNTP_SHA512_PREFIX = "$sntp-ms-sha512$"
-
 
 def _format_line(result: RoastResult, *, rid_prefix: bool) -> str:
     """Format a single hash output line."""

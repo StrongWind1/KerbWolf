@@ -8,11 +8,11 @@ import pytest
 from kerbwolf.core.capture import (
     AttackType,
     CapturedHash,
-    _skip_ipv6_extensions,
     _strip_ip_transport,
     _strip_link_layer,
     parse_pcap,
 )
+from kerbwolf.core.ipv6 import skip_ipv6_extensions
 from kerbwolf.models import KerbWolfError
 
 # ---------------------------------------------------------------------------
@@ -237,24 +237,24 @@ class TestParsePcapng:
 
 
 class TestSkipIpv6Extensions:
-    """Test _skip_ipv6_extensions for RFC 8200 extension header traversal."""
+    """Test skip_ipv6_extensions for RFC 8200 extension header traversal."""
 
     def test_no_extensions_tcp(self):
         """Next Header = TCP (6), no extensions -> pass through."""
-        proto, data = _skip_ipv6_extensions(6, b"\x00" * 40)
+        proto, data = skip_ipv6_extensions(6, b"\x00" * 40)
         assert proto == 6
         assert data == b"\x00" * 40
 
     def test_no_extensions_udp(self):
         """Next Header = UDP (17), no extensions -> pass through."""
-        proto, _data = _skip_ipv6_extensions(17, b"\xff" * 20)
+        proto, _data = skip_ipv6_extensions(17, b"\xff" * 20)
         assert proto == 17
 
     def test_hop_by_hop_then_tcp(self):
         """Hop-by-Hop (type 0) -> TCP.  Header ext len = 0 means 8 bytes total."""
         hop = bytes([6, 0]) + b"\x00" * 6
         tcp_payload = b"\xaa" * 30
-        proto, data = _skip_ipv6_extensions(0, hop + tcp_payload)
+        proto, data = skip_ipv6_extensions(0, hop + tcp_payload)
         assert proto == 6
         assert data == tcp_payload
 
@@ -262,7 +262,7 @@ class TestSkipIpv6Extensions:
         """Routing header (type 43) -> UDP."""
         routing = bytes([17, 1]) + b"\x00" * 14
         udp_payload = b"\xbb" * 20
-        proto, data = _skip_ipv6_extensions(43, routing + udp_payload)
+        proto, data = skip_ipv6_extensions(43, routing + udp_payload)
         assert proto == 17
         assert data == udp_payload
 
@@ -270,7 +270,7 @@ class TestSkipIpv6Extensions:
         """Fragment header (type 44) is always 8 bytes."""
         frag = bytes([6, 0, 0, 0, 0, 0, 0, 0])
         tcp_payload = b"\xcc" * 20
-        proto, data = _skip_ipv6_extensions(44, frag + tcp_payload)
+        proto, data = skip_ipv6_extensions(44, frag + tcp_payload)
         assert proto == 6
         assert data == tcp_payload
 
@@ -278,7 +278,7 @@ class TestSkipIpv6Extensions:
         """Destination Options (type 60) -> TCP."""
         dest = bytes([6, 0]) + b"\x00" * 6
         tcp_payload = b"\xdd" * 20
-        proto, data = _skip_ipv6_extensions(60, dest + tcp_payload)
+        proto, data = skip_ipv6_extensions(60, dest + tcp_payload)
         assert proto == 6
         assert data == tcp_payload
 
@@ -287,17 +287,17 @@ class TestSkipIpv6Extensions:
         hop = bytes([43, 0]) + b"\x00" * 6
         routing = bytes([6, 0]) + b"\x00" * 6
         tcp_payload = b"\xee" * 20
-        proto, data = _skip_ipv6_extensions(0, hop + routing + tcp_payload)
+        proto, data = skip_ipv6_extensions(0, hop + routing + tcp_payload)
         assert proto == 6
         assert data == tcp_payload
 
     def test_empty_data(self):
-        proto, data = _skip_ipv6_extensions(0, b"")
+        proto, data = skip_ipv6_extensions(0, b"")
         assert proto == 0
         assert data == b""
 
     def test_truncated_extension(self):
-        proto, data = _skip_ipv6_extensions(0, b"\x06")
+        proto, data = skip_ipv6_extensions(0, b"\x06")
         assert proto == 0
         assert data == b"\x06"
 

@@ -32,7 +32,6 @@ Code flow::
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
@@ -45,9 +44,6 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
 
     from kerbwolf.models import TimeroastAccount
-
-_log = logging.getLogger(__name__)
-
 
 # ---------------------------------------------------------------------------
 # Results
