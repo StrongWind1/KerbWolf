@@ -1,6 +1,6 @@
 <h1 align="center">KerbWolf</h1>
 
-<p align="center"><strong>Kerberos roasting and hash extraction toolkit for Active Directory.</strong></p>
+<p align="center"><strong>Kerberoast, AS-REP roast, and Timeroast from one tool, or pull the same hashes out of a pcap.</strong></p>
 
 <p align="center">
   <a href="https://github.com/StrongWind1/KerbWolf/actions/workflows/ci.yml"><img src="https://github.com/StrongWind1/KerbWolf/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
@@ -11,19 +11,16 @@
 </p>
 
 <p align="center">
-  <a href="https://strongwind.dev/KerbWolf/guide/">Guide</a> &bull;
   <a href="https://strongwind.dev/KerbWolf/getting-started/installation/">Installation</a> &bull;
-  <a href="https://strongwind.dev/KerbWolf/commands/kw-roast/">Commands</a>
+  <a href="https://strongwind.dev/KerbWolf/#quick-start">Quick start</a> &bull;
+  <a href="https://strongwind.dev/KerbWolf/commands/kw-roast/">Commands</a> &bull;
+  <a href="https://strongwind.dev/KerbWolf/guide/hashcat-modes/">Hash reference</a> &bull;
+  <a href="https://strongwind.dev/KerbWolf/">Documentation</a>
 </p>
 
-4 attack types, 7 encryption types (including RFC 8009 SHA2), 25 output formats (21 Kerberos + 2 SNTP + 2 NTLM).
+---
 
-1. **TGS-REP Roast (Kerberoast)** - request service tickets and crack the service account's password
-2. **AS-REP Roast** - extract hashes from accounts without Kerberos pre-authentication
-3. **AS-REQ Pre-Auth** - extract encrypted timestamps from network captures (passive)
-4. **Timeroasting** - unauthenticated MS-SNTP hash extraction for computer and gMSA accounts
-
-Plus pcap extraction of NTLM hashes (NTLMv1/v2 from 9 transports) and LDAP simple bind credentials.
+KerbWolf extracts crackable hashes from Active Directory. It Kerberoasts and AS-REP roasts over the network, Timeroasts computer, gMSA, and trust accounts over MS-SNTP without credentials, and pulls Kerberos, SNTP, and NTLM hashes out of packet captures. One tool covers all four attacks across the 7 Windows Kerberos encryption types, including RFC 8009 AES-SHA2.
 
 ## Example
 
@@ -34,6 +31,17 @@ $ kw-roast -k -c admin.ccache --ldap -o hashes.txt
 $krb5tgs$23$sql_svc$CORP.LOCAL$<checksum>$<edata2>
 $krb5tgs$18$backup_svc$CORP.LOCAL$<checksum>$<edata2>
 ```
+
+## Features
+
+- **Four attacks**: TGS-REP Roast (Kerberoast), AS-REP Roast, AS-REQ pre-auth from captures (passive), and Timeroasting (unauthenticated MS-SNTP, only a valid RID needed).
+- **All 7 encryption types**: DES-CBC-CRC, DES-CBC-MD5, RC4, AES128, and AES256 are requested live with `-e`; AES-SHA2 (etypes 19 and 20) comes from captures. hashcat has no mode for 19 and 20; KerbWolf still writes them in the canonical layout.
+- **25 hash formats**: 21 Kerberos, 2 MS-SNTP, and 2 NTLM (Net-NTLMv1 mode 5500, Net-NTLMv2 mode 5600).
+- **LDAP discovery**: find SPN accounts, accounts without pre-authentication, and timeroastable computer and gMSA accounts, or spray every enabled user with `--ldap-all`.
+- **Every auth method**: password, NT hash, or ccache, with domain and username read from the ccache; `kw-tgt` also takes per-etype keys (pass-the-key).
+- **Pcap extraction**: Kerberos AS-REQ, AS-REP, and TGS-REP; SNTP timeroast responses; NTLMv1, NTLMv1-ESS, NTLMv2, and LMv2 from 9 transports, with TCP stream reassembly and Type 2/Type 3 pairing; LDAP simple-bind credentials.
+- **Timeroast output**: 68-byte MD5 (hashcat 31300) and 120-byte KDF+HMAC-SHA512 formats, current or previous password for the 68-byte format, and a cracking wordlist built from account names.
+- **DC resolution and transport**: DNS SRV lookup with A/AAAA fallback, and TCP or UDP with automatic fallback to TCP when a reply is too large.
 
 ## Installation
 
@@ -50,19 +58,11 @@ Or install from source:
 uv tool install git+https://github.com/StrongWind1/KerbWolf
 ```
 
-See the [installation guide](docs/getting-started/installation.md) for development setup and dependencies.
+See the [installation guide](https://strongwind.dev/KerbWolf/getting-started/installation/) for the system Kerberos libraries, development setup, and dependencies.
 
-## Kerberos roasting
+## Quick start
 
-Request encrypted tickets from domain controllers and crack them offline. Supports all 7 Windows encryption types including RFC 8009 AES-SHA2 (etypes 19/20).
-
-| Command | Attack | Auth required |
-|---------|--------|---------------|
-| `kw-roast` | TGS-REP Roast (Kerberoast) | Yes (password, hash, or ccache) |
-| `kw-asrep` | AS-REP Roast | No (LDAP discovery needs auth) |
-| `kw-tgt` | TGT acquisition (pass-the-key) | Yes |
-
-```bash
+```sh
 # Get a TGT
 kw-tgt -d CORP.LOCAL --dc-ip 10.0.0.1 -u admin -p 'Password1!' -o admin.ccache
 
@@ -71,37 +71,10 @@ kw-roast -k -c admin.ccache --ldap
 
 # AS-REP Roast
 kw-asrep -d CORP.LOCAL --dc-ip 10.0.0.1 -t jsmith
-```
 
-**Features:** LDAP enumeration, hashcat output, all 7 etypes (DES/RC4/AES128/AES256 via CLI, AES-SHA2 via pcap extraction), ccache auto-detection, DNS SRV resolution, TCP/UDP with auto-fallback.
-
-## Timeroasting
-
-Extract crackable hashes, keyed with the account's NT hash, from domain controllers via MS-SNTP. No authentication needed - just a valid RID.
-
-| Command | Auth required |
-|---------|---------------|
-| `kw-timeroast` | No (LDAP discovery needs auth) |
-
-```bash
-# Blind RID scan (no auth)
+# Timeroast a RID range (no auth)
 kw-timeroast 10.0.0.1 -r 500-5000 -o hashes.txt
 
-# LDAP discovery + cracking wordlist
-kw-timeroast 10.0.0.1 --ldap -d CORP.LOCAL -u admin -p 'Pass!' --wordlist crack.txt
-```
-
-**Features:** 68-byte MD5 (hashcat 31300) + 120-byte KDF+HMAC-SHA512, current/previous password selection for the 68-byte format, LDAP discovery of computer + gMSA accounts, cracking wordlist output.
-
-## Pcap extraction
-
-Extract all crackable hashes from network captures. One tool, all protocols.
-
-| Command | What it extracts |
-|---------|-----------------|
-| `kw-extract` | Kerberos (AS-REQ, AS-REP, TGS-REP), SNTP (timeroast), NTLM (NTLMv1, NTLMv1-ESS, NTLMv2, LMv2) |
-
-```bash
 # Extract everything from a capture
 kw-extract capture.pcap -o hashes.txt
 
@@ -109,61 +82,27 @@ kw-extract capture.pcap -o hashes.txt
 tcpdump -i eth0 -w - 'port 88 or port 123 or port 445' | kw-extract -
 ```
 
-**Kerberos** (port 88): AS-REQ pre-auth timestamps, AS-REP encrypted parts, TGS-REP service tickets. All 7 etypes (including RFC 8009 SHA2), 21 hash formats.
+## Commands
 
-**SNTP** (port 123): 68-byte MD5 and 120-byte KDF+HMAC-SHA512 timeroast responses.
+| Command | Attack | Auth required |
+| --- | --- | --- |
+| [`kw-roast`](https://strongwind.dev/KerbWolf/commands/kw-roast/) | TGS-REP Roast (Kerberoast) | Yes (password, hash, or ccache) |
+| [`kw-asrep`](https://strongwind.dev/KerbWolf/commands/kw-asrep/) | AS-REP Roast | No (LDAP discovery needs auth) |
+| [`kw-tgt`](https://strongwind.dev/KerbWolf/commands/kw-tgt/) | TGT acquisition (pass-the-key) | Yes |
+| [`kw-timeroast`](https://strongwind.dev/KerbWolf/commands/kw-timeroast/) | Timeroasting (MS-SNTP) | No (LDAP discovery needs auth) |
+| [`kw-extract`](https://strongwind.dev/KerbWolf/commands/kw-extract/) | All, from pcap/pcapng | No (offline) |
 
-**NTLM** (9 transports): Extracts NTLMv1, NTLMv1-ESS, NTLMv2, and LMv2 hashes with automatic TCP stream reassembly and Type 2/Type 3 connection tracking.
-
-| Transport | Ports | Spec |
-|-----------|-------|------|
-| SMB | 445, 139 | [MS-SMB], [MS-SMB2] |
-| HTTP | 80 | [MS-NTHT] |
-| WinRM | 5985, 5986 | [MS-WSMV] |
-| LDAP | 389 | SASL/SPNEGO |
-| DCE-RPC | 135 | [MS-RPCE] |
-| SMTP | 25, 587 | [MS-SMTPNTLM] |
-| POP3 | 110 | [MS-POP3] |
-| IMAP | 143 | [MS-OXIMAP4] |
-| Telnet | 23 | [MS-TNAP] |
-
-## Attack matrix
-
-### Kerberos (21 hash types)
-
-|  | DES-CBC-CRC (1) | DES-CBC-MD5 (3) | AES128-SHA1 (17) | AES256-SHA1 (18) | AES128-SHA2 (19) | AES256-SHA2 (20) | RC4 (23) |
-|---|---|---|---|---|---|---|---|
-| **AS-REQ** | `$krb5pa$1$` (39300) | `$krb5pa$3$` (39000) | `$krb5pa$17$` (19800) | `$krb5pa$18$` (19900) | `$krb5pa$19$` (none) | `$krb5pa$20$` (none) | `$krb5pa$23$` (7500) |
-| **AS-REP** | `$krb5asrep$1$` (39200) | `$krb5asrep$3$` (38600) | `$krb5asrep$17$` (32100) | `$krb5asrep$18$` (32200) | `$krb5asrep$19$` (none) | `$krb5asrep$20$` (none) | `$krb5asrep$23$` (18200) |
-| **TGS-REP** | `$krb5tgs$1$` (39100) | `$krb5tgs$3$` (38500) | `$krb5tgs$17$` (19600) | `$krb5tgs$18$` (19700) | `$krb5tgs$19$` (none) | `$krb5tgs$20$` (none) | `$krb5tgs$23$` (13100) |
-
-Numbers in parentheses are hashcat mode numbers; hashcat has no mode for the AES-SHA2 etypes 19/20. Those etypes (RFC 8009) are present in Windows 11 24H2 and Windows Server 2025, disabled by default. KerbWolf implements the string-to-key with the 4096 PBKDF2 iterations Windows was observed to use (the RFC default is 32768), followed by the KDF-HMAC-SHA2 pass.
-
-### Timeroasting (MS-SNTP)
-
-| Format | Algorithm | Hashcat mode |
-|--------|-----------|-------------|
-| 68-byte Authenticator | `MD5(NTOWFv1 \|\| salt)` | 31300 |
-| 120-byte ExtendedAuth | KDF(SP800-108, HMAC-SHA512) | none |
-
-### NTLM (from pcap)
-
-| Type | Hashcat mode |
-|------|-------------|
-| Net-NTLMv1 / NTLMv1-ESS | 5500 |
-| Net-NTLMv2 / LMv2 | 5600 |
+The hashcat mode for every attack and etype is in the [mode matrix](https://strongwind.dev/KerbWolf/guide/hashcat-modes/#mode-matrix), the two timeroast formats in the [timeroasting matrix](https://strongwind.dev/KerbWolf/guide/#timeroasting-matrix), AES-SHA2 key derivation in [Encryption types](https://strongwind.dev/KerbWolf/guide/encryption-types/), and the NTLM transports and ports in [kw-extract](https://strongwind.dev/KerbWolf/commands/kw-extract/#ntlm-details).
 
 ## Development
 
-```bash
-git clone https://github.com/StrongWind1/KerbWolf.git
-cd KerbWolf
+```sh
+git clone https://github.com/StrongWind1/KerbWolf.git && cd KerbWolf
 uv sync                        # install dev dependencies
-make check                     # run lint + typecheck + tests + strict docs build
-make docs                      # build documentation
-make format                    # auto-fix formatting
-make build                     # build wheel + sdist
+make check                     # lint, typecheck, tests, strict docs build
 ```
+
+`make docs` builds the documentation, `make format` auto-fixes formatting, and `make build` builds the wheel and sdist.
 
 ## Credits
 
@@ -171,17 +110,21 @@ Built on [Impacket](https://github.com/fortra/impacket) and [ldap3](https://gith
 
 ## Related tools
 
-Other projects in this collection:
+- [**CredWolf**](https://github.com/StrongWind1/CredWolf): Validate AD passwords, hashes, keys, and tickets over NTLM and Kerberos
+- [**NTDSWolf**](https://github.com/StrongWind1/NTDSWolf): Offline NTDS.dit parser and credential extractor for NT/LM hashes, Kerberos keys, LAPS, and gMSA
+- [**PassWolf**](https://github.com/StrongWind1/PassWolf): Spec-compliant AD password change, reset, and policy read over SAMR, Netlogon, LSA, Kerberos, LDAP
+- [**AD-SecretGen**](https://github.com/StrongWind1/AD-SecretGen): Derive every password-derived AD secret (NT/LM, Kerberos keys, WDigest) from a password
+- [**ntcompress**](https://github.com/StrongWind1/ntcompress): Pure-Python ESE record compression and ntdll RtlCompressBuffer/RtlDecompressBuffer formats
+- [**Kerberos**](https://github.com/StrongWind1/Kerberos): Protocol internals, security configuration, and attack techniques for Kerberos in Active Directory
 
-- [AD-SecretGen](https://github.com/StrongWind1/AD-SecretGen) - derive AD password hashes and Kerberos keys from a password
-- [NTDSWolf](https://github.com/StrongWind1/NTDSWolf) - offline NTDS.dit parser and credential extractor
-- [CredWolf](https://github.com/StrongWind1/CredWolf) - Active Directory credential validation
-- [Kerberos](https://github.com/StrongWind1/Kerberos) - Kerberos in Active Directory: protocol, security, and attacks
+All tools: [strongwind.dev](https://strongwind.dev)
 
 ## Disclaimer
 
-KerbWolf is intended for authorized penetration testing, red team engagements, and security audits only. You must have explicit written permission from the system owner before attacking any Active Directory environment. Unauthorized access to computer systems is illegal. The authors are not responsible for any misuse or damage caused by this tool.
+KerbWolf is for authorized security testing, research, and education. Use it only against systems and data you own or have written permission to test. You are responsible for how you use it.
 
 ## License
 
 [Apache License 2.0](LICENSE)
+
+The vendored copy of [ldap3](https://github.com/cannatag/ldap3) in `kerbwolf/_vendor/ldap3/` is by Giovanni Cannata and is licensed under the GNU LGPL v3 or later (see `kerbwolf/_vendor/ldap3/COPYING.LESSER.txt`).
