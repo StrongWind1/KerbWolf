@@ -42,6 +42,7 @@ Examples:
 | `$krb5pa$` | PA-ENC-TIMESTAMP | AS-REQ (port 88) | 39300 / 39000 / 19800 / 19900 / none / none / 7500 |
 | `$krb5asrep$` | enc-part of every AS-REP | AS-REP (port 88) | 39200 / 38600 / 32100 / 32200 / none / none / 18200 |
 | `$krb5tgs$` | Service ticket enc-part | TGS-REP (port 88) | 39100 / 38500 / 19600 / 19700 / none / none / 13100 |
+| `$krb5tgs$` | Service ticket enc-part | AP-REQ (SMB / HTTP / LDAP / DCE-RPC) | 39100 / 38500 / 19600 / 19700 / none / none / 13100 |
 | `$sntp-ms$` | 68-byte Authenticator (MD5) | MS-SNTP (port 123) | 31300 |
 | `$sntp-ms-sha512$` | 120-byte ExtendedAuthenticator | MS-SNTP (port 123) | none |
 | `user::domain:...` | Net-NTLMv1 / NTLMv1-ESS | NTLM (see below) | 5500 |
@@ -61,6 +62,7 @@ TCP streams are reassembled by sequence number, so a message split across segmen
 - **AS-REQ user field.** The `cname` is what the user typed, in whatever case. A salt for that name replaces it.
 - **AS-REP user field.** The username comes from the salt in the reply when there is one, otherwise from the `cname`.
 - **TGS-REP user field.** A TGS-REP names the service, not the account that owns it, so the user field is the ticket's `sname`. If the capture holds a salt for that name, the salt supplies the spelling. That is the case for traffic from `kw-roast`, which requests tickets by sAMAccountName. In ordinary Windows traffic the `sname` is an SPN such as `HTTP/web01.corp.local`: an RC4 line cracks as it is, but an AES or DES line will not until the user field is replaced with the name the key is salted with (the sAMAccountName for a user account, `host<fqdn>` for a computer account).
+- **AP-REQ service tickets.** A client wraps an AP-REQ in SPNEGO when it authenticates to a service over SMB, HTTP (WinRM/IIS), LDAP or DCE-RPC. The ticket inside is the same one the KDC issued in the TGS-REP, encrypted with the service account's key, so a capture of client-to-service traffic yields Kerberoast material with no port 88 packets. The `sname` and salt behave exactly as for a TGS-REP. A ticket is reported once per capture: from its TGS-REP when that is present, otherwise from the first AP-REQ that carries it. A client replays the same ticket to a service until it expires, so repeats on one connection are dropped.
 - **Output.** `-o` never overwrites. If the file exists, the hashes go to `name_1.ext`, then `name_2.ext`, and so on.
 - **Piped input.** With `-`, hashes are printed when the capture ends, not as packets arrive. In `tcpdump -w - ... | kw-extract -`, one Ctrl-C stops tcpdump and `kw-extract` reads what is left in the pipe and prints everything; a second Ctrl-C stops it at once and prints what it had read.
 

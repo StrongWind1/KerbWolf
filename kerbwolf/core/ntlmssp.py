@@ -50,6 +50,12 @@ _IMAP_PORT = 143
 _TELNET_PORT = 23
 _NTLM_PORTS = _SMB_PORTS | _HTTP_PORTS | {_LDAP_PORT, _DCERPC_PORT} | _SMTP_PORTS | {_POP3_PORT, _IMAP_PORT, _TELNET_PORT}
 
+# Ports that carry a Kerberos AP-REQ inside SPNEGO/GSS-API.  A Windows client
+# sends the service ticket here, not to the KDC, so these captures yield
+# Kerberoast-equivalent hashes without any port 88 traffic.  The capture module
+# reads the ticket; these ports are kept here beside the other transport sets.
+_AP_REQ_PORTS = _SMB_PORTS | _HTTP_PORTS | {_LDAP_PORT, _DCERPC_PORT}
+
 _IP_PROTO_TCP = 6
 
 # NTLMSSP signature and message type offsets.

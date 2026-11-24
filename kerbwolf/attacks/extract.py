@@ -138,18 +138,19 @@ def _captured_to_result(h: CapturedHash, salt_hints: SaltHints | None = None) ->
             _log.warning("AS-REP %s: no ETYPE-INFO2 in pcap — AES hash may not crack if username casing is wrong", h.username)
         hash_string = format_asrep_hash_raw(cipher, h.etype, result_user, result_realm)
         mode = asrep_hashcat_mode(h.etype)
-    else:  # TGS-REP
+    else:  # TGS-REP or AP-REQ: both carry a service ticket, formatted alike.
+        src = h.attack.value
         tgs_user, tgs_realm = h.username, h.realm
         if salt_hints is not None and h.username.lower() in salt_hints:
             salt_parsed = _parse_salt_string(salt_hints[h.username.lower()], h.realm)
             if salt_parsed is not None:
                 tgs_user, tgs_realm = salt_parsed
                 if tgs_user != h.username:
-                    _log.debug("TGS-REP pcap salt correction: %s → %s (from salt hint)", h.username, tgs_user)
+                    _log.debug("%s pcap salt correction: %s → %s (from salt hint)", src, h.username, tgs_user)
             elif h.etype != 23:  # noqa: PLR2004
-                _log.warning("TGS-REP %s: salt hint unparseable — AES hash may not crack", h.spn)
+                _log.warning("%s %s: salt hint unparseable — AES hash may not crack", src, h.spn)
         elif h.etype != 23:  # noqa: PLR2004
-            _log.warning("TGS-REP %s: $user$ not verified — AES hash may not crack if username casing is wrong", h.spn)
+            _log.warning("%s %s: $user$ not verified — AES hash may not crack if username casing is wrong", src, h.spn)
         result_user, result_realm = tgs_user, tgs_realm
         hash_string = format_tgs_hash_raw(cipher, h.etype, tgs_user, tgs_realm)
         mode = tgs_hashcat_mode(h.etype)

@@ -8,13 +8,16 @@ Extracts from network captures:
 - **AS-REQ**: PA-ENC-TIMESTAMP pre-auth data → ``$krb5pa$`` hashes
 - **AS-REP**: enc-part cipher (no-preauth accounts) → ``$krb5asrep$`` hashes
 - **TGS-REP**: ticket enc-part cipher → ``$krb5tgs$`` hashes
+- **AP-REQ**: ticket enc-part cipher, from SMB, HTTP, LDAP and DCE-RPC → ``$krb5tgs$`` hashes
 - **SNTP MD5**: 68-byte Authenticator response → ``$sntp-ms$`` hashes
 - **SNTP SHA512**: 120-byte ExtendedAuthenticator response → ``$sntp-ms-sha512$`` hashes
 """
 
 from __future__ import annotations
 
+import base64
 import logging
+import re
 import signal
 import socket
 import struct
@@ -24,6 +27,7 @@ from typing import TYPE_CHECKING, Any, BinaryIO
 
 from impacket.krb5 import constants as krb_constants
 from impacket.krb5.asn1 import (
+    AP_REQ,
     AS_REP,
     AS_REQ,
     ETYPE_INFO2,
@@ -31,12 +35,13 @@ from impacket.krb5.asn1 import (
     METHOD_DATA,
     TGS_REP,
     EncryptedData,
+    Ticket,
 )
 from pyasn1.codec.der import decoder
 
 from kerbwolf.core.asreq import salt_from_padata
 from kerbwolf.core.ipv6 import skip_ipv6_extensions
-from kerbwolf.core.ntlmssp import _LDAP_PORT, _NTLM_PORTS, extract_ldap_simple_from_stream, extract_ntlm_from_stream
+from kerbwolf.core.ntlmssp import _AP_REQ_PORTS, _HTTP_PORTS, _LDAP_PORT, _NTLM_PORTS, extract_ldap_simple_from_stream, extract_ntlm_from_stream
 from kerbwolf.models import AttackType, CapturedHash, KerbWolfError
 
 if TYPE_CHECKING:
@@ -174,16 +179,38 @@ def _parse_stream(fh: BinaryIO) -> list[CapturedHash]:
 
     if magic in {_PCAP_MAGIC_LE, _PCAP_MAGIC_NS_LE}:
         _log.debug("Format: pcap (little-endian)")
-        return _parse_pcap(fh, header, byte_order="<", ntlm_sessions=ntlm_sessions, tcp_streams=tcp_streams)
-    if magic in {_PCAP_MAGIC_BE, _PCAP_MAGIC_NS_BE}:
+        results = _parse_pcap(fh, header, byte_order="<", ntlm_sessions=ntlm_sessions, tcp_streams=tcp_streams)
+    elif magic in {_PCAP_MAGIC_BE, _PCAP_MAGIC_NS_BE}:
         _log.debug("Format: pcap (big-endian)")
-        return _parse_pcap(fh, header, byte_order=">", ntlm_sessions=ntlm_sessions, tcp_streams=tcp_streams)
-    if magic == _PCAPNG_SHB_TYPE:
+        results = _parse_pcap(fh, header, byte_order=">", ntlm_sessions=ntlm_sessions, tcp_streams=tcp_streams)
+    elif magic == _PCAPNG_SHB_TYPE:
         _log.debug("Format: pcapng")
-        return _parse_pcapng(fh, ntlm_sessions=ntlm_sessions, tcp_streams=tcp_streams)
+        results = _parse_pcapng(fh, ntlm_sessions=ntlm_sessions, tcp_streams=tcp_streams)
+    else:
+        msg = f"Unknown file format (magic: 0x{magic:08X})"
+        raise KerbWolfError(msg)
 
-    msg = f"Unknown file format (magic: 0x{magic:08X})"
-    raise KerbWolfError(msg)
+    return _drop_repeated_tickets(results)
+
+
+def _drop_repeated_tickets(results: list[CapturedHash]) -> list[CapturedHash]:
+    """Drop AP-REQ tickets that are already in *results*.
+
+    A client presents the same service ticket on every connection to the
+    service until it expires, and the TGS-REP that delivered it may be in the
+    capture too.  The same ciphertext is the same hash, so each ticket is kept
+    once: from its TGS-REP when the capture has one, otherwise from its first
+    AP-REQ.
+    """
+    seen = {h.cipher_hex for h in results if h.attack == AttackType.TGS_REP}
+    kept: list[CapturedHash] = []
+    for h in results:
+        if h.attack == AttackType.AP_REQ:
+            if h.cipher_hex in seen:
+                continue
+            seen.add(h.cipher_hex)
+        kept.append(h)
+    return kept
 
 
 def _collect_salt_hints_from_hashes(hashes: list[CapturedHash]) -> SaltHints:
@@ -350,6 +377,12 @@ def _process_packet(
         if _KRB_PORT in {src_port, dst_port} and conn_key in tcp_streams:
             results.extend(_extract_kerberos_from_stream(tcp_streams[conn_key]))
 
+        # Kerberos AP-REQ (SMB, HTTP, LDAP, DCE-RPC): service tickets.  This
+        # only reads the stream, so it runs before NTLM consumes SMB messages.
+        app_port = src_port if src_port in _AP_REQ_PORTS else dst_port
+        if app_port in _AP_REQ_PORTS and conn_key in tcp_streams:
+            results.extend(_extract_ap_req_from_stream(tcp_streams[conn_key], app_port))
+
         # NTLM (SMB, HTTP, LDAP, DCE-RPC, SMTP, POP3, IMAP, Telnet): stream extraction.
         ntlm_port = src_port if src_port in _NTLM_PORTS else dst_port
         if ntlm_port in _NTLM_PORTS and conn_key in tcp_streams:
@@ -475,6 +508,7 @@ class TcpStream(bytearray):
         super().__init__()
         self.next_seq: int | None = None
         self.pending: dict[int, bytes] = {}
+        self.kerberos_tokens: set[bytes] = set()
 
 
 TcpStreams = dict[tuple[str, int, str, int], TcpStream]
@@ -705,23 +739,104 @@ def _try_parse_tgsrep(data: bytes) -> list[CapturedHash]:
     if int(tgs_rep["msg-type"]) != int(krb_constants.ApplicationTagNumbers.TGS_REP.value):
         return []
 
-    ticket = tgs_rep["ticket"]
+    return [_ticket_hash(tgs_rep["ticket"], AttackType.TGS_REP)]
+
+
+def _ticket_hash(ticket: Ticket, attack: AttackType) -> CapturedHash:
+    """Return a ticket's enc-part cipher as a hash, named by the ticket's ``sname``.
+
+    Shared by the TGS-REP and AP-REQ extractors, which carry the same ticket.
+    The user field is the ``sname``, for the reason given in
+    :func:`_try_parse_tgsrep`.
+    """
     realm = str(ticket["realm"]).upper()
 
     spn_parts = [str(c) for c in ticket["sname"]["name-string"]] if ticket["sname"] else []
     spn = "/".join(spn_parts) if spn_parts else "unknown"
 
     ticket_enc = ticket["enc-part"]
-    return [
-        CapturedHash(
-            attack=AttackType.TGS_REP,
-            username=spn,
-            realm=realm,
-            spn=spn,
-            etype=int(ticket_enc["etype"]),
-            cipher_hex=ticket_enc["cipher"].asOctets().hex(),
-        )
-    ]
+    return CapturedHash(
+        attack=attack,
+        username=spn,
+        realm=realm,
+        spn=spn,
+        etype=int(ticket_enc["etype"]),
+        cipher_hex=ticket_enc["cipher"].asOctets().hex(),
+    )
+
+
+# GSS-API AP-REQ framing per [RFC 4121] section 4.1: the mechanism OID is
+# followed by a two-byte TOK_ID (01 00 for AP-REQ) and then the AP-REQ, whose
+# DER application tag is 0x6e.  The krb5 OID and the Microsoft krb5 OID differ
+# by one byte, so this anchors on the TOK_ID and tag that follow either.
+_GSS_AP_REQ_ANCHOR = b"\x01\x00\x6e"
+
+# NTLM and Negotiate both appear in these headers; the Negotiate token is the
+# one that may carry a Kerberos AP-REQ.
+_HTTP_NEGOTIATE_RE = re.compile(
+    rb"(?:Authorization|WWW-Authenticate|Proxy-Authenticate|Proxy-Authorization):\s*Negotiate\s+([A-Za-z0-9+/=]+)",
+    re.IGNORECASE,
+)
+
+
+def _extract_ap_req_from_stream(buffer: TcpStream, app_port: int) -> list[CapturedHash]:
+    """Extract Kerberos service tickets from AP-REQs in a TCP stream.
+
+    A Windows client wraps an AP-REQ in SPNEGO / GSS-API when it authenticates
+    to a service over SMB, HTTP (WinRM/IIS), LDAP or DCE-RPC.  The ticket in it
+    is encrypted with the service account's key, so it is Kerberoast material
+    whether or not the TGS-REP that issued it was captured.
+
+    The buffer is read, not consumed, because the NTLM path shares it.  Tickets
+    already seen on this stream (``buffer.kerberos_tokens``) are skipped, so one
+    that lingers in the buffer is reported once.
+    """
+    blobs: list[bytes] = []
+    if app_port in _HTTP_PORTS:
+        # HTTP carries the SPNEGO token as base64 in a Negotiate header.
+        for match in _HTTP_NEGOTIATE_RE.finditer(bytes(buffer)):
+            try:
+                blobs.append(base64.b64decode(match.group(1)))
+            except Exception:  # noqa: BLE001, S112
+                continue
+    else:
+        # SMB, LDAP and DCE-RPC carry the token as binary in the stream.
+        blobs.append(bytes(buffer))
+
+    results: list[CapturedHash] = []
+    for blob in blobs:
+        for ticket_cipher, captured in _ap_reqs_in_blob(blob):
+            if ticket_cipher in buffer.kerberos_tokens:
+                continue
+            buffer.kerberos_tokens.add(ticket_cipher)
+            results.append(captured)
+    return results
+
+
+def _ap_reqs_in_blob(blob: bytes) -> list[tuple[bytes, CapturedHash]]:
+    """Find GSS-API-wrapped AP-REQs in *blob*, returning ``(cipher, hash)`` pairs.
+
+    Anchors on the GSS AP-REQ TOK_ID and application tag, DER-decodes the
+    AP-REQ that follows, and takes the service ticket from it.  A false anchor
+    in binary data fails the decode or the message-type check and is dropped.
+    """
+    results: list[tuple[bytes, CapturedHash]] = []
+    idx = 0
+    while True:
+        pos = blob.find(_GSS_AP_REQ_ANCHOR, idx)
+        if pos < 0:
+            break
+        idx = pos + len(_GSS_AP_REQ_ANCHOR)
+        try:
+            ap_req, _ = decoder.decode(blob[pos + 2 :], asn1Spec=AP_REQ())
+            if int(ap_req["msg-type"]) != int(krb_constants.ApplicationTagNumbers.AP_REQ.value):
+                continue
+            ticket = ap_req["ticket"]
+            cipher = ticket["enc-part"]["cipher"].asOctets()
+        except Exception:  # noqa: BLE001, S112
+            continue
+        results.append((bytes(cipher), _ticket_hash(ticket, AttackType.AP_REQ)))
+    return results
 
 
 # ---------------------------------------------------------------------------

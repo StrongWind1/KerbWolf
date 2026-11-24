@@ -240,6 +240,7 @@ class AttackType(enum.StrEnum):
     AS_REQ = "AS-REQ"
     AS_REP = "AS-REP"
     TGS_REP = "TGS-REP"
+    AP_REQ = "AP-REQ"
     SNTP_MD5 = "SNTP-MD5"
     SNTP_SHA512 = "SNTP-SHA512"
     NTLMV1 = "NTLMv1"

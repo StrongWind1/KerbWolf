@@ -39,7 +39,7 @@ $krb5tgs$18$backup_svc$CORP.LOCAL$<checksum>$<edata2>
 - **25 hash formats**: 21 Kerberos, 2 MS-SNTP, and 2 NTLM (Net-NTLMv1 mode 5500, Net-NTLMv2 mode 5600).
 - **LDAP discovery**: find SPN accounts, accounts without pre-authentication, and timeroastable computer and gMSA accounts, or spray every enabled user with `--ldap-all`.
 - **Every auth method**: password, NT hash, or ccache, with domain and username read from the ccache; `kw-tgt` also takes per-etype keys (pass-the-key).
-- **Pcap extraction**: Kerberos AS-REQ, AS-REP, and TGS-REP; SNTP timeroast responses; NTLMv1, NTLMv1-ESS, NTLMv2, and LMv2 from 9 transports, with TCP stream reassembly and Type 2/Type 3 pairing; LDAP simple-bind credentials.
+- **Pcap extraction**: Kerberos AS-REQ, AS-REP, and TGS-REP, plus service tickets from AP-REQs carried by SMB, HTTP, LDAP and DCE-RPC; SNTP timeroast responses; NTLMv1, NTLMv1-ESS, NTLMv2, and LMv2 from 9 transports, with TCP stream reassembly and Type 2/Type 3 pairing; LDAP simple-bind credentials.
 - **Timeroast output**: 68-byte MD5 (hashcat 31300) and 120-byte KDF+HMAC-SHA512 formats, current or previous password for the 68-byte format, and a cracking wordlist built from account names.
 - **DC resolution and transport**: DNS SRV lookup with A/AAAA fallback, and TCP or UDP with automatic fallback to TCP when a reply is too large.
 

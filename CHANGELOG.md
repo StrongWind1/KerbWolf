@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- `kw-extract` reads Kerberos AP-REQ service tickets carried by SMB, HTTP (WinRM/IIS), LDAP and DCE-RPC, so a capture of client-to-service traffic yields Kerberoast hashes with no port 88 packets. A ticket is reported once per capture: from its TGS-REP when present, otherwise from the first AP-REQ that carries it.
+
 ## [2.0.0] - 2026-11-15
 
 ### Added
