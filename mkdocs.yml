@@ -117,6 +117,9 @@ extra_css:
   # theme.css is the site palette; primary and accent are both `custom`,
   # so every Material colour variable is defined there.
   - stylesheets/theme.css
+  # extra.css widens the content column on large screens and tightens table
+  # spacing so wide tables fit before they scroll.
+  - stylesheets/extra.css
 
 extra_javascript:
   # a11y.js gives code blocks that scroll sideways a keyboard tab stop.

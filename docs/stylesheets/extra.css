@@ -1,0 +1,33 @@
+/* KerbWolf - layout.
+ *
+ * Page width and table spacing. The palette lives in theme.css; this file only
+ * adjusts how wide the content column runs and how tables fill it, so the two
+ * concerns stay separate and theme.css can keep being shared across sites.
+ */
+
+/* Material caps the page grid at 61rem (1220px: its rem is 20px). On a wide
+   display that leaves the article narrow and makes many-column tables scroll
+   sideways, so above Material's own widescreen breakpoint the grid grows with
+   the viewport up to 100rem. The max() keeps 61rem as the floor so the column
+   never ends up narrower than Material's default on mid-size laptops. */
+@media screen and (min-width: 76.25em) {
+  .md-grid {
+    max-width: max(61rem, min(90%, 100rem));
+  }
+}
+
+/* Table cell padding. Material's 1.25em each side costs a wide table a lot of
+   width before any text is placed; tightening it lets more columns fit before
+   the table has to scroll. */
+.md-typeset table:not([class]) :is(th, td) {
+  padding: 0.75em 0.85em;
+}
+
+/* Header cells wrap between words instead of forcing their column (and the
+   whole table) wider than the page on one long heading. */
+.md-typeset table:not([class]) th {
+  min-width: 0;
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: manual;
+}

@@ -8,9 +8,9 @@ See also: [encryption types](encryption-types.md) for key derivation details, [a
 
 |  | DES-CBC-CRC (1) | DES-CBC-MD5 (3) | AES128-SHA1 (17) | AES256-SHA1 (18) | AES128-SHA2 (19) | AES256-SHA2 (20) | RC4 (23) |
 |---|---|---|---|---|---|---|---|
-| **TGS-REP** | 39100 `$krb5tgs$1$` | 38500 `$krb5tgs$3$` | 19600 `$krb5tgs$17$` | 19700 `$krb5tgs$18$` | none `$krb5tgs$19$` | none `$krb5tgs$20$` | 13100 `$krb5tgs$23$` |
-| **AS-REP** | 39200 `$krb5asrep$1$` | 38600 `$krb5asrep$3$` | 32100 `$krb5asrep$17$` | 32200 `$krb5asrep$18$` | none `$krb5asrep$19$` | none `$krb5asrep$20$` | 18200 `$krb5asrep$23$` |
-| **Pre-Auth** | 39300 `$krb5pa$1$` | 39000 `$krb5pa$3$` | 19800 `$krb5pa$17$` | 19900 `$krb5pa$18$` | none `$krb5pa$19$` | none `$krb5pa$20$` | 7500 `$krb5pa$23$` |
+| **TGS-REP** | 39100 `$krb5tgs$1$` | 38500 `$krb5tgs$3$` | 19600 `$krb5tgs$17$` | 19700 `$krb5tgs$18$` | none | none | 13100 `$krb5tgs$23$` |
+| **AS-REP** | 39200 `$krb5asrep$1$` | 38600 `$krb5asrep$3$` | 32100 `$krb5asrep$17$` | 32200 `$krb5asrep$18$` | none | none | 18200 `$krb5asrep$23$` |
+| **Pre-Auth** | 39300 `$krb5pa$1$` | 39000 `$krb5pa$3$` | 19800 `$krb5pa$17$` | 19900 `$krb5pa$18$` | none | none | 7500 `$krb5pa$23$` |
 | **DB Key** | 38400 `$krb5db$1$` | 38400 `$krb5db$3$` | 28800 `$krb5db$17$` | 28900 `$krb5db$18$` | none | none | 1000 (NT hash) |
 
 These are the 21 Kerberos modes in hashcat master as of 2026-11-15, plus mode 1000 for the etype 23 database key. Modes 35300, 35400, 38400, 38500 and 38600 first shipped in hashcat v8.0.0; 39000 through 39400 were added after that release, so they need a build from master.
