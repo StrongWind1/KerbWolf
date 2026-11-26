@@ -108,6 +108,7 @@ nav:
       - kw-timeroast: commands/kw-timeroast.md
       - kw-extract: commands/kw-extract.md
       - kw-tgt: commands/kw-tgt.md
+      - Common options: commands/common-options.md
   - Cracking:
       - Hash Reference: cracking/hash-reference.md
       - Cracking Speed: cracking/speed.md
@@ -115,6 +116,7 @@ nav:
   - Background:
       - Overview: guide/index.md
       - Attacks in Depth: background/attacks.md
+      - Timeroasting: background/timeroasting.md
       - Encryption Types: background/encryption-types.md
 
 extra:
