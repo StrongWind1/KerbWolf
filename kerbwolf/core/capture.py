@@ -829,11 +829,16 @@ def _ticket_hash(ticket: Ticket, attack: AttackType) -> CapturedHash:
     )
 
 
-# GSS-API AP-REQ framing per [RFC 4121] section 4.1: the mechanism OID is
-# followed by a two-byte TOK_ID (01 00 for AP-REQ) and then the AP-REQ, whose
-# DER application tag is 0x6e.  The krb5 OID and the Microsoft krb5 OID differ
-# by one byte, so this anchors on the TOK_ID and tag that follow either.
-_GSS_AP_REQ_ANCHOR = b"\x01\x00\x6e"
+# An AP-REQ is found by its own first fields, pvno 5 and msg-type 14, which
+# follow its application tag (0x6e) and SEQUENCE header.  A client that speaks
+# GSS-API puts the mechanism OID and a TOK_ID in front of it ([RFC 4121]
+# section 4.1); Impacket's LDAP bind puts it in the SPNEGO token bare.  Looking
+# for the message itself finds both.
+_AP_REQ_FIRST_FIELDS = bytes.fromhex("a003020105a10302010e")
+_AP_REQ_TAG = 0x6E
+_DER_SEQUENCE_TAG = 0x30
+# A DER header is the tag and a length of one, two or three bytes.
+_DER_HEADER_SIZES = (2, 3, 4)
 
 # NTLM and Negotiate both appear in these headers; the Negotiate token is the
 # one that may carry a Kerberos AP-REQ.
@@ -846,8 +851,8 @@ _HTTP_NEGOTIATE_RE = re.compile(
 def _extract_ap_req_from_stream(buffer: TcpStream, app_port: int) -> list[CapturedHash]:
     """Extract Kerberos service tickets from AP-REQs in a TCP stream.
 
-    A Windows client wraps an AP-REQ in SPNEGO / GSS-API when it authenticates
-    to a service over SMB, HTTP (WinRM/IIS), LDAP or DCE-RPC.  The ticket in it
+    A client wraps an AP-REQ in SPNEGO / GSS-API when it authenticates to a
+    service over SMB, HTTP (WinRM/IIS), LDAP or DCE-RPC.  The ticket in it
     is encrypted with the service account's key, so it is Kerberoast material
     whether or not the TGS-REP that issued it was captured.
 
@@ -878,29 +883,44 @@ def _extract_ap_req_from_stream(buffer: TcpStream, app_port: int) -> list[Captur
 
 
 def _ap_reqs_in_blob(blob: bytes) -> list[tuple[bytes, CapturedHash]]:
-    """Find GSS-API-wrapped AP-REQs in *blob*, returning ``(cipher, hash)`` pairs.
+    """Find AP-REQs in *blob*, returning ``(cipher, hash)`` pairs.
 
-    Anchors on the GSS AP-REQ TOK_ID and application tag, DER-decodes the
-    AP-REQ that follows, and takes the service ticket from it.  A false anchor
-    in binary data fails the decode or the message-type check and is dropped.
+    Anchors on the pvno and msg-type fields every AP-REQ opens with, steps back
+    over the two DER headers in front of them, DER-decodes the AP-REQ from
+    there, and takes the service ticket from it.  A false anchor in binary data
+    fails the header check, the decode or the message-type check and is
+    dropped.
     """
     results: list[tuple[bytes, CapturedHash]] = []
     idx = 0
     while True:
-        pos = blob.find(_GSS_AP_REQ_ANCHOR, idx)
+        pos = blob.find(_AP_REQ_FIRST_FIELDS, idx)
         if pos < 0:
             break
-        idx = pos + len(_GSS_AP_REQ_ANCHOR)
-        try:
-            ap_req, _ = decoder.decode(blob[pos + 2 :], asn1Spec=AP_REQ())
-            if int(ap_req["msg-type"]) != int(krb_constants.ApplicationTagNumbers.AP_REQ.value):
-                continue
-            ticket = ap_req["ticket"]
-            cipher = ticket["enc-part"]["cipher"].asOctets()
-        except Exception:  # noqa: BLE001, S112
-            continue
-        results.append((bytes(cipher), _ticket_hash(ticket, AttackType.AP_REQ)))
+        idx = pos + len(_AP_REQ_FIRST_FIELDS)
+        found = _decode_ap_req_before(blob, pos)
+        if found is not None:
+            results.append(found)
     return results
+
+
+def _decode_ap_req_before(blob: bytes, fields_pos: int) -> tuple[bytes, CapturedHash] | None:
+    """Decode the AP-REQ whose first fields start at *fields_pos*, if there is one."""
+    for sequence_header in _DER_HEADER_SIZES:
+        for application_header in _DER_HEADER_SIZES:
+            start = fields_pos - sequence_header - application_header
+            if start < 0 or blob[start] != _AP_REQ_TAG or blob[start + application_header] != _DER_SEQUENCE_TAG:
+                continue
+            try:
+                ap_req, _ = decoder.decode(blob[start:], asn1Spec=AP_REQ())
+                if int(ap_req["msg-type"]) != int(krb_constants.ApplicationTagNumbers.AP_REQ.value):
+                    continue
+                ticket = ap_req["ticket"]
+                cipher = ticket["enc-part"]["cipher"].asOctets()
+            except Exception:  # noqa: BLE001, S112
+                continue
+            return bytes(cipher), _ticket_hash(ticket, AttackType.AP_REQ)
+    return None
 
 
 # ---------------------------------------------------------------------------
