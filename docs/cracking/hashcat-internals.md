@@ -44,28 +44,32 @@ What each mode accepts in its canonical line. Every field is delimited by `$`. T
 | Mode | Signature | User | Realm | Checksum | Data field |
 |------|-----------|------|-------|----------|------------|
 | 13100 | `$krb5tgs$` (9 chars), then etype `23` (2 digits) | 0-511 chars | 0-511 chars | 32 hex (16 bytes) | edata2, 64-40958 hex |
+| 35300 | `$krb5tgs$` (9 chars), then etype `23` (2 digits) | 0-511 chars | 0-511 chars | 32 hex (16 bytes) | edata2, 64-40958 hex |
 | 19600 | `$krb5tgs$17$` (12 chars) | 1-511 chars | 1-511 chars | 24 hex (12 bytes) | edata2, 64-40960 hex |
-| 19700 | `$krb5tgs$18$` | as 19600 | as 19600 | as 19600 | as 19600 |
+| 19700 | `$krb5tgs$18$` (12 chars) | 1-511 chars | 1-511 chars | 24 hex (12 bytes) | edata2, 64-40960 hex |
 | 38500 | `$krb5tgs$3$` (11 chars) | 1-127 chars | 1-127 chars | 32 hex (16 bytes) | edata2, 64-40960 hex, a multiple of 16 |
-| 39100 | `$krb5tgs$1$` | as 38500 | as 38500 | as 38500 | as 38500 |
+| 39100 | `$krb5tgs$1$` (11 chars) | 1-127 chars | 1-127 chars | 32 hex (16 bytes) | edata2, 64-40960 hex, a multiple of 16 |
 | 18200 | `$krb5asrep$` (11 chars), then etype `23` (2 digits) | 0-511 chars | 0-511 chars | 32 hex (16 bytes) | edata2, 64-40958 hex |
+| 35400 | `$krb5asrep$` (11 chars), then etype `23` (2 digits) | 0-511 chars | 0-511 chars | 32 hex (16 bytes) | edata2, 64-40958 hex |
 | 32100 | `$krb5asrep$17$` (14 chars) | 1-511 chars | 1-511 chars | 24 hex (12 bytes) | edata2, 64-40960 hex |
 | 32100, JtR shape | `$krb5asrep$17$` (14 chars) | salt, 1-511 chars | none | 24 hex (12 bytes), after the data | edata2, 64-40960 hex |
-| 32200 | `$krb5asrep$18$` | as 32100 | as 32100 | as 32100 | as 32100 |
+| 32200 | `$krb5asrep$18$` (14 chars) | 1-511 chars | 1-511 chars | 24 hex (12 bytes) | edata2, 64-40960 hex |
+| 32200, JtR shape | `$krb5asrep$18$` (14 chars) | salt, 1-511 chars | none | 24 hex (12 bytes), after the data | edata2, 64-40960 hex |
 | 38600 | `$krb5asrep$3$` (13 chars) | 1-127 chars | 1-127 chars | 32 hex (16 bytes) | edata2, 64-40960 hex, a multiple of 16 |
-| 39200 | `$krb5asrep$1$` | as 38600 | as 38600 | as 38600 | as 38600 |
+| 39200 | `$krb5asrep$1$` (13 chars) | 1-127 chars | 1-127 chars | 32 hex (16 bytes) | edata2, 64-40960 hex, a multiple of 16 |
 | 7500 | `$krb5pa$23$` (11 chars) | 0-511 chars | 0-511 chars | 32 hex (16 bytes) | encrypted, 58-76 hex |
+| 39400 | `$krb5pa$23$` (11 chars) | 0-511 chars | 0-511 chars | 32 hex (16 bytes) | encrypted, 58-76 hex |
 | 19800 | `$krb5pa$17$` (11 chars) | 1-511 chars | 1-511 chars | 24 hex (12 bytes) | encrypted, 80-88 hex |
-| 19900 | `$krb5pa$18$` | as 19800 | as 19800 | as 19800 | as 19800 |
+| 19900 | `$krb5pa$18$` (11 chars) | 1-511 chars | 1-511 chars | 24 hex (12 bytes) | encrypted, 80-88 hex |
 | 39000 | `$krb5pa$3$` (10 chars) | 1-127 chars | 1-127 chars | 32 hex (16 bytes) | encrypted, 32-224 hex; checksum plus encrypted a multiple of 16 |
-| 39300 | `$krb5pa$1$` | as 39000 | as 39000 | as 39000 | as 39000 |
+| 39300 | `$krb5pa$1$` (10 chars) | 1-127 chars | 1-127 chars | 32 hex (16 bytes) | encrypted, 32-224 hex; checksum plus encrypted a multiple of 16 |
 | 28800 | `$krb5db$17$` (11 chars) | 1-511 chars | 1-511 chars | none | key, 32 hex (16 bytes) |
-| 28900 | `$krb5db$18$` | as 28800 | as 28800 | none | key, 64 hex (32 bytes) |
+| 28900 | `$krb5db$18$` (11 chars) | 1-511 chars | 1-511 chars | none | key, 64 hex (32 bytes) |
 | 38400 | `$krb5db$1$`, `$krb5db$2$` or `$krb5db$3$` (10 chars) | 1-127 chars | 1-127 chars | none | key, 16 hex (8 bytes) |
 | 31300 | `$sntp-ms$` (9 chars) | none | none | MD5 digest, 32 hex | salt (NTP response header), 96 hex (48 bytes) |
 | No mode, `$sntp-ms-sha512$` | `$sntp-ms-sha512$` | RID, 1-10 digits | none | HMAC-SHA512 digest, 128 hex (64 bytes) | salt (NTP response header), 96 hex (48 bytes) |
 
-In every DES mode (38400, 38500, 38600, 39000, 39100, 39200, 39300) user plus realm may be at most 128 bytes together. The NT-hash modes 35300, 35400 and 39400 are covered in [their own section](#nt-hash-input).
+In every DES mode (38400, 38500, 38600, 39000, 39100, 39200, 39300) user plus realm may be at most 128 bytes together. Modes 35300, 35400 and 39400 take 32-hex NT hashes as candidates, not passwords; that is described in [their own section](#nt-hash-input).
 
 ## Parser rules
 
