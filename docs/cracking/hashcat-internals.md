@@ -41,16 +41,16 @@ Most modes accept more than one line shape. hashcat prints a cracked hash back i
 
 What each mode accepts in its canonical line. Every field is delimited by `$`. The other shapes a mode loads, and how hashcat tells them apart, are in the per-mode sections below.
 
-| Mode | Signature | User | Realm | Checksum | Data field |
+| Mode | Prefix | User | Realm | Checksum | Data field |
 |------|-----------|------|-------|----------|------------|
-| 13100 | `$krb5tgs$` (9 chars), then etype `23` (2 digits) | 0-511 chars | 0-511 chars | 32 hex (16 bytes) | edata2, 64-40958 hex |
-| 35300 | `$krb5tgs$` (9 chars), then etype `23` (2 digits) | 0-511 chars | 0-511 chars | 32 hex (16 bytes) | edata2, 64-40958 hex |
+| 13100 | `$krb5tgs$23$` (12 chars) | 0-511 chars | 0-511 chars | 32 hex (16 bytes) | edata2, 64-40958 hex |
+| 35300 | `$krb5tgs$23$` (12 chars) | 0-511 chars | 0-511 chars | 32 hex (16 bytes) | edata2, 64-40958 hex |
 | 19600 | `$krb5tgs$17$` (12 chars) | 1-511 chars | 1-511 chars | 24 hex (12 bytes) | edata2, 64-40960 hex |
 | 19700 | `$krb5tgs$18$` (12 chars) | 1-511 chars | 1-511 chars | 24 hex (12 bytes) | edata2, 64-40960 hex |
 | 38500 | `$krb5tgs$3$` (11 chars) | 1-127 chars | 1-127 chars | 32 hex (16 bytes) | edata2, 64-40960 hex, a multiple of 16 |
 | 39100 | `$krb5tgs$1$` (11 chars) | 1-127 chars | 1-127 chars | 32 hex (16 bytes) | edata2, 64-40960 hex, a multiple of 16 |
-| 18200 | `$krb5asrep$` (11 chars), then etype `23` (2 digits) | 0-511 chars | 0-511 chars | 32 hex (16 bytes) | edata2, 64-40958 hex |
-| 35400 | `$krb5asrep$` (11 chars), then etype `23` (2 digits) | 0-511 chars | 0-511 chars | 32 hex (16 bytes) | edata2, 64-40958 hex |
+| 18200 | `$krb5asrep$23$` (14 chars) | 0-511 chars | 0-511 chars | 32 hex (16 bytes) | edata2, 64-40958 hex |
+| 35400 | `$krb5asrep$23$` (14 chars) | 0-511 chars | 0-511 chars | 32 hex (16 bytes) | edata2, 64-40958 hex |
 | 32100 | `$krb5asrep$17$` (14 chars) | 1-511 chars | 1-511 chars | 24 hex (12 bytes) | edata2, 64-40960 hex |
 | 32100, JtR shape | `$krb5asrep$17$` (14 chars) | salt, 1-511 chars | none | 24 hex (12 bytes), after the data | edata2, 64-40960 hex |
 | 32200 | `$krb5asrep$18$` (14 chars) | 1-511 chars | 1-511 chars | 24 hex (12 bytes) | edata2, 64-40960 hex |
@@ -99,7 +99,7 @@ User and realm are labels and may be empty. Only checksum and edata2 matter: the
 |-------|---------------|
 | `$krb5tgs$23$*user$realm$spn*$checksum$edata2` (Rubeus, Impacket) | `23$` is followed by `*` |
 | `$krb5tgs$23$checksum$edata2` (bare) | `23$` is followed by fewer than three more `$` |
-| `$krb5tgs$spn:checksum$edata2` (JtR) | the signature is not followed by `23$` |
+| `$krb5tgs$spn:checksum$edata2` (JtR) | `$krb5tgs$` is not followed by `23$` |
 
 The canonical shape is chosen when `23$` is followed by at least three more `$`. The `*...*` block may be up to 2046 chars (2047 counting the `$` that follows it), the JtR SPN 0-2047 chars.
 
@@ -168,7 +168,7 @@ Two other shapes load:
 | Shape | Detected when |
 |-------|---------------|
 | `$krb5asrep$23$user@realm:checksum$edata2` (Impacket GetNPUsers) | `23$` is present and the line has a `:` |
-| `$krb5asrep$user@realm:checksum$edata2` (no etype) | the signature is not followed by `23$` |
+| `$krb5asrep$user@realm:checksum$edata2` (no etype) | `$krb5asrep$` is not followed by `23$` |
 
 The canonical shape is chosen when `23$` is present and there is no `:`. In every shape the principal is a label; only checksum and edata2 are used.
 
