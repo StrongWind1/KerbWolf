@@ -32,6 +32,8 @@ $krb5tgs$23$sql_svc$CORP.LOCAL$<checksum>$<edata2>
 $krb5tgs$18$backup_svc$CORP.LOCAL$<checksum>$<edata2>
 ```
 
+Loading these lines needs hashcat built from its master branch. The v8.0.0 release predates this line layout for mode 13100 and several others; the [mode matrix](https://strongwind.dev/KerbWolf/cracking/hash-reference/#mode-matrix) lists which.
+
 ## Features
 
 - **Four attacks**: TGS-REP Roast (Kerberoast), AS-REP Roast, AS-REQ pre-auth from captures (passive), and Timeroasting (unauthenticated MS-SNTP, only a valid RID needed).
