@@ -26,7 +26,7 @@ Behaviour shared by more than one command: who needs credentials, how the domain
 
 What the credentials are used for differs by tool. `kw-roast` uses them to get a TGT (or takes the TGT from the ccache) and to bind to LDAP. `kw-asrep` and `kw-timeroast` send their attack without any; credentials there are only for the LDAP bind behind `--ldap`. `kw-tgt` uses them to request the TGT it saves.
 
-In `kw-roast` and `kw-asrep`, `-d` and `-u` are optional with `-k -c`: the domain and username are read from the ccache. The ccache can also come from `KRB5CCNAME`.
+In `kw-roast` and `kw-asrep`, `-d` and `-u` are optional with `-k -c`: the domain and username are read from the ccache. The ccache can also come from `KRB5CCNAME`. A ccache is used only with `-k`; `-c` without it is ignored with a warning.
 
 ## Finding the domain controller
 

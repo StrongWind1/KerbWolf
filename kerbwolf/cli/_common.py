@@ -129,7 +129,9 @@ def resolve_context(args: argparse.Namespace, logger: Logger) -> KerberosContext
     use_kerberos = getattr(args, "kerberos", False)
     ccache_path = getattr(args, "ccache", None) or _env_ccache()
 
-    if ccache_path is not None and not use_kerberos:
+    # Only for a ccache named on the command line: KRB5CCNAME may simply be set
+    # in the environment of someone who is authenticating another way.
+    if getattr(args, "ccache", None) and not use_kerberos:
         logger.warning("-c/--ccache provided without -k/--kerberos. Add -k to use Kerberos auth.")
 
     if use_kerberos and ccache_path is not None:

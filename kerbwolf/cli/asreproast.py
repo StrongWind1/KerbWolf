@@ -80,9 +80,6 @@ def _validate(args: argparse.Namespace, logger: Logger) -> None:
     has_ldap = args.ldap or args.ldap_all
     has_targets = args.target or args.targets_file
 
-    if args.ccache and not args.kerberos:
-        logger.warning("-c/--ccache provided without -k/--kerberos. Add -k to use Kerberos auth.")
-
     # NTLM auth requires both user and secret
     if args.user and not args.password and not args.hashes and not has_kerberos:
         logger.error("-u/--user requires -p/--password or -H/--hashes.")

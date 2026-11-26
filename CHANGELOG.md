@@ -26,6 +26,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `kw-extract` no longer fails on an AS-REQ that has no padata field.
 - `kw-extract` finds an AP-REQ that has no GSS-API header in front of it, as Impacket's LDAP bind sends it. It looked for the header, not the message.
 - `kw-timeroast -R` accepts a comment after a range and reports a line that is not a range by file name and line number. Both ended in a traceback.
+- `kw-roast` and `kw-asrep` print the warning for `-c` without `-k` once, not twice, and no longer print it when `KRB5CCNAME` is merely set in the environment.
 - `kw-extract` reads the NTLM challenge from an SMB1 session setup response with extended security. Only the request form was parsed, so such a logon was dropped for lack of a challenge.
 - `kw-extract` reads an SMTP NTLM challenge that follows an empty `334` prompt, as Postfix sends one. The pattern ran across the line break and skipped the challenge line.
 

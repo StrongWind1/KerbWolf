@@ -148,3 +148,32 @@ class TestResolveEnctype:
         """Key type forces etype, -e is ignored."""
         result = self._resolve(["-d", "D", "-u", "u", "--aes256-key", "bb" * 32, "-e", "rc4"])
         assert result == ["aes256"]
+
+
+class TestCcacheWithoutKerberosWarnsOnce:
+    """The warning comes from resolve_context alone, so a run prints it once."""
+
+    ARGV = ("-d", "evil.corp", "--dc-ip", "10.0.0.1", "-u", "admin", "-p", "pw", "-c", "admin.ccache")
+
+    def _run(self, module, extra, capsys):
+        from unittest.mock import patch
+
+        from kerbwolf.cli._common import resolve_context
+        from kerbwolf.log import Logger
+
+        args = module._build_parser().parse_args([*self.ARGV, *extra])
+        logger = Logger()
+        module._validate(args, logger)
+        with patch("kerbwolf.cli._common.resolve_srv", return_value=None):
+            resolve_context(args, logger)
+        return capsys.readouterr().err.count("without -k")
+
+    def test_kw_roast(self, capsys):
+        from kerbwolf.cli import kerberoast
+
+        assert self._run(kerberoast, ("-t", "svc_sql"), capsys) == 1
+
+    def test_kw_asrep(self, capsys):
+        from kerbwolf.cli import asreproast
+
+        assert self._run(asreproast, ("-t", "jsmith"), capsys) == 1

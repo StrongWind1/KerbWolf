@@ -233,6 +233,14 @@ class TestResolveContextCcache:
             ctx = resolve_context(args, Logger())
         assert "ccache" in capsys.readouterr().err.lower() or ctx.dc_ip == "10.0.0.1"
 
+    @patch("kerbwolf.cli._common._env_ccache", return_value="/tmp/env.ccache")
+    def test_ccache_from_the_environment_alone_does_not_warn(self, mock_env, capsys):
+        """KRB5CCNAME set in the environment is not "-c given without -k"."""
+        args = _make_args(domain="evil.corp")
+        with patch("kerbwolf.cli._common.resolve_srv", return_value=None), patch("kerbwolf.cli._common.resolve_host", return_value="10.0.0.1"):
+            resolve_context(args, Logger())
+        assert "without -k" not in capsys.readouterr().err
+
     @patch("kerbwolf.cli._common._env_ccache", _no_env_ccache)
     @patch("kerbwolf.cli._common.get_ccache_info", return_value=("admin", "evil.corp"))
     @patch("kerbwolf.cli._common.resolve_srv", return_value=None)

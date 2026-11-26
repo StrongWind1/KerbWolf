@@ -84,10 +84,6 @@ def _validate(args: argparse.Namespace, logger: Logger) -> None:
     has_targets = args.target or args.targets_file
     has_no_preauth = bool(args.no_preauth)
 
-    # -c without -k warning (already in resolve_context, but validate early)
-    if args.ccache and not args.kerberos:
-        logger.warning("-c/--ccache provided without -k/--kerberos. Add -k to use Kerberos auth.")
-
     # NTLM auth requires both user and secret
     if args.user and not args.password and not args.hashes and not has_kerberos and not has_no_preauth:
         logger.error("-u/--user requires -p/--password or -H/--hashes.")
