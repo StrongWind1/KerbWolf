@@ -135,7 +135,7 @@ Examples:
     | `both` | `previous` | 2 | `hashes-previous-md5.txt`, `hashes-previous-sha512.txt` |
     | `both` | `both` | 3 | All three |
 
-- **IPv4 only.** NTP requests are sent over an IPv4 UDP socket.
+- **IPv4 and IPv6.** The DC can be given as an address of either family or as a hostname. A name that does not resolve is reported and nothing is sent.
 - **Verbosity.** `-v` for info, `-vv` for debug.
 
 ## Output

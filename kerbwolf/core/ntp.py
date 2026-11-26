@@ -29,12 +29,15 @@ import hmac
 import logging
 import struct
 from select import select
-from socket import AF_INET, SOCK_DGRAM, socket
+from socket import SOCK_DGRAM, gaierror, getaddrinfo, socket
 from time import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
+
+from kerbwolf.models import KerbWolfError
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
+    from socket import AddressFamily
 
 _log = logging.getLogger(__name__)
 
@@ -367,7 +370,7 @@ def ntp_roast(
     """Send NTP requests for a sequence of RIDs and collect responses.
 
     Args:
-        dc_ip: Domain controller IP or hostname.
+        dc_ip: Domain controller address (IPv4 or IPv6) or hostname.
         rids: RID values to query.
         rate: Queries per second (default 180).
         timeout: Give up after this many seconds of silence.
@@ -388,7 +391,9 @@ def ntp_roast(
     results: list[NtpResponse] = []
     seen_rids: set[int] = set()
 
-    with socket(AF_INET, SOCK_DGRAM) as sock:
+    family, target = _resolve_target(dc_ip, port)
+
+    with socket(family, SOCK_DGRAM) as sock:
         _bind_socket(sock, src_port)
 
         query_interval = 1.0 / rate
@@ -399,7 +404,7 @@ def ntp_roast(
             query_rid = next(rid_iter, None)
             if query_rid is not None:
                 pkt = build_fn(query_rid, old_pwd=old_pwd)
-                sock.sendto(pkt, (dc_ip, port))
+                sock.sendto(pkt, target)
                 _log.debug("Sent RID %d (%s, old=%s)", query_rid, fmt, old_pwd)
 
             ready, _, _ = select([sock], [], [], query_interval)
@@ -421,9 +426,21 @@ def ntp_roast(
 # ---------------------------------------------------------------------------
 
 
-def _bind_socket(sock: socket, src_port: int) -> None:
+def _resolve_target(host: str, port: int) -> tuple[AddressFamily, Any]:
+    """Resolve the DC to a UDP socket address and its family, IPv4 or IPv6."""
     try:
-        sock.bind(("0.0.0.0", src_port))  # noqa: S104
+        infos = getaddrinfo(host, port, type=SOCK_DGRAM)
+    except gaierror as exc:
+        msg = f"Cannot resolve {host}: {exc.strerror or exc}"
+        raise KerbWolfError(msg) from exc
+    family, _socktype, _proto, _canonname, sockaddr = infos[0]
+    return family, sockaddr
+
+
+def _bind_socket(sock: socket, src_port: int) -> None:
+    # An empty host is the wildcard address of whichever family the socket has.
+    try:
+        sock.bind(("", src_port))
     except PermissionError:
         msg = f"Cannot bind to port {src_port}. Run as root or use --src-port 0."
         raise PermissionError(msg) from None

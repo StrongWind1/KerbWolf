@@ -249,3 +249,68 @@ class TestComputeExtendedChecksum:
         r1 = compute_extended_checksum(b"\x11" * 16, 1000, b"\x33" * 48)
         r2 = compute_extended_checksum(b"\x11" * 16, 1000, b"\x44" * 48)
         assert r1 != r2
+
+
+# ---------------------------------------------------------------------------
+# Target resolution: IPv4, IPv6 and names that do not resolve
+# ---------------------------------------------------------------------------
+
+
+class TestTargetFamily:
+    def test_ipv4_literal(self):
+        import socket
+
+        from kerbwolf.core.ntp import _resolve_target
+
+        family, addr = _resolve_target("192.0.2.1", 123)
+        assert family == socket.AF_INET
+        assert addr[:2] == ("192.0.2.1", 123)
+
+    def test_ipv6_literal(self):
+        import socket
+
+        from kerbwolf.core.ntp import _resolve_target
+
+        family, addr = _resolve_target("2001:db8::1", 123)
+        assert family == socket.AF_INET6
+        assert addr[:2] == ("2001:db8::1", 123)
+
+    def test_unresolvable_name_is_a_clean_error(self):
+        import pytest
+
+        from kerbwolf.core.ntp import _resolve_target
+        from kerbwolf.models import KerbWolfError
+
+        with pytest.raises(KerbWolfError, match=r"Cannot resolve no-such-host\.invalid"):
+            _resolve_target("no-such-host.invalid", 123)
+
+    def test_roast_over_ipv6_loopback(self):
+        """A request sent to ``::1`` is answered and parsed like one sent over IPv4."""
+        import socket
+        import threading
+
+        import pytest
+
+        from kerbwolf.core.ntp import ntp_roast
+
+        try:
+            server = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
+            server.bind(("::1", 0))
+        except OSError:
+            pytest.skip("no IPv6 loopback here")
+        port = server.getsockname()[1]
+        server.settimeout(5)
+
+        def answer() -> None:
+            request, peer = server.recvfrom(256)
+            server.sendto(request[:52] + b"\x11" * 16, peer)
+
+        thread = threading.Thread(target=answer, daemon=True)
+        thread.start()
+        try:
+            responses = ntp_roast("::1", [1000], port=port, timeout=1.0, rate=50)
+        finally:
+            thread.join(timeout=5)
+            server.close()
+
+        assert [r.rid for r in responses] == [1000]

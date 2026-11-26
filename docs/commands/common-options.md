@@ -11,7 +11,7 @@ Behaviour shared by more than one command: who needs credentials, how the domain
 | **Credential types** | Password, NT hash, ccache | Password, NT hash, ccache, for LDAP only | Password, NT hash, ccache, for LDAP only | None | Password, NT hash, per-etype key |
 | **LDAP discovery** | `--ldap`, `--ldap-all` | `--ldap`, `--ldap-all` | `--ldap` | No | No |
 | **Finds the DC** | DNS and flags | DNS and flags | No lookup, the DC is an argument | No DC | DNS and flags |
-| **IPv6** | Yes | Yes | No, IPv4 only | Yes | Yes |
+| **IPv6** | Yes | Yes | Yes | Yes | Yes |
 | **Encryption types** | Five, chosen with `-e` | Five, chosen with `-e` | Not Kerberos | All seven, whatever the capture holds | Five, chosen with `-e` or a key flag |
 | **Existing output file** | Kept | Kept | Kept | Kept | Replaced |
 
@@ -92,5 +92,5 @@ For `kw-roast` and `kw-asrep` the list is a request, not a guarantee:
 
 - **TCP and UDP.** `--transport` selects the Kerberos transport and defaults to `tcp`. With `udp`, a reply that is too large makes the request fall back to TCP automatically.
 - **Timeout.** `--timeout` is the network timeout in seconds, 10 by default.
-- **IPv4 and IPv6.** Both work for Kerberos requests, DC resolution and pcap parsing. `kw-timeroast` sends over IPv4 only.
+- **IPv4 and IPv6.** Both work for Kerberos requests, NTP requests, DC resolution and pcap parsing.
 - **DNS.** DC discovery uses the SRV record first, then A/AAAA.

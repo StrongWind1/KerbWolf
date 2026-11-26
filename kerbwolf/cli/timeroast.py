@@ -437,7 +437,7 @@ def main(argv: list[str] | None = None) -> None:
             password=args.password,
             fmt=args.fmt,
         )
-    except PermissionError as exc:
+    except (PermissionError, KerbWolfError) as exc:
         logger.error("%s", exc)  # noqa: TRY400
         return
     except KeyboardInterrupt:
