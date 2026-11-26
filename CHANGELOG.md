@@ -10,6 +10,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - `kw-extract` reads Kerberos AP-REQ service tickets carried by SMB, HTTP (WinRM/IIS), LDAP and DCE-RPC, so a capture of client-to-service traffic yields Kerberoast hashes with no port 88 packets. A ticket is reported once per capture: from its TGS-REP when present, otherwise from the first AP-REQ that carries it.
 
+### Changed
+
+- Restructured the docs. Pages are grouped as Commands, Cracking, Troubleshooting and Background, and every old page address redirects to its new one. Three pages are new: Common options (credentials, DC resolution, LDAP discovery, `-e`), Troubleshooting (a symptom table, and the rule that the user and realm fields are the salt for AES and DES) and Timeroasting. Command pages open with examples and share one layout. Tables that restated each other were merged and nine redundant diagrams removed; nothing else was dropped.
+- The docs install from PyPI, and the remaining diagrams are readable in the light theme.
+
 ## [2.0.0] - 2026-11-15
 
 ### Added
