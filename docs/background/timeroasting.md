@@ -30,14 +30,14 @@ sequenceDiagram
     participant Attacker
     participant DC as Domain Controller
 
-    rect rgb(60, 40, 40)
+    rect rgba(214, 69, 69, 0.12)
     Note over Attacker,DC: 68-byte Authenticator (MD5)
     Attacker->>DC: NTP request (RID=1000 in Key Identifier)
     DC-->>Attacker: NTP response + MD5(NT_hash || response[:48])
     Note over Attacker: Crack with hashcat -m 31300
     end
 
-    rect rgb(40, 40, 60)
+    rect rgba(124, 111, 224, 0.12)
     Note over Attacker,DC: 120-byte ExtendedAuthenticator (KDF+HMAC-SHA512)
     Attacker->>DC: NTP request (RID=1000, Flags=0x01)
     DC-->>Attacker: NTP response + HMAC-SHA512(KDF(NT_hash, RID), response[:48])

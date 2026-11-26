@@ -165,8 +165,8 @@ flowchart LR
         A6 -->|No| A1
     end
 
-    style R6 fill:#1a3a1a,stroke:#6bcb77
-    style A7 fill:#1a3a1a,stroke:#6bcb77
+    style R6 fill:#2f9e441f,stroke:#2f9e44
+    style A7 fill:#2f9e441f,stroke:#2f9e44
 ```
 
 ---

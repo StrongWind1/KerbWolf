@@ -14,7 +14,7 @@ sequenceDiagram
     participant KDC as KDC (Domain Controller)
     participant Service
 
-    rect rgb(40, 40, 60)
+    rect rgba(124, 111, 224, 0.12)
     Note over Client,KDC: Step 1 — Get a TGT
     Client->>KDC: AS-REQ (I am admin, here's my encrypted timestamp)
     Note over Client,KDC: AS-REQ Pre-Auth cracks this timestamp
@@ -22,14 +22,14 @@ sequenceDiagram
     Note over Client,KDC: AS-REP Roast cracks this reply
     end
 
-    rect rgb(40, 60, 40)
+    rect rgba(47, 158, 68, 0.12)
     Note over Client,Service: Step 2 — Get a service ticket
     Client->>KDC: TGS-REQ (I want access to MSSQLSvc/db01, here's my TGT)
     KDC-->>Client: TGS-REP (here's a service ticket, encrypted with the service's key)
     Note over Client,KDC: TGS-REP Roast cracks this ticket
     end
 
-    rect rgb(60, 40, 40)
+    rect rgba(214, 69, 69, 0.12)
     Note over Client,Service: Step 3 — Access the service
     Client->>Service: AP-REQ (here's my service ticket)
     Service-->>Client: AP-REP (access granted)

@@ -32,17 +32,17 @@ flowchart LR
 
     subgraph SHA2_PATH["AES-SHA2 (etype 19, 20)"]
         direction TB
-        S1["+ Salt: etype_name + \\x00 + REALMusername"]
+        S1["+ Salt: etype_name + \x00 + REALMusername"]
         S2["PBKDF2-SHA256/384<br/>4096 iterations"]
         S3["KDF-HMAC-SHA2"]
         S4["128 or 256-bit AES key"]
         S1 --> S2 --> S3 --> S4
     end
 
-    style RC4_PATH fill:#4a2020,stroke:#ff6b6b
-    style DES_PATH fill:#4a4a20,stroke:#ffd93d
-    style AES_PATH fill:#1a3a1a,stroke:#6bcb77
-    style SHA2_PATH fill:#1a2a3a,stroke:#6b9bcb
+    style RC4_PATH fill:#d645451f,stroke:#d64545
+    style DES_PATH fill:#b7791f1f,stroke:#b7791f
+    style AES_PATH fill:#2f9e441f,stroke:#2f9e44
+    style SHA2_PATH fill:#3b82c41f,stroke:#3b82c4
 ```
 
 RC4 has **no salt** and uses a single fast hash (MD4). AES-SHA1 uses a salt, 4096 PBKDF2-HMAC-SHA1 iterations and a final DK step with the constant `kerberos`. AES-SHA2 adds an etype name prefix to the salt, switches PBKDF2 to SHA-256 or SHA-384, and replaces DK with KDF-HMAC-SHA2. DES uses a salt but has a tiny 56-bit keyspace.

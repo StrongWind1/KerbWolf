@@ -42,9 +42,9 @@ flowchart LR
     Z["Packet capture<br/>(tcpdump, Wireshark)"] --> Y["kw-extract<br/>Parse pcap"]
     Y --> F
 
-    style C fill:#2a2a4a,stroke:#8b8bff
-    style F fill:#4a2020,stroke:#ff6b6b
-    style H fill:#1a3a1a,stroke:#6bcb77
+    style C fill:#7c6fe01f,stroke:#7c6fe0
+    style F fill:#d645451f,stroke:#d64545
+    style H fill:#2f9e441f,stroke:#2f9e44
 ```
 
 **With credentials**, get a TGT, Kerberoast every SPN account found over LDAP, and crack:
