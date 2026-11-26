@@ -1288,6 +1288,68 @@ class TestSmb1BasicSecurity:
         assert extract_ntlm_from_stream(setup, self.CLIENT_TO_SERVER, 445, {}) == []
 
 
+def _smb1_ext_session_setup_request(blob: bytes) -> bytes:
+    """SESSION_SETUP_ANDX request with extended security: 12 parameter words."""
+    params = b"\xff\x00\x00\x00" + struct.pack("<HHHIHII", 4356, 50, 1, 0, len(blob), 0, 0x80000000)
+    data = blob + b"Unix\x00Samba\x00"
+    return _smb1_header(0x73) + bytes([12]) + params + struct.pack("<H", len(data)) + data
+
+
+def _smb1_ext_session_setup_response(blob: bytes) -> bytes:
+    """SESSION_SETUP_ANDX response with extended security: 4 parameter words."""
+    params = b"\xff\x00\x00\x00" + struct.pack("<HH", 0, len(blob))
+    data = blob + b"Unix\x00Samba\x00"
+    return _smb1_header(0x73, reply=True) + bytes([4]) + params + struct.pack("<H", len(data)) + data
+
+
+class TestSmb1ExtendedSecurity:
+    SERVER_TO_CLIENT = ("10.0.0.2", 445, "10.0.0.1", 50000)
+    CLIENT_TO_SERVER = ("10.0.0.1", 50000, "10.0.0.2", 445)
+
+    def test_challenge_in_the_response_pairs_with_the_type3_in_the_request(self):
+        from kerbwolf.core.ntlmssp import extract_ntlm_from_stream
+
+        challenge = bytes.fromhex("0102030405060708")
+        sessions: NtlmSessions = {}
+
+        response = _netbios(_smb1_ext_session_setup_response(_build_ntlmssp_type2(challenge)))
+        assert extract_ntlm_from_stream(response, self.SERVER_TO_CLIENT, 445, sessions) == []
+        assert sessions[self.SERVER_TO_CLIENT] == challenge
+
+        request = _netbios(_smb1_ext_session_setup_request(_build_ntlmssp_type3(user="alice", domain="CORP")))
+        results = extract_ntlm_from_stream(request, self.CLIENT_TO_SERVER, 445, sessions)
+
+        assert results
+        assert results[0].username == "alice"
+        assert results[0].realm == "CORP"
+        assert results[0].challenge_hex == challenge.hex()
+
+    def test_response_blob_is_read_at_the_response_offset(self):
+        from kerbwolf.core.ntlmssp import _extract_smb1_session_setup_blob
+
+        token = _build_ntlmssp_type2()
+        assert _extract_smb1_session_setup_blob(_smb1_ext_session_setup_response(token)) == token
+        assert _extract_smb1_session_setup_blob(_smb1_ext_session_setup_request(token)) == token
+
+    def test_word_count_and_direction_have_to_agree(self):
+        from kerbwolf.core.ntlmssp import _extract_smb1_session_setup_blob
+
+        token = _build_ntlmssp_type2()
+        as_request = bytearray(_smb1_ext_session_setup_response(token))
+        as_request[9] = 0x00  # 4 parameter words without the reply flag
+        as_reply = bytearray(_smb1_ext_session_setup_request(token))
+        as_reply[9] = 0x80  # 12 parameter words with the reply flag
+        assert _extract_smb1_session_setup_blob(bytes(as_request)) is None
+        assert _extract_smb1_session_setup_blob(bytes(as_reply)) is None
+
+    def test_truncated_response_yields_nothing(self):
+        from kerbwolf.core.ntlmssp import _extract_smb1_session_setup_blob
+
+        message = _smb1_ext_session_setup_response(_build_ntlmssp_type2())
+        assert _extract_smb1_session_setup_blob(message[:40]) is None
+        assert _extract_smb1_session_setup_blob(message[:33]) is None
+
+
 class TestHttpNegotiateScheme:
     def test_bare_ntlmssp_under_negotiate(self):
         import base64

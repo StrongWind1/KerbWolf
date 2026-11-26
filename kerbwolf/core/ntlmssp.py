@@ -75,6 +75,12 @@ _SMB1_SESSION_SETUP = 0x73
 _SMB1_HEADER_LEN = 32
 _SMB1_FLAGS_REPLY = 0x80
 _SMB1_NEGOTIATE_NTLM012_WORDS = 17  # WordCount of an NT LM 0.12 negotiate response
+# SESSION_SETUP_ANDX with extended security: WordCount of the request and of the
+# response, and where SecurityBlobLength sits among the parameter words of each.
+_SMB1_SESSION_SETUP_EXT_REQUEST_WORDS = 12
+_SMB1_SESSION_SETUP_EXT_REQUEST_BLOB_LEN = 14
+_SMB1_SESSION_SETUP_EXT_RESPONSE_WORDS = 4
+_SMB1_SESSION_SETUP_EXT_RESPONSE_BLOB_LEN = 6
 _SMB1_CAP_EXTENDED_SECURITY = 0x80000000
 _SMB1_CHALLENGE_LEN = 8
 _SMB2_SESSION_SETUP = 0x0001
@@ -487,34 +493,30 @@ def _extract_smb2_session_setup_blob(data: bytes) -> bytes | None:
 
 
 def _extract_smb1_session_setup_blob(data: bytes) -> bytes | None:
-    """Extract security blob from an SMB1 SESSION_SETUP_ANDX (WordCount=12)."""
-    if len(data) < 37:  # noqa: PLR2004 - 32-byte header + 1 WC + min params
+    """Extract the security blob from an SMB1 SESSION_SETUP_ANDX with extended security.
+
+    The request has 12 parameter words and carries the client's NTLMSSP Type 1
+    and Type 3; the response has 4 and carries the server's Type 2 challenge
+    ([MS-SMB] 2.2.4.6).  SecurityBlobLength sits at a different offset in each.
+    """
+    params_start = _SMB1_HEADER_LEN + 1
+    if len(data) < params_start or data[4] != _SMB1_SESSION_SETUP:
         return None
 
-    # SMB1 command at offset 4.
-    if data[4] != _SMB1_SESSION_SETUP:
+    word_count = data[_SMB1_HEADER_LEN]
+    is_reply = bool(data[9] & _SMB1_FLAGS_REPLY)
+    if word_count == _SMB1_SESSION_SETUP_EXT_REQUEST_WORDS and not is_reply:
+        blob_len_offset = _SMB1_SESSION_SETUP_EXT_REQUEST_BLOB_LEN
+    elif word_count == _SMB1_SESSION_SETUP_EXT_RESPONSE_WORDS and is_reply:
+        blob_len_offset = _SMB1_SESSION_SETUP_EXT_RESPONSE_BLOB_LEN
+    else:
         return None
 
-    # WordCount at offset 32.
-    word_count = data[32]
-    if word_count != 12:  # noqa: PLR2004 - extended security
+    # The parameter words are followed by a 2-byte ByteCount, then the blob.
+    blob_start = params_start + word_count * 2 + 2
+    if len(data) < blob_start:
         return None
-
-    # Parameters start at offset 33, 24 bytes (12 words).
-    params_start = 33
-    if len(data) < params_start + 24:
-        return None
-
-    # SecurityBlobLength is at parameter offset 14 (2 bytes LE).
-    blob_len = struct.unpack("<H", data[params_start + 14 : params_start + 16])[0]
-
-    # ByteCount at offset 33 + 24 = 57 (2 bytes LE).
-    bc_offset = params_start + 24
-    if len(data) < bc_offset + 2:
-        return None
-
-    # Security blob starts right after ByteCount.
-    blob_start = bc_offset + 2
+    blob_len = struct.unpack("<H", data[params_start + blob_len_offset : params_start + blob_len_offset + 2])[0]
     if blob_start + blob_len > len(data):
         return None
 
