@@ -19,6 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Fixed
 
 - `kw-extract` reads the NTLM challenge from an SMB1 session setup response with extended security. Only the request form was parsed, so such a logon was dropped for lack of a challenge.
+- `kw-extract` reads an SMTP NTLM challenge that follows an empty `334` prompt, as Postfix sends one. The pattern ran across the line break and skipped the challenge line.
 
 ## [2.0.0] - 2026-11-15
 

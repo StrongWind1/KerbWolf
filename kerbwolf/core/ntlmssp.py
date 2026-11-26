@@ -844,7 +844,10 @@ def extract_ldap_simple_from_stream(buffer: bytearray) -> list[CapturedHash]:
 
 # Server challenge: "334 <base64>\r\n"
 # Client authenticate: bare "<base64>\r\n" or "AUTH NTLM <base64>\r\n"
-_SMTP_334_RE = re.compile(rb"334\s+([A-Za-z0-9+/=]+)")
+# Spaces and tabs only after the code: a server may send a bare "334 " prompt
+# before the challenge, and matching across the line break would swallow the
+# "334" that starts the challenge line.
+_SMTP_334_RE = re.compile(rb"334[ \t]+([A-Za-z0-9+/=]+)")
 _SMTP_AUTH_NTLM_RE = re.compile(rb"AUTH\s+NTLM\s+([A-Za-z0-9+/=]+)", re.IGNORECASE)
 _BARE_B64_RE = re.compile(rb"^([A-Za-z0-9+/=]{20,})\r?\n?$", re.MULTILINE)
 

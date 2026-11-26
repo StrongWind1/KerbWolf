@@ -667,6 +667,26 @@ class TestSmtpNtlmExtraction:
         assert len(tokens) == 1
         assert tokens[0][8] == 2
 
+    def test_334_challenge_after_an_empty_334_prompt(self):
+        """A bare ``334`` prompt before the challenge does not hide it."""
+        import base64
+
+        b64 = base64.b64encode(_build_ntlmssp_type2()).decode()
+        payload = f"250-AUTH NTLM PLAIN\r\n250 OK\r\n334 \r\n334 {b64}\r\n".encode()
+        tokens = _extract_smtp_ntlm_tokens(payload)
+        assert len(tokens) == 1
+        assert tokens[0][8] == 2
+
+    def test_334_text_prompt_then_challenge(self):
+        """``334 ntlm supported`` followed by the challenge line."""
+        import base64
+
+        b64 = base64.b64encode(_build_ntlmssp_type2()).decode()
+        payload = f"334 ntlm supported\r\n334 {b64}\r\n".encode()
+        tokens = _extract_smtp_ntlm_tokens(payload)
+        assert len(tokens) == 1
+        assert tokens[0][8] == 2
+
     def test_auth_ntlm_with_inline_type1(self):
         """AUTH NTLM with inline base64 Type 1."""
         import base64
