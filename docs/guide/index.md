@@ -37,7 +37,7 @@ The three encrypted blobs in this flow (AS-REQ timestamp, AS-REP response, TGS-R
 
 ## Attacks
 
-Three Kerberos attacks, three different message types. Full protocol details and diagrams are on the [Attacks in Depth](attacks.md) page.
+Three Kerberos attacks, three different message types. Full protocol details and diagrams are on the [Attacks in Depth](../background/attacks.md) page.
 
 ### TGS-REP Roast (Kerberoast)
 
@@ -70,7 +70,7 @@ Domain controllers respond to authenticated NTP requests from computer, gMSA, an
 
 ## Attack matrix
 
-KerbWolf covers three Kerberos attacks across 7 encryption types, plus timeroasting. See the [Hash Reference](hashcat-modes.md) for the full mode matrix, hash format tables, and cracking examples.
+KerbWolf covers three Kerberos attacks across 7 encryption types, plus timeroasting. See the [Hash Reference](../cracking/hash-reference.md) for the full mode matrix, hash format tables, and cracking examples.
 
 ### Timeroasting matrix
 
@@ -91,7 +91,7 @@ pip install .
 uv tool install .
 ```
 
-You'll need Python 3.11 to 3.14 and system Kerberos libraries (`libkrb5-dev` on Debian, `krb5-devel` on RHEL). See the [installation guide](../getting-started/installation.md) for details.
+You'll need Python 3.11 to 3.14 and system Kerberos libraries (`libkrb5-dev` on Debian, `krb5-devel` on RHEL). See the [installation guide](../installation.md) for details.
 
 ### Typical workflow
 
@@ -212,10 +212,10 @@ nxc smb 10.0.0.1 --generate-hosts-file /etc/hosts
 
 ## Deep dives
 
-- [Attacks in Depth](attacks.md) - protocol details, sequence diagrams, ASN.1 paths
-- [Encryption Types](encryption-types.md) - key derivation, salt, Windows version history
-- [Hash Reference](hashcat-modes.md) - modes, formats, cipher splitting, cracking examples
-- [Cracking Speed](cracking-speed.md) - measured hashcat rates per mode on an RTX 4090, and time to exhaust common keyspaces
+- [Attacks in Depth](../background/attacks.md) - protocol details, sequence diagrams, ASN.1 paths
+- [Encryption Types](../background/encryption-types.md) - key derivation, salt, Windows version history
+- [Hash Reference](../cracking/hash-reference.md) - modes, formats, cipher splitting, cracking examples
+- [Cracking Speed](../cracking/speed.md) - measured hashcat rates per mode on an RTX 4090, and time to exhaust common keyspaces
 
 ## Disclaimer
 

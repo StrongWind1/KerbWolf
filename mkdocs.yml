@@ -1,5 +1,5 @@
 site_name: KerbWolf
-site_description: "Kerberos roasting and TGT attack toolkit for Active Directory"
+site_description: Kerberos roasting and TGT attack toolkit for Active Directory
 site_url: https://strongwind.dev/KerbWolf/
 repo_url: https://github.com/StrongWind1/KerbWolf
 repo_name: StrongWind1/KerbWolf
@@ -64,6 +64,16 @@ plugins:
   # Downloads the Google Fonts requested by theme.font at build time so the
   # published site makes no third-party requests.
   - privacy
+  # Pages that moved keep their old address: each entry writes a small page at
+  # the old path that forwards to the new one, with any #fragment carried over.
+  - redirects:
+      redirect_maps:
+        getting-started/installation.md: installation.md
+        guide/attacks.md: background/attacks.md
+        guide/encryption-types.md: background/encryption-types.md
+        guide/hashcat-modes.md: cracking/hash-reference.md
+        guide/cracking-speed.md: cracking/speed.md
+        guide/hashcat-internals.md: cracking/hashcat-internals.md
 
 markdown_extensions:
   - admonition
@@ -91,20 +101,21 @@ markdown_extensions:
 
 nav:
   - Home: index.md
-  - Guide:
-      - Overview: guide/index.md
-      - Attacks in Depth: guide/attacks.md
-      - Encryption Types: guide/encryption-types.md
-      - Hash Reference: guide/hashcat-modes.md
-      - Cracking Speed: guide/cracking-speed.md
-      - Hashcat Internals: guide/hashcat-internals.md
-  - Installation: getting-started/installation.md
+  - Installation: installation.md
   - Commands:
       - kw-roast: commands/kw-roast.md
       - kw-asrep: commands/kw-asrep.md
+      - kw-timeroast: commands/kw-timeroast.md
       - kw-extract: commands/kw-extract.md
       - kw-tgt: commands/kw-tgt.md
-      - kw-timeroast: commands/kw-timeroast.md
+  - Cracking:
+      - Hash Reference: cracking/hash-reference.md
+      - Cracking Speed: cracking/speed.md
+      - Hashcat Internals: cracking/hashcat-internals.md
+  - Background:
+      - Overview: guide/index.md
+      - Attacks in Depth: background/attacks.md
+      - Encryption Types: background/encryption-types.md
 
 extra:
   social:

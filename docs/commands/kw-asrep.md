@@ -2,7 +2,7 @@
 
 AS-REP Roast. Extract hashes from accounts that don't require Kerberos pre-authentication.
 
-For a full explanation of the attack, see the [guide](../guide/index.md) and [attacks in depth](../guide/attacks.md#as-rep-roast).
+For a full explanation of the attack, see the [guide](../guide/index.md) and [attacks in depth](../background/attacks.md#as-rep-roast).
 
 ## Help
 

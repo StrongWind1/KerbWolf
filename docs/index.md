@@ -55,7 +55,7 @@ hashcat -m 13100 tgs.txt wordlist.txt      # RC4 TGS-REP
 hashcat -m 18200 asrep.txt wordlist.txt    # RC4 AS-REP
 ```
 
-See the [installation guide](getting-started/installation.md) for setup details, or jump straight to the [guide](guide/index.md).
+See the [installation guide](installation.md) for setup details, or jump straight to the [guide](guide/index.md).
 
 ## Disclaimer
 

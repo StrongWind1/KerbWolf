@@ -2,7 +2,7 @@
 
 Request a Kerberos TGT using password, hash, or key (pass-the-key). Saves a ccache file for use with `kw-roast -k -c` or any tool that reads `KRB5CCNAME`.
 
-Credential and etype selection are described under [Behaviour](#behaviour) below. For the encryption types themselves, see [encryption types](../guide/encryption-types.md).
+Credential and etype selection are described under [Behaviour](#behaviour) below. For the encryption types themselves, see [encryption types](../background/encryption-types.md).
 
 ## Help
 

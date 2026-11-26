@@ -2,7 +2,7 @@
 
 Hashcat modes, hash string formats, cipher splitting, and cracking examples for all Kerberos encryption types.
 
-See also: [encryption types](encryption-types.md) for key derivation details, [attacks](attacks.md) for protocol walkthroughs.
+See also: [encryption types](../background/encryption-types.md) for key derivation details, [attacks](../background/attacks.md) for protocol walkthroughs.
 
 ## Mode matrix
 
@@ -372,4 +372,4 @@ Mode 38400 handles etypes 1, 2, and 3 in one module (same DES string-to-key). RC
 | 20 | aes256-cts-hmac-sha384-192 | PBKDF2-SHA384 + SP800-108 | AES-256-CTS | HMAC-SHA384-192 | 8009 | |
 | 23 | rc4-hmac | MD4 (NT hash) | RC4 | HMAC-MD5 | 4757 | Deprecated |
 
-For key derivation details (salt computation, PBKDF2 parameters, SHA2 string-to-key), see [Encryption Types](encryption-types.md).
+For key derivation details (salt computation, PBKDF2 parameters, SHA2 string-to-key), see [Encryption Types](../background/encryption-types.md).

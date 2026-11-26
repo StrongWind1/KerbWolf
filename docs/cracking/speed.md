@@ -2,7 +2,7 @@
 
 Measured hashcat speed for all 21 Kerberos modes on one NVIDIA GeForce RTX 4090, and what those rates mean for how long an attack takes. The numbers come from hashcat master at commit `d62291d29`, measured on 2026-11-15. They are one data point for one card: a different GPU, driver or hashcat commit will move them.
 
-See also: [Hash Reference](hashcat-modes.md) for which mode takes which hash, [Encryption Types](encryption-types.md) for why the etypes cost what they do.
+See also: [Hash Reference](hash-reference.md) for which mode takes which hash, [Encryption Types](../background/encryption-types.md) for why the etypes cost what they do.
 
 ## Speed by etype and attack
 

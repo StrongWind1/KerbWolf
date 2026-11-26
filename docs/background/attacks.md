@@ -2,7 +2,7 @@
 
 Protocol details for each attack. What Kerberos messages get targeted, what's encrypted with whose key, and which ASN.1 fields KerbWolf pulls the cipher from.
 
-Quick overview and usage: [main guide](index.md).
+Quick overview and usage: [main guide](../guide/index.md).
 
 ---
 
