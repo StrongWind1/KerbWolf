@@ -11,10 +11,10 @@
 </p>
 
 <p align="center">
-  <a href="https://strongwind.dev/KerbWolf/getting-started/installation/">Installation</a> &bull;
+  <a href="https://strongwind.dev/KerbWolf/installation/">Installation</a> &bull;
   <a href="https://strongwind.dev/KerbWolf/#quick-start">Quick start</a> &bull;
   <a href="https://strongwind.dev/KerbWolf/commands/kw-roast/">Commands</a> &bull;
-  <a href="https://strongwind.dev/KerbWolf/guide/hashcat-modes/">Hash reference</a> &bull;
+  <a href="https://strongwind.dev/KerbWolf/cracking/hash-reference/">Hash reference</a> &bull;
   <a href="https://strongwind.dev/KerbWolf/">Documentation</a>
 </p>
 
@@ -58,7 +58,7 @@ Or install from source:
 uv tool install git+https://github.com/StrongWind1/KerbWolf
 ```
 
-See the [installation guide](https://strongwind.dev/KerbWolf/getting-started/installation/) for the system Kerberos libraries, development setup, and dependencies.
+See the [installation guide](https://strongwind.dev/KerbWolf/installation/) for the system Kerberos libraries, development setup, and dependencies.
 
 ## Quick start
 
@@ -92,7 +92,7 @@ tcpdump -i eth0 -w - 'port 88 or port 123 or port 445' | kw-extract -
 | [`kw-timeroast`](https://strongwind.dev/KerbWolf/commands/kw-timeroast/) | Timeroasting (MS-SNTP) | No (LDAP discovery needs auth) |
 | [`kw-extract`](https://strongwind.dev/KerbWolf/commands/kw-extract/) | All, from pcap/pcapng | No (offline) |
 
-The hashcat mode for every attack and etype is in the [mode matrix](https://strongwind.dev/KerbWolf/guide/hashcat-modes/#mode-matrix), the two timeroast formats in the [timeroasting matrix](https://strongwind.dev/KerbWolf/guide/#timeroasting-matrix), AES-SHA2 key derivation in [Encryption types](https://strongwind.dev/KerbWolf/guide/encryption-types/), and the NTLM transports and ports in [kw-extract](https://strongwind.dev/KerbWolf/commands/kw-extract/#ntlm-details).
+The hashcat mode for every attack and etype is in the [mode matrix](https://strongwind.dev/KerbWolf/cracking/hash-reference/#mode-matrix), the two timeroast formats in the [packet format table](https://strongwind.dev/KerbWolf/background/timeroasting/#two-packet-formats), AES-SHA2 key derivation in [Encryption types](https://strongwind.dev/KerbWolf/background/encryption-types/), and the NTLM transports and ports in [kw-extract](https://strongwind.dev/KerbWolf/commands/kw-extract/#ntlm-details).
 
 ## Development
 
