@@ -133,7 +133,8 @@ class TestTimeroastAttack:
         with patch("kerbwolf.attacks.timeroast.ntp_roast", return_value=[]) as mock:
             timeroast(dc_ip="10.0.0.1", rids=[1000], fmt="both", password="both")
         passes = [(c.kwargs["extended"], c.kwargs["old_pwd"]) for c in mock.call_args_list]
-        assert passes == [(False, False), (False, True), (True, False)]
+        # The 120-byte pass is an old-key request: the DC answers no other.
+        assert passes == [(False, False), (False, True), (True, True)]
 
     def test_open_ended_range_is_not_expanded(self):
         """A range object is handed to every pass as it is, so ``1-`` costs no memory."""
@@ -360,3 +361,48 @@ class TestSafeOutputPath:
         (tmp_path / "test_2.txt").write_text("3")
         p = safe_output_path(str(tmp_path / "test.txt"))
         assert p == tmp_path / "test_3.txt"
+
+
+# ---------------------------------------------------------------------------
+# Output labels: the 120-byte answer is the one for the previous password
+# ---------------------------------------------------------------------------
+
+
+def _result(name: str, line: str):
+    from kerbwolf.models import RoastResult
+
+    return RoastResult(username=name, realm="", spn="", etype=0, hash_string=line, hashcat_mode=0)
+
+
+class TestExtendedOutputIsLabelledPrevious:
+    def test_file_name(self, tmp_path):
+        from unittest.mock import MagicMock
+
+        from kerbwolf.cli.timeroast import _write_results
+
+        ext = [_result("1000", "$sntp-ms-sha512$1000$" + "aa" * 64 + "$" + "bb" * 48)]
+        _write_results([], [], ext, str(tmp_path / "hashes.txt"), MagicMock(), rid_prefix=False)
+        assert [p.name for p in tmp_path.iterdir()] == ["hashes-previous-sha512.txt"]
+
+    def test_log_label_and_summary(self, capsys):
+        from unittest.mock import MagicMock
+
+        from kerbwolf.cli.timeroast import _print_results
+
+        logger = MagicMock()
+        ext = [_result("WS01$", "$sntp-ms-sha512$1104$" + "aa" * 64 + "$" + "bb" * 48)]
+        _print_results([], [], ext, logger, rid_prefix=False)
+        assert logger.info.call_args.args == ("%s (%s)", "WS01$", "previous, sha512")
+        assert logger.success.call_args.args == ("%s hash(es) captured", "1 previous sha512")
+        assert capsys.readouterr().out.startswith("$sntp-ms-sha512$1104$")
+
+    def test_extended_request_is_sent_as_an_old_key_request(self):
+        from unittest.mock import patch
+
+        from kerbwolf.attacks.timeroast import timeroast
+
+        with patch("kerbwolf.attacks.timeroast.ntp_roast", return_value=[]) as roast:
+            timeroast(dc_ip="192.0.2.1", rids=[1000], fmt="extended", password="current")
+        assert roast.call_count == 1
+        assert roast.call_args.kwargs["extended"] is True
+        assert roast.call_args.kwargs["old_pwd"] is True

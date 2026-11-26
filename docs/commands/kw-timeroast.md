@@ -73,8 +73,8 @@ attack:
                         RID
   --password {current,previous,both}
                         Which password the 68-byte request asks for: current
-                        (default), previous, or both. The 120-byte format
-                        cannot select it
+                        (default), previous, or both. The 120-byte request
+                        always asks for the previous one
 
 ldap:
   --ldap                Query LDAP for machine and trust accounts (requires
@@ -123,16 +123,16 @@ Examples:
 - **No authentication needed** for blind RID scanning. LDAP mode requires credentials.
 - **Where the RIDs come from.** `--ldap` takes priority over `-r`/`-R`: when `--ldap` is set, RIDs and account names both come from LDAP, and `-d` is required. When `--ldap` is not set, `-R` provides the RIDs if given, otherwise `-r`, otherwise the default range 500-10000.
 - **RID ranges.** `-r` accepts `1`, `1-100`, `1-`, `-100`, `-` and `1-100,500-600`. An open-ended range (`1-`, `-`) runs to RID 2147483647; in practice the scan ends when the DC has been silent for `--timeout` seconds. A `-R` file holds one range per line in the same syntax; blank lines and lines that start with `#` are skipped. A comment after a range on the same line is not accepted.
-- **Requests per RID.** `--format` and `--password` together decide how many requests each RID gets. Bit 31 of the Key Identifier selects the password in the 68-byte request. The 120-byte format cannot select the password, so its request is sent once per RID whatever `--password` is set to. Its answer is keyed with the previous password when the account has one, which in practice means a trust account, and with the current password otherwise ([Password selection](../background/timeroasting.md#password-selection)).
+- **Requests per RID.** `--format` and `--password` together decide how many requests each RID gets. Bit 31 of the Key Identifier selects the password in the 68-byte request. The 120-byte request can only ask for the previous password, because the DC answers no other form, so it is sent once per RID whatever `--password` is set to, and its hashes are labelled previous. An account with no previous password, which is every machine account, answers with its current one ([Password selection](../background/timeroasting.md#password-selection)).
 
     | `--format` | `--password` | Requests per RID | Files written by `-o hashes.txt` |
     |---|---|---|---|
     | `auth` (default) | `current` (default) | 1 | `hashes-current-md5.txt` |
     | `auth` | `previous` | 1 | `hashes-previous-md5.txt` |
     | `auth` | `both` | 2 | `hashes-current-md5.txt`, `hashes-previous-md5.txt` |
-    | `extended` | any | 1 | `hashes-sha512.txt` |
-    | `both` | `current` | 2 | `hashes-current-md5.txt`, `hashes-sha512.txt` |
-    | `both` | `previous` | 2 | `hashes-previous-md5.txt`, `hashes-sha512.txt` |
+    | `extended` | any | 1 | `hashes-previous-sha512.txt` |
+    | `both` | `current` | 2 | `hashes-current-md5.txt`, `hashes-previous-sha512.txt` |
+    | `both` | `previous` | 2 | `hashes-previous-md5.txt`, `hashes-previous-sha512.txt` |
     | `both` | `both` | 3 | All three |
 
 - **IPv4 only.** NTP requests are sent over an IPv4 UDP socket.
@@ -140,13 +140,15 @@ Examples:
 
 ## Output
 
-When using `-o hashes.txt`, output is split by hash type and, for the 68-byte format, password age, into up to 3 files:
+When using `-o hashes.txt`, output is split by hash type and password age into up to 3 files:
 
 | File | Contents |
 |------|----------|
 | `hashes-current-md5.txt` | 68-byte current password hashes |
 | `hashes-previous-md5.txt` | 68-byte previous password hashes |
-| `hashes-sha512.txt` | 120-byte hashes. The format cannot select the password, so these are not split by age; for an account with a previous password they are of that one |
+| `hashes-previous-sha512.txt` | 120-byte hashes, which are always the answer for the previous password |
+
+"Previous" names what was asked for. An account with no previous password answers with its current one, so for machine accounts the previous files hold current-password hashes; only a trust account has both.
 
 Only files with at least one hash are created. An existing file is never overwritten: `_1`, `_2` and so on is appended to the name instead. If `-o` has no extension, `.txt` is used.
 

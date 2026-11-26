@@ -140,15 +140,16 @@ def build_extended_request(rid: int, *, old_pwd: bool = False) -> bytes:
     behavior on all three.
 
     Note on ``old_pwd``:
-        The 120-byte format has no working mechanism to select current vs
-        previous password.  The spec says Flags=0x00 → current, 0x01 → old,
-        but Flags=0x00 gets no response on any tested DC.  With Flags=0x01
-        always set, the DC returns whichever password it has (current for
-        machine accounts that have no history, old for trust accounts that
-        do).  The ``old_pwd`` parameter is accepted but has no effect on the
-        wire - unlike the 68-byte format where bit 31 works correctly.
+        The spec says Flags=0x00 → current, 0x01 → old, but Flags=0x00 gets
+        no response on any tested DC, so the request always asks for the old
+        key.  The answer is keyed with the previous password when the account
+        has one, and with the current password otherwise: a trust account
+        with two known passwords answered with its previous one, a machine
+        account, which keeps no history, with its current one.  The
+        ``old_pwd`` parameter is accepted but has no effect on the wire -
+        unlike the 68-byte format where bit 31 selects either.
     """
-    _ = old_pwd  # No effect on 120-byte packet; see docstring.
+    _ = old_pwd  # The packet is the same either way; see docstring.
     header = struct.pack(
         "<I B B B B",
         rid,  # Bytes 48-51: Key Identifier (full 32-bit RID)

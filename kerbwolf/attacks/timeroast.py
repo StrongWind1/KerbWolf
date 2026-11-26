@@ -194,7 +194,8 @@ def timeroast(
             results.previous = _responses_to_results(raw, rid_to_name)
 
     if fmt in (_FMT_EXTENDED, _MODE_BOTH):
-        raw = ntp_roast(dc_ip, rids, extended=True, old_pwd=False, **roast_kwargs)
+        # The DC answers a 120-byte request only when it asks for the old key.
+        raw = ntp_roast(dc_ip, rids, extended=True, old_pwd=True, **roast_kwargs)
         results.extended = _responses_to_results(raw, rid_to_name)
 
     return results

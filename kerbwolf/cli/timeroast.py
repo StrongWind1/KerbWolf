@@ -139,7 +139,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--password",
         choices=["current", "previous", "both"],
         default="current",
-        help="Which password the 68-byte request asks for: current (default), previous, or both. The 120-byte format cannot select it",
+        help="Which password the 68-byte request asks for: current (default), previous, or both. The 120-byte request always asks for the previous one",
     )
 
     # -- LDAP options ---------------------------------------------------------
@@ -277,7 +277,7 @@ def _print_results(
         logger.warning("No hashes extracted.")
         return
 
-    for label, results in (("current, md5", current), ("previous, md5", previous), ("sha512", extended)):
+    for label, results in (("current, md5", current), ("previous, md5", previous), ("previous, sha512", extended)):
         for r in results:
             logger.info("%s (%s)", r.username, label)
             print(_format_line(r, rid_prefix=rid_prefix))
@@ -288,7 +288,7 @@ def _print_results(
     if previous:
         parts.append(f"{len(previous)} previous md5")
     if extended:
-        parts.append(f"{len(extended)} sha512")
+        parts.append(f"{len(extended)} previous sha512")
     logger.success("%s hash(es) captured", ", ".join(parts))
 
 
@@ -319,13 +319,16 @@ def _write_results(
     *,
     rid_prefix: bool,
 ) -> None:
-    """Write hashes to files, split by hash type and, for the 68-byte format, password age.
+    """Write hashes to files, split by hash type and password age.
 
     Output file naming (given ``-o hashes.txt``)::
 
-        hashes-current-md5.txt     68B current password hashes
-        hashes-previous-md5.txt    68B previous password hashes
-        hashes-sha512.txt          120B hashes (the format cannot select the password)
+        hashes-current-md5.txt        68B current password hashes
+        hashes-previous-md5.txt       68B previous password hashes
+        hashes-previous-sha512.txt    120B hashes, always of the previous password
+
+    "Previous" is what was asked for.  An account with no previous password,
+    which is every machine account, answers with its current one.
 
     Files are only created when they contain at least one hash.
     """
@@ -342,7 +345,7 @@ def _write_results(
 
     _write_file(current, _path("current-md5"), logger, rid_prefix=rid_prefix, label="current md5")
     _write_file(previous, _path("previous-md5"), logger, rid_prefix=rid_prefix, label="previous md5")
-    _write_file(extended, _path("sha512"), logger, rid_prefix=rid_prefix, label="sha512")
+    _write_file(extended, _path("previous-sha512"), logger, rid_prefix=rid_prefix, label="previous sha512")
 
 
 # ---------------------------------------------------------------------------
