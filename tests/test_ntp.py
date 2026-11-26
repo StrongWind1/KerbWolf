@@ -314,3 +314,79 @@ class TestTargetFamily:
             server.close()
 
         assert [r.rid for r in responses] == [1000]
+
+
+# ---------------------------------------------------------------------------
+# Source port: bound on the address that reaches the DC, not on every interface
+# ---------------------------------------------------------------------------
+
+
+class TestSourcePort:
+    def _roast_from_fixed_port(self, family: int, loopback: str) -> tuple[object, int, list[int]]:
+        """Roast a loopback listener from a fixed source port; return the peer it saw."""
+        import socket
+        import threading
+
+        import pytest
+
+        from kerbwolf.core.ntp import ntp_roast
+
+        try:
+            server = socket.socket(family, socket.SOCK_DGRAM)
+            server.bind((loopback, 0))
+        except OSError:
+            pytest.skip(f"no {loopback} here")
+        server.settimeout(5)
+        with socket.socket(family, socket.SOCK_DGRAM) as spare:
+            spare.bind((loopback, 0))
+            src_port = spare.getsockname()[1]
+        seen: list[object] = []
+
+        def answer() -> None:
+            request, peer = server.recvfrom(256)
+            seen.append(peer)
+            server.sendto(request[:52] + b"\x11" * 16, peer)
+
+        thread = threading.Thread(target=answer, daemon=True)
+        thread.start()
+        try:
+            responses = ntp_roast(loopback, [1000], port=server.getsockname()[1], src_port=src_port, timeout=1.0, rate=50)
+        finally:
+            thread.join(timeout=5)
+            server.close()
+        return seen[0], src_port, [r.rid for r in responses]
+
+    def test_fixed_port_over_ipv4(self):
+        import socket
+
+        peer, src_port, rids = self._roast_from_fixed_port(socket.AF_INET, "127.0.0.1")
+        assert peer == ("127.0.0.1", src_port)
+        assert rids == [1000]
+
+    def test_fixed_port_over_ipv6(self):
+        import socket
+
+        peer, src_port, rids = self._roast_from_fixed_port(socket.AF_INET6, "::1")
+        assert peer[:2] == ("::1", src_port)
+        assert rids == [1000]
+
+    def test_fixed_port_is_bound_on_one_address_only(self):
+        import socket
+
+        from kerbwolf.core.ntp import _bind_socket
+
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as spare:
+            spare.bind(("127.0.0.1", 0))
+            src_port = spare.getsockname()[1]
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            _bind_socket(sock, ("127.0.0.1", 123), src_port)
+            assert sock.getsockname() == ("127.0.0.1", src_port)
+
+    def test_no_source_port_means_no_bind(self):
+        import socket
+
+        from kerbwolf.core.ntp import _bind_socket
+
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            _bind_socket(sock, ("127.0.0.1", 123), 0)
+            assert sock.getsockname()[1] == 0

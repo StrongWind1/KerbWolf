@@ -394,7 +394,7 @@ def ntp_roast(
     family, target = _resolve_target(dc_ip, port)
 
     with socket(family, SOCK_DGRAM) as sock:
-        _bind_socket(sock, src_port)
+        _bind_socket(sock, target, src_port)
 
         query_interval = 1.0 / rate
         last_ok = time()
@@ -437,10 +437,21 @@ def _resolve_target(host: str, port: int) -> tuple[AddressFamily, Any]:
     return family, sockaddr
 
 
-def _bind_socket(sock: socket, src_port: int) -> None:
-    # An empty host is the wildcard address of whichever family the socket has.
+def _bind_socket(sock: socket, target: tuple[str, int] | tuple[str, int, int, int], src_port: int) -> None:
+    """Give the socket a fixed source port on the local address that routes to *target*.
+
+    With no source port asked for there is nothing to bind: the kernel picks
+    address and port on the first send.
+    """
+    if not src_port:
+        return
+    # Connecting a UDP socket sends nothing; it only makes the kernel choose
+    # the local address for this destination.
+    with socket(sock.family, SOCK_DGRAM) as probe:
+        probe.connect(target)
+        local = probe.getsockname()
     try:
-        sock.bind(("", src_port))
+        sock.bind((local[0], src_port, *local[2:]))
     except PermissionError:
         msg = f"Cannot bind to port {src_port}. Run as root or use --src-port 0."
         raise PermissionError(msg) from None
