@@ -39,7 +39,7 @@ Loading these lines needs hashcat built from its master branch. The v8.0.0 relea
 - **Four attacks**: TGS-REP Roast (Kerberoast), AS-REP Roast, AS-REQ pre-auth from captures (passive), and Timeroasting (unauthenticated MS-SNTP, only a valid RID needed).
 - **All 7 encryption types**: DES-CBC-CRC, DES-CBC-MD5, RC4, AES128, and AES256 are requested live with `-e`; AES-SHA2 (etypes 19 and 20) comes from captures. hashcat has no mode for 19 and 20; KerbWolf still writes them in the canonical layout.
 - **25 hash formats**: 21 Kerberos, 2 MS-SNTP, and 2 NTLM (Net-NTLMv1 mode 5500, Net-NTLMv2 mode 5600).
-- **LDAP discovery**: find SPN accounts, accounts without pre-authentication, and timeroastable computer and gMSA accounts, or spray every enabled user with `--ldap-all`.
+- **LDAP discovery**: find SPN accounts, accounts without pre-authentication, and timeroastable machine and trust accounts, or spray every enabled user with `--ldap-all`.
 - **Every auth method**: password, NT hash, or ccache, with domain and username read from the ccache; `kw-tgt` also takes per-etype keys (pass-the-key).
 - **Pcap extraction**: Kerberos AS-REQ, AS-REP, and TGS-REP, plus service tickets from AP-REQs carried by SMB, HTTP, LDAP and DCE-RPC; SNTP timeroast responses; NTLMv1, NTLMv1-ESS, NTLMv2, and LMv2 from 9 transports, with TCP stream reassembly and Type 2/Type 3 pairing; LDAP simple-bind credentials.
 - **Timeroast output**: 68-byte MD5 (hashcat 31300) and 120-byte KDF+HMAC-SHA512 formats, current or previous password for the 68-byte format, and a cracking wordlist built from account names.

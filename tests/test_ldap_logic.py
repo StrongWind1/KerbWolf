@@ -375,3 +375,33 @@ class TestResolveUpns:
         with patch("kerbwolf.core.ldap._paged_search", return_value=[]) as search:
             resolve_upns(MagicMock(), "corp.local", ["a*(b)@corp.local"])
         assert "(userPrincipalName=a\\2a\\28b\\29@corp.local)" in search.call_args.args[2]
+
+
+# ---------------------------------------------------------------------------
+# find_timeroastable
+# ---------------------------------------------------------------------------
+
+
+class TestTimeroastFilter:
+    def test_filter_names_machine_and_trust_accounts_and_skips_disabled(self):
+        from kerbwolf.core.ldap import _FILTER_TIMEROASTABLE
+
+        assert "(objectClass=computer)" in _FILTER_TIMEROASTABLE
+        assert "(objectClass=msDS-GroupManagedServiceAccount)" in _FILTER_TIMEROASTABLE
+        assert "(UserAccountControl:1.2.840.113556.1.4.803:=2048)" in _FILTER_TIMEROASTABLE
+        assert "(!(UserAccountControl:1.2.840.113556.1.4.803:=2))" in _FILTER_TIMEROASTABLE
+        assert _FILTER_TIMEROASTABLE.startswith("(&(|")
+        assert _FILTER_TIMEROASTABLE.count("(") == _FILTER_TIMEROASTABLE.count(")")
+
+    def test_search_uses_the_filter_and_reads_rids(self):
+        from kerbwolf.core.ldap import _FILTER_TIMEROASTABLE, find_timeroastable
+
+        def entry(name: str, rid: int):
+            sid = b"\x01\x05" + b"\x00" * 22 + rid.to_bytes(4, "little")
+            return {"sAMAccountName": MagicMock(value=name), "objectSid": MagicMock(raw_values=[sid])}
+
+        with patch("kerbwolf.core.ldap._paged_search", return_value=[entry("WS01$", 1104), entry("OTHER$", 1200)]) as search:
+            found = find_timeroastable(MagicMock(), "corp.local")
+
+        assert search.call_args.args[2] == _FILTER_TIMEROASTABLE
+        assert [(a.samaccountname, a.rid) for a in found] == [("WS01$", 1104), ("OTHER$", 1200)]

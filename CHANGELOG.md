@@ -16,6 +16,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - The docs install from PyPI, and the remaining diagrams are readable in the light theme.
 - Checked the docs against hashcat master (`16b164c15`) and against a Server 2022 domain controller, and corrected what had drifted. Mode 39400 takes a 58-76 hex timestamp, modes 19800 and 19900 an explicit salt of up to 1022 chars, and the no-etype shape of 18200 rejects another etype's joined line. The docs now say that hashcat v8.0.0 does not load the `$user$realm$` layout in modes 7500, 13100, 18200, 19800, 19900, 35300, 35400 and 38500, so those lines need a build from master; that a user field ending in `$` (a machine account) makes hashcat reject a line; and that disabled machine accounts do not answer a timeroast request. Two timeroast statements were wrong: an enabled MSA does answer, and the 120-byte answer is keyed with the previous password when the account has one.
 
+- `kw-timeroast --ldap` leaves out disabled accounts, which never answer, and returns interdomain trust accounts, the only accounts with a previous password. Its filter was computer and gMSA objects with no other condition.
+
 ### Fixed
 
 - A machine account with no known salt is written as `host<fqdn>` in the user field. `kw-asrep`, `kw-roast` and `kw-extract` wrote `NAME$`, and hashcat rejected the line because it splits fields on `$`.

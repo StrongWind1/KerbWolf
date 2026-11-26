@@ -168,16 +168,16 @@ class TargetAccount:
 
 @dataclass(frozen=True)
 class TimeroastAccount:
-    """Computer or gMSA account discovered via LDAP for timeroasting.
+    """Machine or trust account discovered via LDAP for timeroasting.
 
-    Timeroastable object types (confirmed on Server 2022/2025):
-        - computer (objectCategory=computer)
-        - gMSA (msDS-GroupManagedServiceAccount, also objectCategory=computer)
+    Timeroastable when enabled (confirmed on Server 2022):
+        - computer, which includes an MSA (msDS-ManagedServiceAccount)
+        - gMSA (msDS-GroupManagedServiceAccount)
+        - interdomain trust account (a user object with that userAccountControl bit)
 
     NOT timeroastable:
+        - any of those while disabled
         - user (even with $ in sAMAccountName)
-        - MSA (msDS-ManagedServiceAccount)
-        - dMSA (msDS-DelegatedManagedServiceAccount)
     """
 
     samaccountname: str  # e.g. "DC01$"

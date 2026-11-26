@@ -15,7 +15,7 @@ Checked on a Windows Server 2022 DC (Build 20348). Every answer was confirmed ag
 | **Computer** | computer | **YES** |
 | **gMSA** | msDS-GroupManagedServiceAccount | **YES** |
 | **MSA** | msDS-ManagedServiceAccount | **YES** once enabled. `New-ADServiceAccount -RestrictToSingleComputer` left it disabled, and it stayed silent until it was enabled |
-| **Trust account** | user (INTERDOMAIN_TRUST_ACCOUNT) | **YES** (RID scan only — not in LDAP filter) |
+| **Trust account** | user (INTERDOMAIN_TRUST_ACCOUNT) | **YES** |
 | User (even with `$` in name) | user | No |
 | Computer, disabled | computer | No |
 | Computer object flagged as a normal account (`userAccountControl` 0x200 in place of 0x1000 or 0x2000) | computer | No |

@@ -77,7 +77,8 @@ attack:
                         cannot select it
 
 ldap:
-  --ldap                Query LDAP for computer accounts (requires auth)
+  --ldap                Query LDAP for machine and trust accounts (requires
+                        auth)
   --ldap-ssl            Use LDAPS (port 636)
   -d DOMAIN, --domain DOMAIN
                         AD domain (e.g. corp.local)

@@ -34,18 +34,19 @@ _FILTER_NO_PREAUTH_DES = "(&(UserAccountControl:1.2.840.113556.1.4.803:=4194304)
 _FILTER_DCS = "(UserAccountControl:1.2.840.113556.1.4.803:=8192)"
 _FILTER_ALL_USERS = "(&(objectCategory=person)(objectClass=user)(!(UserAccountControl:1.2.840.113556.1.4.803:=2)))"
 
-# Timeroasting: computer and gMSA objects respond to MS-SNTP.
-# Tested on Server 2022 (Build 20348) and Server 2025 (Build 26100):
-#   computer                              → YES (MD5 + SHA512)
+# Timeroasting: an enabled machine or interdomain trust account answers an
+# MS-SNTP request.  Checked on Server 2022 (Build 20348), each answer confirmed
+# against the account's NT hash:
+#   computer                               → YES (MD5 + SHA512)
 #   msDS-GroupManagedServiceAccount (gMSA) → YES (MD5 + SHA512)
-#   msDS-ManagedServiceAccount (MSA)       → NO
-#   msDS-DelegatedManagedServiceAccount    → NO
+#   msDS-ManagedServiceAccount (MSA)       → YES once enabled; it is a computer object too
+#   user with INTERDOMAIN_TRUST_ACCOUNT    → YES, and the only kind with a previous password
+#   any of the above with ACCOUNTDISABLE   → NO
 #   user (even with $ in sAMAccountName)   → NO
-# computer has objectCategory=computer, gMSA has objectCategory=ms-DS-Group-Managed-Service-Account.
-# Use objectClass to match both with a single OR filter.
-# No UAC filter - disabled accounts may still have hashes. The NTP probe
-# itself determines what actually responds.
-_FILTER_TIMEROASTABLE = "(|(objectClass=computer)(objectClass=msDS-GroupManagedServiceAccount))"
+# objectClass matches the machine accounts (gMSA has its own objectCategory, so
+# both classes are named), userAccountControl bit 2048 the trust accounts, and
+# bit 2 leaves out the disabled accounts, which never answer.
+_FILTER_TIMEROASTABLE = "(&(|(objectClass=computer)(objectClass=msDS-GroupManagedServiceAccount)(UserAccountControl:1.2.840.113556.1.4.803:=2048))(!(UserAccountControl:1.2.840.113556.1.4.803:=2)))"
 
 _ATTRS = ["sAMAccountName", "servicePrincipalName", "userAccountControl"]
 _PAGE_SIZE = 1000
@@ -257,13 +258,11 @@ def resolve_account_casing(conn: ldap3.Connection, domain: str, usernames: list[
 
 
 def find_timeroastable(conn: ldap3.Connection, domain: str) -> list[TimeroastAccount]:
-    """Find all computer and gMSA accounts (timeroastable via MS-SNTP).
+    """Find the accounts that answer an MS-SNTP request (timeroastable).
 
-    Both ``computer`` and ``msDS-GroupManagedServiceAccount`` (gMSA) objects
-    respond to MS-SNTP; the filter matches either object class, with no
-    disabled-account exclusion.  MSAs, dMSAs, and user objects do NOT respond
-    (confirmed on Server 2022/2025).  Trust accounts may respond but
-    require a separate query.
+    Those are the enabled machine accounts (``computer`` objects, which
+    include MSAs, and gMSAs) and the interdomain trust accounts.  Disabled
+    accounts and ordinary user objects do not answer and are not returned.
 
     Returns:
         List of ``TimeroastAccount`` with sAMAccountName and RID extracted

@@ -144,7 +144,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     # -- LDAP options ---------------------------------------------------------
     grp = parser.add_argument_group("ldap")
-    grp.add_argument("--ldap", action="store_true", help="Query LDAP for computer accounts (requires auth)")
+    grp.add_argument("--ldap", action="store_true", help="Query LDAP for machine and trust accounts (requires auth)")
     grp.add_argument("--ldap-ssl", action="store_true", help="Use LDAPS (port 636)")
     grp.add_argument("-d", "--domain", metavar="DOMAIN", help="AD domain (e.g. corp.local)")
     grp.add_argument("-u", "--user", metavar="USER", help="Username for LDAP auth")
@@ -186,7 +186,7 @@ def _load_rids_from_file(path: str) -> RidRanges:
 
 
 def _ldap_discover(args: argparse.Namespace, logger: Logger) -> list[TimeroastAccount]:
-    """Connect to LDAP and enumerate timeroastable computer accounts."""
+    """Connect to LDAP and enumerate the timeroastable machine and trust accounts."""
     if not args.domain:
         logger.error("--ldap requires -d/--domain")
         return []
@@ -210,7 +210,7 @@ def _ldap_discover(args: argparse.Namespace, logger: Logger) -> list[TimeroastAc
     )
 
     accounts = find_timeroastable(conn, args.domain)
-    logger.success("LDAP: %d computer account(s) found", len(accounts))
+    logger.success("LDAP: %d machine and trust account(s) found", len(accounts))
     for acct in accounts:
         logger.verbose("  RID=%-6d %s", acct.rid, acct.samaccountname)
     return accounts
