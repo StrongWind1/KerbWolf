@@ -21,7 +21,7 @@ from impacket.krb5.asn1 import AS_REP, TGS_REP
 from pyasn1.codec.der import decoder
 
 from kerbwolf.core.asreq import probe_account_salt, request_asrep_no_preauth, request_tgt
-from kerbwolf.core.crypto import ENCTYPE_TABLE
+from kerbwolf.core.crypto import ENCTYPE_TABLE, unsalted_user_field
 from kerbwolf.core.tgsreq import request_tgs_raw
 from kerbwolf.hashcat import format_tgs_hash, tgs_hashcat_mode
 from kerbwolf.models import EncryptionType, KDCError, KerberosCredential, RoastResult, TransportProtocol
@@ -106,7 +106,7 @@ def kerberoast(
         if target in salt_cache:
             username, hash_realm = salt_cache[target]
         else:
-            username, hash_realm = target, realm.upper()
+            username, hash_realm = unsalted_user_field(target, realm), realm.upper()
             if ticket_etype != EncryptionType.RC4_HMAC:
                 _log.warning("%s: salt not verified via ETYPE-INFO2 — AES hash may not crack if username casing is wrong", target)
 
@@ -179,7 +179,7 @@ def kerberoast_no_preauth(
         if target in salt_cache:
             username, hash_realm = salt_cache[target]
         else:
-            username, hash_realm = target, domain.upper()
+            username, hash_realm = unsalted_user_field(target, domain), domain.upper()
             if ticket_etype != EncryptionType.RC4_HMAC:
                 _log.warning("%s: salt not verified via ETYPE-INFO2 — AES hash may not crack if username casing is wrong", target)
 

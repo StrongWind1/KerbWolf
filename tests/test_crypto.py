@@ -9,6 +9,7 @@ from kerbwolf.core.crypto import (
     derive_all_keys,
     derive_key,
     key_from_hex,
+    unsalted_user_field,
 )
 from kerbwolf.models import EncryptionType
 
@@ -40,6 +41,25 @@ class TestComputeSalt:
     def test_dollar_only_username(self):
         salt = compute_salt("$", "d.com")
         assert salt == "D.COMhost.d.com"
+
+
+class TestUnsaltedUserField:
+    def test_user_account_is_unchanged(self):
+        assert unsalted_user_field("Admin", "corp.local") == "Admin"
+
+    def test_machine_account_becomes_the_host_form(self):
+        assert unsalted_user_field("WS01$", "corp.local") == "hostws01.corp.local"
+        assert unsalted_user_field("WS01$", "CORP.LOCAL") == "hostws01.corp.local"
+
+    def test_result_has_no_dollar(self):
+        assert "$" not in unsalted_user_field("WS01$", "corp.local")
+
+    def test_spn_is_unchanged(self):
+        assert unsalted_user_field("HTTP/web01.corp.local", "corp.local") == "HTTP/web01.corp.local"
+        assert unsalted_user_field("svc/odd$", "corp.local") == "svc/odd$"
+
+    def test_machine_account_without_a_domain_loses_the_dollar(self):
+        assert unsalted_user_field("WS01$", "") == "WS01"
 
     def test_single_part_domain(self):
         assert compute_salt("u", "LOCAL") == "LOCALu"

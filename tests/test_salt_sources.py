@@ -34,7 +34,7 @@ def _padata(*entries: tuple[int, bytes]):
     return decoder.decode(encoder.encode(method_data), asn1Spec=METHOD_DATA())[0]
 
 
-def _as_rep(*entries: tuple[int, bytes], user: str = "svc", realm: str = "CORP.LOCAL") -> bytes:
+def _as_rep(*entries: tuple[int, bytes], user: str = "svc", realm: str = "CORP.LOCAL", etype: int = 18) -> bytes:
     rep = AS_REP()
     rep["pvno"] = 5
     rep["msg-type"] = int(constants.ApplicationTagNumbers.AS_REP.value)
@@ -54,8 +54,8 @@ def _as_rep(*entries: tuple[int, bytes], user: str = "svc", realm: str = "CORP.L
     rep["ticket"]["sname"]["name-string"][1] = realm
     rep["ticket"]["enc-part"]["etype"] = 18
     rep["ticket"]["enc-part"]["cipher"] = b"\x00" * 32
-    rep["enc-part"]["etype"] = 18
-    rep["enc-part"]["cipher"] = b"\x00" * 32
+    rep["enc-part"]["etype"] = etype
+    rep["enc-part"]["cipher"] = b"\x00" * 64
     return encoder.encode(rep)
 
 
@@ -96,3 +96,52 @@ class TestSaltProbe:
         with patch("kerbwolf.core.asreq.send_receive", return_value=raw):
             result = probe_account_salt("SVC_NOPRE", "CORP.LOCAL", dc_ip="192.0.2.1", transport=TransportProtocol.TCP)
         assert result == ("Svc_NoPre", "CORP.LOCAL")
+
+
+class TestMachineNameWithoutSalt:
+    """A machine name ends in ``$``, which would split the hash line, so it is written in its host form."""
+
+    def test_kw_asrep_rc4_reply_for_a_machine_account(self):
+        from kerbwolf.attacks.asreproast import asreproast
+
+        raw = _as_rep(user="WS01$", etype=23)
+        with patch("kerbwolf.attacks.asreproast.request_asrep_no_preauth", return_value=raw):
+            results = asreproast(domain="corp.local", dc_ip="10.0.0.1", target_users=["WS01$"])
+
+        assert len(results) == 1
+        assert results[0].username == "hostws01.corp.local"
+        assert results[0].hash_string.startswith("$krb5asrep$23$hostws01.corp.local$CORP.LOCAL$")
+        assert len(results[0].hash_string.split("$")) == 7
+
+    def test_kw_extract_rc4_as_rep_for_a_machine_account(self):
+        from kerbwolf.attacks.extract import _captured_to_result
+        from kerbwolf.models import AttackType, CapturedHash
+
+        h = CapturedHash(attack=AttackType.AS_REP, username="WS01$", realm="CORP.LOCAL", spn="", etype=23, cipher_hex="ab" * 64)
+        result = _captured_to_result(h, {})
+        assert result.hash_string.startswith("$krb5asrep$23$hostws01.corp.local$CORP.LOCAL$")
+
+    def test_kw_extract_ticket_for_a_machine_account_without_a_salt(self):
+        from kerbwolf.attacks.extract import _captured_to_result
+        from kerbwolf.models import AttackType, CapturedHash
+
+        h = CapturedHash(attack=AttackType.TGS_REP, username="WS01$", realm="CORP.LOCAL", spn="WS01$", etype=18, cipher_hex="ab" * 64)
+        result = _captured_to_result(h, {})
+        assert result.hash_string.startswith("$krb5tgs$18$hostws01.corp.local$CORP.LOCAL$")
+
+    def test_kw_extract_pre_auth_for_a_machine_account_without_a_salt(self):
+        from kerbwolf.attacks.extract import _captured_to_result
+        from kerbwolf.models import AttackType, CapturedHash
+
+        h = CapturedHash(attack=AttackType.AS_REQ, username="ws01$", realm="CORP.LOCAL", spn="", etype=18, cipher_hex="ab" * 56)
+        result = _captured_to_result(h, {})
+        assert result.hash_string.startswith("$krb5pa$18$hostws01.corp.local$CORP.LOCAL$")
+
+    def test_kw_extract_keeps_an_spn_and_a_user_name(self):
+        from kerbwolf.attacks.extract import _captured_to_result
+        from kerbwolf.models import AttackType, CapturedHash
+
+        spn = CapturedHash(attack=AttackType.TGS_REP, username="HTTP/web01.corp.local", realm="CORP.LOCAL", spn="HTTP/web01.corp.local", etype=23, cipher_hex="ab" * 64)
+        user = CapturedHash(attack=AttackType.AS_REP, username="alice", realm="CORP.LOCAL", spn="", etype=23, cipher_hex="ab" * 64)
+        assert _captured_to_result(spn, {}).hash_string.startswith("$krb5tgs$23$HTTP/web01.corp.local$CORP.LOCAL$")
+        assert _captured_to_result(user, {}).hash_string.startswith("$krb5asrep$23$alice$CORP.LOCAL$")

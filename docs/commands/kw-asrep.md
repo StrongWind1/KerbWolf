@@ -94,7 +94,7 @@ Examples:
 ## Behaviour
 
 - **Requests.** One AS-REQ without pre-authentication is sent per target. Accounts that require pre-authentication answer with a KDC error and are skipped without a message; `-vv` shows them.
-- **User field.** The username in the hash is taken from the salt in the AS-REP (ETYPE-INFO2 for RC4 and AES, PA-PW-SALT for DES), so its spelling is the one the key was derived with even if the target was typed in another case. When the reply carries no salt, the name is used as typed, and a warning is logged if the hash is not RC4. An RC4 reply never carries one, so an RC4 line for a machine account keeps the typed `NAME$`, and hashcat rejects a user field that ends in `$`: delete that `$` before loading the line ([Correcting a line by hand](../troubleshooting.md#correcting-a-line-by-hand)).
+- **User field.** The username in the hash is taken from the salt in the AS-REP (ETYPE-INFO2 for RC4 and AES, PA-PW-SALT for DES), so its spelling is the one the key was derived with even if the target was typed in another case. When the reply carries no salt, the name is used as typed, and a warning is logged if the hash is not RC4. An RC4 reply never carries one. For a machine account the typed `NAME$` cannot go in the line, because hashcat splits it on `$`, so `host<fqdn>` is written in its place: the name such an account is salted with by default.
 - **Etype.** The hash is labelled with the etype of the reply, which the KDC chooses from the `-e` list and the account's keys, as described under [Encryption type selection](common-options.md#encryption-type-selection).
 
 ## Output

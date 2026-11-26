@@ -102,7 +102,7 @@ $krb5db$<etype>$<user>$<realm>$<key_hex>
 
 KerbWolf does not produce DB key lines. They come from hashcat's `tools/krb5db2hashcat.py`, which turns secretsdump, gosecretsdump, mimikatz, DSInternals and ntdissector output into these lines. An account's etype 1 and etype 3 keys are the same DES key, so loading both lines into mode 38400 counts as one hash. The etype 23 key is not a `$krb5db$` line: it is the bare NT hash, 32 hex, for mode 1000.
 
-For RC4 the `user` and `realm` fields are metadata only. For every other etype they are part of the salt, and a wrong one means the hash never cracks: see [Troubleshooting](../troubleshooting.md#the-user-field-is-a-cryptographic-input). Whatever the etype, a user field that ends in `$` (a machine account name) makes hashcat reject the line, because `$` separates the fields.
+For RC4 the `user` and `realm` fields are metadata only. For every other etype they are part of the salt, and a wrong one means the hash never cracks: see [Troubleshooting](../troubleshooting.md#the-user-field-is-a-cryptographic-input). Whatever the etype, a user field that ends in `$` (a machine account name) makes hashcat reject the line, because `$` separates the fields; KerbWolf writes `host<fqdn>` for such an account.
 
 The SPN is not in the canonical format. It is operational metadata that does not feed any crypto. KerbWolf stores it in the result record but does not include it in the hash output.
 

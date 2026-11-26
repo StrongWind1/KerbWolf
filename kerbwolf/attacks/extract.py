@@ -15,6 +15,7 @@ import logging
 
 from kerbwolf.core.asreq import _parse_salt_string
 from kerbwolf.core.capture import SaltHints, parse_pcap_with_salts
+from kerbwolf.core.crypto import unsalted_user_field
 from kerbwolf.hashcat import (
     asrep_hashcat_mode,
     format_asrep_hash_raw,
@@ -110,7 +111,9 @@ def _captured_to_result(h: CapturedHash, salt_hints: SaltHints | None = None) ->
         )
 
     cipher = bytes.fromhex(h.cipher_hex)
-    result_user, result_realm = h.username, h.realm
+    # Without a salt the name from the packet is all there is; a machine name
+    # is rewritten so that its ``$`` does not split the line.
+    result_user, result_realm = unsalted_user_field(h.username, h.realm), h.realm
 
     if h.attack == AttackType.AS_REQ:
         # The client sends its name as the user typed it; the key was derived
@@ -140,7 +143,7 @@ def _captured_to_result(h: CapturedHash, salt_hints: SaltHints | None = None) ->
         mode = asrep_hashcat_mode(h.etype)
     else:  # TGS-REP or AP-REQ: both carry a service ticket, formatted alike.
         src = h.attack.value
-        tgs_user, tgs_realm = h.username, h.realm
+        tgs_user, tgs_realm = result_user, h.realm
         if salt_hints is not None and h.username.lower() in salt_hints:
             salt_parsed = _parse_salt_string(salt_hints[h.username.lower()], h.realm)
             if salt_parsed is not None:

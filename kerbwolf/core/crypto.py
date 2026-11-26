@@ -280,6 +280,24 @@ def compute_salt(username: str, domain: str) -> str:
     return f"{realm}{username}"
 
 
+def unsalted_user_field(name: str, domain: str) -> str:
+    """Return the user field of a hash line when the KDC supplied no salt.
+
+    A machine account's name ends in ``$``, and hashcat splits a line on
+    ``$``, so the name cannot go in as it is.  The salt such an account has by
+    default is ``REALMhost<name>.<domain>``; the part after the realm is written
+    in its place.  That is the right salt for AES and DES unless the account
+    was renamed, and a label like any other for RC4.  An SPN and a plain
+    account name are returned unchanged.  With no domain to build the host
+    form from, the ``$`` is dropped so that the line still loads.
+    """
+    if not name.endswith("$") or "/" in name:
+        return name
+    if not domain:
+        return name.rstrip("$")
+    return compute_salt(name, domain)[len(domain) :]
+
+
 # ---------------------------------------------------------------------------
 # Key derivation
 # ---------------------------------------------------------------------------

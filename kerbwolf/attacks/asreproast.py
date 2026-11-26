@@ -14,6 +14,7 @@ from impacket.krb5.asn1 import AS_REP
 from pyasn1.codec.der import decoder
 
 from kerbwolf.core.asreq import extract_salt_from_asrep, request_asrep_no_preauth
+from kerbwolf.core.crypto import unsalted_user_field
 from kerbwolf.hashcat import asrep_hashcat_mode, format_asrep_hash
 from kerbwolf.models import EncryptionType, KDCError, RoastResult, TransportProtocol
 
@@ -75,7 +76,7 @@ def asreproast(
             if hash_user != username:
                 _log.debug("AS-REP salt correction: %s → %s", username, hash_user)
         else:
-            hash_user, hash_realm = username, realm
+            hash_user, hash_realm = unsalted_user_field(username, domain), realm
             if enc_etype != EncryptionType.RC4_HMAC:
                 _log.warning("%s: no ETYPE-INFO2 in AS-REP — AES hash may not crack if username casing is wrong", username)
 
