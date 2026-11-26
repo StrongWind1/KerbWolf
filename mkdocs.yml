@@ -69,6 +69,7 @@ plugins:
   - redirects:
       redirect_maps:
         getting-started/installation.md: installation.md
+        guide/index.md: background/attacks.md
         guide/attacks.md: background/attacks.md
         guide/encryption-types.md: background/encryption-types.md
         guide/hashcat-modes.md: cracking/hash-reference.md
@@ -114,8 +115,7 @@ nav:
       - Cracking Speed: cracking/speed.md
       - Hashcat Internals: cracking/hashcat-internals.md
   - Background:
-      - Overview: guide/index.md
-      - Attacks in Depth: background/attacks.md
+      - Attacks: background/attacks.md
       - Timeroasting: background/timeroasting.md
       - Encryption Types: background/encryption-types.md
 

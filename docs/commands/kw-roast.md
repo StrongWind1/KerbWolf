@@ -2,7 +2,7 @@
 
 TGS-REP Roast (Kerberoast). Request service tickets and extract crackable hashes.
 
-For a full explanation of the attack, authentication methods, and hash formats, see the [guide](../guide/index.md) and [attacks in depth](../background/attacks.md#tgs-rep-roast-kerberoast).
+For a full explanation of the attack, authentication methods, and hash formats, see the [guide](../background/attacks.md) and [attacks in depth](../background/attacks.md#tgs-rep-roast-kerberoast).
 
 ## Help
 

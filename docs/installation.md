@@ -6,27 +6,22 @@
 - A network path to a Kerberos KDC (Domain Controller)
 - System Kerberos libraries (`libkrb5-dev` on Debian/Ubuntu, `krb5-devel` on RHEL)
 
-## Install from source
+## Install
+
+From [PyPI](https://pypi.org/project/kerbwolf/):
+
+```bash
+uv tool install kerbwolf        # recommended
+pip install kerbwolf             # or with pip
+```
+
+From source:
 
 ```bash
 git clone https://github.com/StrongWind1/KerbWolf.git
 cd KerbWolf
-pip install .
+pip install .                    # or: uv tool install .
 ```
-
-## Install with uv
-
-```bash
-uv tool install .
-```
-
-## Development install
-
-```bash
-uv sync
-```
-
-This installs all dev dependencies (pytest, ruff, ty, pre-commit) and creates a virtual environment.
 
 ## Verify installation
 
@@ -40,7 +35,36 @@ kw-timeroast --version
 
 Each command prints its name and the installed package version, for example `kw-roast 2.0.0`.
 
-## Run checks
+## Kerberos setup
+
+When using Kerberos authentication (`-k -c ccache`), LDAP binds go through GSSAPI, and the system Kerberos library has to be able to find the KDC for the realm. Without that the bind fails with `Cannot find KDC for realm`. Ticket requests themselves do not use the system library, so `kw-roast -k -c` with sAMAccountName targets and `--dc-ip` works without it.
+
+Either of these gives the library what it needs. Generate `/etc/krb5.conf` and `/etc/hosts` from the DC:
+
+```bash
+nxc smb <DC_IP> --generate-krb5-file /etc/krb5.conf
+nxc smb <DC_IP> --generate-hosts-file /etc/hosts
+```
+
+Or point DNS at the DC so SRV records resolve automatically:
+
+```bash
+echo "nameserver <DC_IP>" > /etc/resolv.conf
+```
+
+How the tools themselves find the DC, and which hostname a Kerberos LDAP bind uses, is under [Finding the domain controller](commands/common-options.md#finding-the-domain-controller).
+
+## Development
+
+### Development install
+
+```bash
+uv sync
+```
+
+This installs all dev dependencies (pytest, ruff, ty, pre-commit) and creates a virtual environment.
+
+### Run checks
 
 ```bash
 make check    # lint + typecheck + tests + strict docs build
@@ -57,7 +81,7 @@ uv run pytest                              # unit tests
 uv run --group docs mkdocs build --strict  # docs build, as `make check` runs it
 ```
 
-## Dependencies
+### Dependencies
 
 | Package | Version | Purpose |
 |---------|---------|---------|
@@ -68,33 +92,3 @@ uv run --group docs mkdocs build --strict  # docs build, as `make check` runs it
 | pycryptodomex | any | DES, AES, RC4, MD4 cryptographic primitives |
 
 KerbWolf uses its own vendored copy of ldap3 (`kerbwolf/_vendor/ldap3/`) and does not declare ldap3 as a dependency. impacket pulls in the PyPI ldap3 as well; KerbWolf does not import that one.
-
-## Kerberos setup
-
-When using Kerberos authentication (`-k -c ccache`), LDAP binds go through GSSAPI, and the system Kerberos library has to be able to find the KDC for the realm. Without that the bind fails with `Cannot find KDC for realm`. Ticket requests themselves do not use the system library, so `kw-roast -k -c` with sAMAccountName targets and `--dc-ip` works without it. The easiest way to generate `/etc/krb5.conf`:
-
-```bash
-# Generate krb5.conf and /etc/hosts from the DC
-nxc smb <DC_IP> --generate-krb5-file /etc/krb5.conf
-nxc smb <DC_IP> --generate-hosts-file /etc/hosts
-```
-
-Alternatively, point DNS at the DC so SRV records resolve automatically:
-
-```bash
-echo "nameserver <DC_IP>" > /etc/resolv.conf
-```
-
-## Tools provided
-
-| Command | Description |
-|---------|-------------|
-| `kw-roast` | TGS-REP Roast (Kerberoast) — request service tickets and extract hashes |
-| `kw-asrep` | AS-REP Roast — extract hashes from accounts without pre-authentication |
-| `kw-extract` | Extract Kerberos, SNTP, NTLM, and LDAP simple-bind credentials from pcap/pcapng captures |
-| `kw-tgt` | Request a TGT using password, hash, or key (pass-the-key) |
-| `kw-timeroast` | Timeroasting (MS-SNTP) — extract SNTP hashes for computer, gMSA, and trust accounts |
-
-## Disclaimer
-
-KerbWolf is intended for authorized penetration testing, red team engagements, and security audits only. You must have explicit written permission from the system owner before attacking any Active Directory environment.
