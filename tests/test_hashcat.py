@@ -218,6 +218,13 @@ class TestFormatPaHash:
         h = format_pa_hash(cipher, 1, "user", "REALM")
         assert h.startswith("$krb5pa$1$")
 
+    def test_des_line_is_split_like_every_other_etype(self):
+        """DES pre-auth uses the shared layout: the first two cipher blocks, then the rest."""
+        for etype, size in ((3, 56), (1, 40)):
+            cipher = bytes(range(size))
+            parts = format_pa_hash(cipher, etype, "user", "REALM").split("$")
+            assert parts == ["", "krb5pa", str(etype), "user", "REALM", cipher[:16].hex(), cipher[16:].hex()]
+
     def test_contains_username_and_realm(self):
         cipher = b"\xaa" * 52
         h = format_pa_hash(cipher, 23, "admin", "CORP.LOCAL")

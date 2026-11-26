@@ -75,7 +75,7 @@ The three RC4 password modes (7500, 13100, 18200) run faster with `-O`; what tha
 
 ## Line format
 
-All etypes use the same field layout, except DES pre-auth, which has one cipher field. This is what KerbWolf outputs for the TGS-REP, AS-REP and Pre-Auth hashes, and what every Kerberos mode of hashcat master accepts (v8.0.0 [does not](#mode-matrix)). hashcat prints a cracked hash back in the shape it was loaded in, so a canonical line stays canonical and a legacy line stays legacy.
+All three attacks and all etypes use the same field layout. This is what KerbWolf outputs for the TGS-REP, AS-REP and Pre-Auth hashes, and what every Kerberos mode of hashcat master accepts (v8.0.0 [does not](#mode-matrix)). hashcat prints a cracked hash back in the shape it was loaded in, so a canonical line stays canonical and a legacy line stays legacy.
 
 **TGS-REP / AS-REP (enc-part hashes):**
 
@@ -87,12 +87,11 @@ $krb5asrep$<etype>$<user>$<realm>$<checksum_hex>$<edata2_hex>
 **Pre-Auth (encrypted timestamp):**
 
 ```
-$krb5pa$<etype>$<user>$<realm>$<checksum_hex>$<encrypted_hex>     (etypes 17, 18, 19, 20, 23)
-$krb5pa$<etype>$<user>$<realm>$<cipher_hex>                       (etypes 1, 3)
+$krb5pa$<etype>$<user>$<realm>$<checksum_hex>$<encrypted_hex>
 ```
 
 !!! note "Pre-auth data fields"
-    For RC4 and AES, KerbWolf splits the PA-ENC-TIMESTAMP cipher the same way as the enc-part hashes: the checksum is the first 16 bytes for RC4 and the last 12 bytes for AES-SHA1, and it is written before the encrypted timestamp. For DES the whole cipher goes out as one hex field, because the integrity check sits inside the plaintext. Modes 39300 and 39000 also accept the cipher split after its first 32 hex chars.
+    KerbWolf splits the PA-ENC-TIMESTAMP cipher the same way as the enc-part hashes, and the checksum is written before the encrypted timestamp: the first 16 bytes for RC4, the last 12 bytes for AES-SHA1. DES has no checksum of its own, because its integrity check sits inside the plaintext, so the first 16 cipher bytes fill the field, as they do in the DES TGS-REP and AS-REP lines. Modes 39000 and 39300 also load the cipher as one unsplit field, which is what KerbWolf wrote up to 2.0.0.
 
 **DB Key (stored key from KDC database):**
 
@@ -124,7 +123,7 @@ Where the checksum lives depends on the etype, not on which attack produced it. 
 | **DES** (1, 3) | <code>checksum &#124;&#124; edata2</code> | First 16 bytes: the first 2 DES cipher blocks, a fixed split, not a checksum | 32 | Remaining bytes | String-to-key → DES key → decrypt → integrity check (CRC32 for etype 1, MD5 for etype 3) |
 
 !!! tip "The etype determines the format, the attack determines the source"
-    The split (where the checksum lives, how many bytes) is the same for all three attacks at the same etype, with one exception: DES pre-auth (etypes 1 and 3) is written as a single unsplit cipher field. Otherwise the only thing the attack type changes is *which ASN.1 field* the cipher is extracted from, and those paths are in the [attack comparison](../background/attacks.md#the-four-attacks-at-a-glance).
+    The split (where the checksum lives, how many bytes) is the same for all three attacks at the same etype. The only thing the attack type changes is *which ASN.1 field* the cipher is extracted from, and those paths are in the [attack comparison](../background/attacks.md#the-four-attacks-at-a-glance).
 
 ### Walkthrough: RC4 TGS-REP
 
@@ -195,7 +194,7 @@ hashcat accepts these other shapes on input and prints a cracked hash back in th
 | 19800, 19900 | `$krb5pa$E$user$realm$encrypted+checksum` (single field) |
 | 19800, 19900 | `$krb5pa$E$user$realm$$encrypted+checksum` (empty salt, JtR) |
 | 19800, 19900 | `$krb5pa$E$user$realm$salt$encrypted+checksum` (explicit salt) |
-| 39000, 39300 | `$krb5pa$E$user$realm$checksum$encrypted` (cipher split after 32 hex) |
+| 39000, 39300 | `$krb5pa$E$user$realm$cipher` (one unsplit field) |
 | 28800, 28900, 38400 | `$krb5db$E$user$realm$*spn*$key` (optional SPN) |
 
 The `*user$realm$spn*` wrapper appears in the RC4 and DES TGS-REP output of other tools (Impacket's `GetUserSPNs.py` writes it for both); their AES output uses a separate `$*spn*$` field instead. KerbWolf never emits either.

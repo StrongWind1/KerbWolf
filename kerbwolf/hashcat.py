@@ -288,15 +288,16 @@ def _format_krb5_hash(
 ) -> str:
     """Format a Kerberos hash string for any attack type and etype.
 
-    Canonical output (the layout every hashcat Kerberos mode accepts):
+    One layout for every attack and etype, the one hashcat's Kerberos modes
+    share:
 
-        $krb5tgs$E$user$realm$checksum$encrypted
-        $krb5asrep$E$user$realm$checksum$encrypted
-        $krb5pa$E$user$realm$checksum$encrypted   (etypes 17, 18, 19, 20, 23)
-        $krb5pa$E$user$realm$data                  (etypes 1, 3 - integrity embedded)
+        $krb5tgs$E$user$realm$checksum$edata2
+        $krb5asrep$E$user$realm$checksum$edata2
+        $krb5pa$E$user$realm$checksum$encrypted
+
+    A DES etype has no checksum of its own: the integrity check sits inside
+    the plaintext.  Its "checksum" field is the first two cipher blocks, cut
+    off so that the line has the same shape as the others.
     """
-    if prefix == "krb5pa" and etype in {1, 3}:
-        return f"${prefix}${etype}${username}${realm}${hexlify(cipher).decode()}"
-
     checksum, encrypted = _split_cipher(etype, cipher)
     return f"${prefix}${etype}${username}${realm}${checksum}${encrypted}"

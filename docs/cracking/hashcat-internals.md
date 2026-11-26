@@ -25,8 +25,8 @@ Most modes accept more than one line shape. hashcat prints a cracked hash back i
 | [7500](#mode-7500-rc4) | AS-REQ Pre-Auth | 23 | `$krb5pa$23$user$realm$checksum$encrypted` | salt field, single field | no |
 | [19800](#mode-19800-aes128) | AS-REQ Pre-Auth | 17 | `$krb5pa$17$user$realm$checksum$encrypted` | single field, empty salt, explicit salt | **yes** |
 | [19900](#mode-19900-aes256) | AS-REQ Pre-Auth | 18 | `$krb5pa$18$user$realm$checksum$encrypted` | single field, empty salt, explicit salt | **yes** |
-| [39000](#mode-39000-des-cbc-md5) | AS-REQ Pre-Auth | 3 | `$krb5pa$3$user$realm$cipher` | split after 32 hex | **yes** |
-| [39300](#mode-39300-des-cbc-crc) | AS-REQ Pre-Auth | 1 | `$krb5pa$1$user$realm$cipher` | split after 32 hex | **yes** |
+| [39000](#mode-39000-des-cbc-md5) | AS-REQ Pre-Auth | 3 | `$krb5pa$3$user$realm$checksum$encrypted` | single field | **yes** |
+| [39300](#mode-39300-des-cbc-crc) | AS-REQ Pre-Auth | 1 | `$krb5pa$1$user$realm$checksum$encrypted` | single field | **yes** |
 | [28800](#mode-28800-aes128-db-key) | DB Key | 17 | `$krb5db$17$user$realm$key` | optional `*spn*` | **yes** |
 | [28900](#mode-28900-aes256-db-key) | DB Key | 18 | `$krb5db$18$user$realm$key` | optional `*spn*` | **yes** |
 | [38400](#mode-38400-des-db-key) | DB Key | 1, 2, 3 | <code>$krb5db$&lt;1&#124;2&#124;3&gt;$user$realm$key</code> | optional `*spn*` | **yes** |
@@ -57,8 +57,8 @@ What each mode accepts in its canonical line. Every field is delimited by `$`. T
 | 7500 | `$krb5pa$23$` (11 chars) | 0-511 chars | 0-511 chars | 32 hex (16 bytes) | encrypted, 58-76 hex |
 | 19800 | `$krb5pa$17$` (11 chars) | 1-511 chars | 1-511 chars | 24 hex (12 bytes) | encrypted, 80-88 hex |
 | 19900 | `$krb5pa$18$` | as 19800 | as 19800 | as 19800 | as 19800 |
-| 39000 | `$krb5pa$3$` (10 chars) | 1-127 chars | 1-127 chars | none | cipher, 64-256 hex, a multiple of 16 |
-| 39300 | `$krb5pa$1$` | as 39000 | as 39000 | none | as 39000 |
+| 39000 | `$krb5pa$3$` (10 chars) | 1-127 chars | 1-127 chars | 32 hex (16 bytes) | encrypted, 32-224 hex; checksum plus encrypted a multiple of 16 |
+| 39300 | `$krb5pa$1$` | as 39000 | as 39000 | as 39000 | as 39000 |
 | 28800 | `$krb5db$17$` (11 chars) | 1-511 chars | 1-511 chars | none | key, 32 hex (16 bytes) |
 | 28900 | `$krb5db$18$` | as 28800 | as 28800 | none | key, 64 hex (32 bytes) |
 | 38400 | `$krb5db$1$`, `$krb5db$2$` or `$krb5db$3$` (10 chars) | 1-127 chars | 1-127 chars | none | key, 16 hex (8 bytes) |
@@ -281,10 +281,10 @@ Same parser and limits as 19800 with the signature `$krb5pa$18$`. The key is 32 
 **Module:** `module_39000.c`
 
 ```
-$krb5pa$3$user$realm$cipher
+$krb5pa$3$user$realm$checksum$encrypted
 ```
 
-This is the shape KerbWolf writes: the whole PA-ENC-TIMESTAMP cipher in one field. The split shape `$krb5pa$3$user$realm$<32 hex>$<32-224 hex>`, with the first two blocks apart, also loads, and is the shape of hashcat's own example hash. User plus realm may be at most 128 bytes together.
+This is the shape KerbWolf writes and the shape of hashcat's own example hash: the first two blocks of the PA-ENC-TIMESTAMP cipher (32 hex), then the rest (32-224 hex). As in mode 38500, the "checksum" field is not a MAC; the split only gives the line the layout of the other modes. The whole cipher in one field, `$krb5pa$3$user$realm$<64-256 hex>`, also loads, and is what hashcat's test generator writes. User plus realm may be at most 128 bytes together.
 
 The kernel first decrypts only the fourth block, DES-CBC under a zero IV, and rejects the candidate unless the plaintext at byte 24 opens a `SEQUENCE` (`0x30`). It then decrypts the whole timestamp and verifies the embedded MD5 with its field zeroed.
 
@@ -293,7 +293,7 @@ The kernel first decrypts only the fourth block, DES-CBC under a zero IV, and re
 **Module:** `module_39300.c`
 
 ```
-$krb5pa$1$user$realm$cipher
+$krb5pa$1$user$realm$checksum$encrypted
 ```
 
 Same parser and limits as 39000 with the signature `$krb5pa$1$`. The kernel decrypts with the key as IV, requires a `SEQUENCE` tag at byte 12, verifies the CRC-32, and checks that the `GeneralizedTime` starts with `20` followed by digits.

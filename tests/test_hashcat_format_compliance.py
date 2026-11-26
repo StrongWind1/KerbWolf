@@ -365,3 +365,40 @@ class TestHexCase:
         h = format_pa_hash(cipher, 23, "u", "R")
         data = h.split("$")[-1]
         assert data == data.lower()
+
+
+# ---------------------------------------------------------------------------
+# Modes 39000 / 39300: DES AS-REQ Pre-Auth
+# Hashcat format: $krb5pa$<3|1>$user$realm$checksum$encrypted
+#   checksum:  32 hex, the first two cipher blocks
+#   encrypted: 32-224 hex; checksum plus encrypted is a whole number of blocks
+# ---------------------------------------------------------------------------
+
+
+class TestDesPreAuthLayout:
+    def _parts(self, etype: int, size: int) -> list[str]:
+        from kerbwolf.hashcat import format_pa_hash
+
+        return format_pa_hash(bytes(range(size)), etype, "admin", "EVIL.CORP").split("$")
+
+    def test_field_count_matches_the_other_pre_auth_modes(self):
+        from kerbwolf.hashcat import format_pa_hash
+
+        des = format_pa_hash(b"\x01" * 56, 3, "admin", "EVIL.CORP")
+        aes = format_pa_hash(b"\x02" * 56, 18, "admin", "EVIL.CORP")
+        rc4 = format_pa_hash(b"\x03" * 52, 23, "admin", "EVIL.CORP")
+        assert des.count("$") == aes.count("$") == rc4.count("$") == 6
+
+    def test_checksum_field_is_32_hex(self):
+        for etype, size in ((3, 56), (1, 40)):
+            assert len(self._parts(etype, size)[5]) == 32
+
+    def test_encrypted_field_is_within_the_parser_limits(self):
+        for etype, size in ((3, 56), (1, 40), (3, 128)):
+            parts = self._parts(etype, size)
+            assert 32 <= len(parts[6]) <= 224
+            assert (len(parts[5]) + len(parts[6])) % 16 == 0
+
+    def test_fields_rejoin_to_the_cipher(self):
+        parts = self._parts(3, 56)
+        assert bytes.fromhex(parts[5] + parts[6]) == bytes(range(56))
