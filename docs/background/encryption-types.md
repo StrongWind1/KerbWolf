@@ -165,7 +165,7 @@ The KDC picks a ticket's etype from the etypes in the request and this attribute
 |---------|------|-----------------|------------|
 | **Windows 2000** | 2000 | DES-CBC-CRC, DES-CBC-MD5, RC4-HMAC | Kerberos introduced to Windows. RC4 is the default. |
 | **Server 2003** | 2003 | DES, RC4 | Last version without AES support. |
-| **Server 2008** | 2008 | DES, RC4, AES128, AES256 | **AES introduced.** All five etypes available. |
+| **Server 2008** | 2008 | DES, RC4, AES128, AES256 | **AES introduced.** All five etypes available. RC4 stays available, with AES preferred. |
 | **Server 2008 R2** | 2009 | RC4, AES (DES disabled) | **DES disabled by default** (also Windows 7). Policy to re-enable. |
 | **Server 2012 R2** | 2013 | RC4, AES | Protected Users group forces AES-only. |
 | **Server 2022** | 2021 | RC4, AES | |

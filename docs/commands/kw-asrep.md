@@ -2,7 +2,23 @@
 
 AS-REP Roast. Extract hashes from accounts that don't require Kerberos pre-authentication.
 
-For a full explanation of the attack, see the [guide](../background/attacks.md) and [attacks in depth](../background/attacks.md#as-rep-roast).
+Background on the attack is under [AS-REP Roast](../background/attacks.md#as-rep-roast). Credentials for LDAP, finding the DC, LDAP discovery and `-e` are described on [Common options](common-options.md).
+
+## Examples
+
+```bash
+# Single target (no credentials needed)
+kw-asrep -d CORP.LOCAL --dc-ip 10.0.0.1 -t jsmith
+
+# Multiple targets from file
+kw-asrep -d CORP.LOCAL --dc-ip 10.0.0.1 -T users.txt -o hashes.txt
+
+# LDAP auto-discovery
+kw-asrep -d CORP.LOCAL --dc-ip 10.0.0.1 -u admin -p pass --ldap
+
+# Kerberos auth for LDAP (domain from ccache)
+kw-asrep -k -c admin.ccache --ldap
+```
 
 ## Help
 
@@ -79,21 +95,10 @@ Examples:
 
 - **Requests.** One AS-REQ without pre-authentication is sent per target. Accounts that require pre-authentication answer with a KDC error and are skipped without a message; `-vv` shows them.
 - **User field.** The username in the hash is taken from the salt in the AS-REP (ETYPE-INFO2 for RC4 and AES, PA-PW-SALT for DES), so its spelling is the one the key was derived with even if the target was typed in another case. When the reply carries no salt, the name is used as typed, and a warning is logged if the hash is not RC4.
-- **Etype.** The hash is labelled with the etype of the reply, which the KDC chooses from the `-e` list and the account's keys.
-- **Output.** `-o` never overwrites. If the file exists, the hashes go to `name_1.ext`, then `name_2.ext`, and so on.
+- **Etype.** The hash is labelled with the etype of the reply, which the KDC chooses from the `-e` list and the account's keys, as described under [Encryption type selection](common-options.md#encryption-type-selection).
 
-## Examples
+## Output
 
-```bash
-# Single target (no credentials needed)
-kw-asrep -d CORP.LOCAL --dc-ip 10.0.0.1 -t jsmith
+One `$krb5asrep$` line per account that answered. The mode for each etype is in the [mode matrix](../cracking/hash-reference.md#mode-matrix).
 
-# Multiple targets from file
-kw-asrep -d CORP.LOCAL --dc-ip 10.0.0.1 -T users.txt -o hashes.txt
-
-# LDAP auto-discovery
-kw-asrep -d CORP.LOCAL --dc-ip 10.0.0.1 -u admin -p pass --ldap
-
-# Kerberos auth for LDAP (domain from ccache)
-kw-asrep -k -c admin.ccache --ldap
-```
+`-o` never overwrites. If the file exists, the hashes go to `name_1.ext`, then `name_2.ext`, and so on.

@@ -34,7 +34,7 @@ The hash line carries both cryptographic inputs and labels. Getting a label wron
 | `user` | Label | **Cryptographic**: PBKDF2 salt component (case-sensitive) | **Cryptographic**: string-to-key salt component (case-sensitive) |
 | `realm` | Label | **Cryptographic**: PBKDF2 salt component (uppercased by hashcat) | **Cryptographic**: string-to-key salt component (uppercased by hashcat) |
 | Explicit salt (JtR shapes) | Label (7500, 39400) | **Cryptographic**: PBKDF2 salt, used verbatim; user and realm are then labels | Not accepted |
-| Checksum, ciphertext, stored key | Cryptographic | Cryptographic | Cryptographic |
+| Checksum, ciphertext, stored key | Cryptographic: the checksum keys the RC4 decryption | Cryptographic: the checksum, or the stored key in the DB modes, is the verification target | Cryptographic: checksum plus edata2 are the DES-CBC ciphertext, and the stored key in 38400 is the verification target |
 | `spn` | Label | Label | Label |
 
 The RC4 modes are 7500, 13100, 18200, 35300, 35400 and 39400. The AES modes are 19600, 19700, 19800, 19900, 28800, 28900, 32100 and 32200. The DES modes are 38400, 38500, 38600, 39000, 39100, 39200 and 39300.

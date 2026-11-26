@@ -2,7 +2,38 @@
 
 Extract Kerberos, SNTP (timeroast), NTLM, and LDAP credentials from pcap and pcapng captures. Completely offline, no network connection or credentials needed.
 
-For a full explanation, see the [guide](../background/attacks.md) and [hash reference](../cracking/hash-reference.md).
+Background on what each hash is: [Attacks](../background/attacks.md) and [Timeroasting](../background/timeroasting.md). Which mode cracks which line: [Hash Reference](../cracking/hash-reference.md).
+
+## Examples
+
+```bash
+# Single file
+kw-extract capture.pcap
+
+# Multiple files with output
+kw-extract *.pcap -o hashes.txt
+
+# Recursively scan a directory for all pcap files
+kw-extract -d /opt/captures/
+
+# Multiple directories
+kw-extract -d /pcaps/2025/ -d /pcaps/2026/ -o all.txt
+
+# Mix positional files with a directory scan
+kw-extract live.pcap -d /archived/ -o combined.txt
+
+# Pipe from tcpdump (hashes print when you stop it with Ctrl-C)
+tcpdump -i eth0 -w - port 88 | kw-extract -
+
+# Pipe from tcpdump (live timeroast capture)
+tcpdump -i eth0 -w - port 123 | kw-extract -
+
+# Pipe from tcpdump (live NTLM + LDAP capture)
+tcpdump -i eth0 -w - 'port 445 or port 389 or port 135' | kw-extract -
+
+# Capture everything at once
+tcpdump -i eth0 -w - 'port 88 or port 123 or port 445 or port 389 or port 135' | kw-extract -
+```
 
 ## Help
 
@@ -58,12 +89,15 @@ TCP streams are reassembled by sequence number, so a message split across segmen
 ### Kerberos details
 
 - **Every AS-REP is extracted**, not only the ones for accounts without pre-authentication. The enc-part of a normal, pre-authenticated password logon is encrypted with the same client key, so a capture of ordinary logons yields both a `$krb5pa$` and a `$krb5asrep$` line per user. Smartcard (PKINIT) and FAST-armored logons use a different reply key; their lines are written too but are not password-crackable.
-- **Salts seen in the capture fix the user field.** AES and DES keys are salted with the account's real spelling, which is not always what is on the wire. `kw-extract` collects the salt the KDC sends (ETYPE-INFO2 in a `PREAUTH_REQUIRED` error or an AS-REP, PA-PW-SALT in a DES AS-REP) and uses it for the user field of the hashes below. Without a salt it warns and keeps the name from the packet.
-- **AS-REQ user field.** The `cname` is what the user typed, in whatever case. A salt for that name replaces it.
-- **AS-REP user field.** The username comes from the salt in the reply when there is one, otherwise from the `cname`.
-- **TGS-REP user field.** A TGS-REP names the service, not the account that owns it, so the user field is the ticket's `sname`. If the capture holds a salt for that name, the salt supplies the spelling. That is the case for traffic from `kw-roast`, which requests tickets by sAMAccountName. In ordinary Windows traffic the `sname` is an SPN such as `HTTP/web01.corp.local`: an RC4 line cracks as it is, but an AES or DES line will not until the user field is replaced with the name the key is salted with (the sAMAccountName for a user account, `host<fqdn>` for a computer account).
+- **Salts seen in the capture fix the user field.** AES and DES keys are salted with the account's real spelling, which is not always what is on the wire. `kw-extract` collects the salt the KDC sends (ETYPE-INFO2 in a `PREAUTH_REQUIRED` error or an AS-REP, PA-PW-SALT in a DES AS-REP) and uses it for the user field. Without a salt it warns and keeps the name from the packet.
+
+    | Hash | User field with a salt in the capture | Without one | Cracks without one |
+    |---|---|---|---|
+    | `$krb5pa$` from an AS-REQ | The salt for that name replaces the `cname` | The `cname`, which is what the user typed, in whatever case | RC4 always; AES and DES only if the typed spelling is the account's |
+    | `$krb5asrep$` from an AS-REP | The salt in the reply itself | The `cname` | RC4 always; AES and DES only if the spelling is the account's |
+    | `$krb5tgs$` from a TGS-REP or an AP-REQ | The salt for the ticket's `sname` supplies the spelling. That is the case for traffic from `kw-roast`, which requests tickets by sAMAccountName | The `sname`. A TGS-REP names the service, not the account that owns it, so in ordinary Windows traffic this is an SPN such as `HTTP/web01.corp.local` | RC4 as it is; AES and DES not until the user field is [corrected](../troubleshooting.md#correcting-a-line-by-hand) |
+
 - **AP-REQ service tickets.** A client wraps an AP-REQ in SPNEGO when it authenticates to a service over SMB, HTTP (WinRM/IIS), LDAP or DCE-RPC. The ticket inside is the same one the KDC issued in the TGS-REP, encrypted with the service account's key, so a capture of client-to-service traffic yields Kerberoast material with no port 88 packets. The `sname` and salt behave exactly as for a TGS-REP. A ticket is reported once per capture: from its TGS-REP when that is present, otherwise from the first AP-REQ that carries it. A client replays the same ticket to a service until it expires, so repeats on one connection are dropped.
-- **Output.** `-o` never overwrites. If the file exists, the hashes go to `name_1.ext`, then `name_2.ext`, and so on.
 - **Piped input.** With `-`, hashes are printed when the capture ends, not as packets arrive. In `tcpdump -w - ... | kw-extract -`, one Ctrl-C stops tcpdump and `kw-extract` reads what is left in the pipe and prints everything; a second Ctrl-C stops it at once and prints what it had read.
 
 ### NTLM details
@@ -97,33 +131,6 @@ Output format:
 cn=admin,dc=corp,dc=local:Password1!
 ```
 
-## Examples
+## Output
 
-```bash
-# Single file
-kw-extract capture.pcap
-
-# Multiple files with output
-kw-extract *.pcap -o hashes.txt
-
-# Recursively scan a directory for all pcap files
-kw-extract -d /opt/captures/
-
-# Multiple directories
-kw-extract -d /pcaps/2025/ -d /pcaps/2026/ -o all.txt
-
-# Mix positional files with a directory scan
-kw-extract live.pcap -d /archived/ -o combined.txt
-
-# Pipe from tcpdump (hashes print when you stop it with Ctrl-C)
-tcpdump -i eth0 -w - port 88 | kw-extract -
-
-# Pipe from tcpdump (live timeroast capture)
-tcpdump -i eth0 -w - port 123 | kw-extract -
-
-# Pipe from tcpdump (live NTLM + LDAP capture)
-tcpdump -i eth0 -w - 'port 445 or port 389 or port 135' | kw-extract -
-
-# Capture everything at once
-tcpdump -i eth0 -w - 'port 88 or port 123 or port 445 or port 389 or port 135' | kw-extract -
-```
+Every line is printed to stdout, and written to a file with `-o`. `-o` never overwrites. If the file exists, the hashes go to `name_1.ext`, then `name_2.ext`, and so on.

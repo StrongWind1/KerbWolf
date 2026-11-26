@@ -2,7 +2,26 @@
 
 TGS-REP Roast (Kerberoast). Request service tickets and extract crackable hashes.
 
-For a full explanation of the attack, authentication methods, and hash formats, see the [guide](../background/attacks.md) and [attacks in depth](../background/attacks.md#tgs-rep-roast-kerberoast).
+Background on the attack is under [TGS-REP Roast](../background/attacks.md#tgs-rep-roast-kerberoast). Credentials, finding the DC, LDAP discovery and `-e` are shared with the other commands and described on [Common options](common-options.md).
+
+## Examples
+
+```bash
+# LDAP auto-discovery with password auth
+kw-roast -d CORP.LOCAL --dc-ip 10.0.0.1 -u admin -p 'Password1!' --ldap
+
+# Kerberos auth from ccache (domain auto-detected)
+kw-roast -k -c admin.ccache --ldap
+
+# No-preauth kerberoasting (no credentials needed)
+kw-roast -d CORP.LOCAL --dc-ip 10.0.0.1 --no-preauth vuln_user -t svc_sql
+
+# Specific target, AES256
+kw-roast -d CORP.LOCAL --dc-ip 10.0.0.1 -u admin -p pass -t MSSQLSvc/db01 -e aes256
+
+# DES kerberoast (DES must be enabled in the DC's Kerberos encryption-types policy; not possible on Server 2025)
+kw-roast -d CORP.LOCAL --dc-ip 10.0.0.1 -u admin -p pass --ldap -e des-cbc-md5
+```
 
 ## Help
 
@@ -80,29 +99,22 @@ Examples:
 
 ## Behaviour
 
-- **Targets.** `-t` takes an SPN, a sAMAccountName or a UPN. Anything containing `/` is treated as an SPN and anything else containing `@` as a UPN: both are looked up in LDAP (`servicePrincipalName` or `userPrincipalName`) and replaced with the owning account's sAMAccountName, and that name is what goes in the TGS-REQ. `--ldap` returns sAMAccountNames directly.
-- **The lookup needs a working LDAP bind.** It uses the same credentials as the roast (`-u` with `-p` or `-H`, or `-k`). If the bind fails, or nothing matches, an SPN is sent as-is and ends up in the user field of the hash, and a UPN is sent as the part before the `@`. A raw SPN is harmless for RC4, but an AES or DES hash then carries the wrong salt and will not crack until the user field is changed to the name the key is salted with (the sAMAccountName for a user account, `host<fqdn>` for a computer account). With `-k`, the bind goes through GSSAPI and needs the [Kerberos setup](../installation.md#kerberos-setup).
-- **Salt check.** Before requesting tickets, each account-name target is probed with an AS-REQ without pre-authentication, and the salt in the KDC's answer (a `PREAUTH_REQUIRED` error, or an AS-REP for a `DONT_REQ_PREAUTH` account) supplies the exact spelling of the name. A target whose salt cannot be read keeps the name as given, and a warning is logged if its ticket is not RC4.
-- **`-e` applies to the service ticket, not the TGT.** With `-u` and a password, kw-roast gets its own TGT offering AES256, AES128 and RC4; with `-H` it offers RC4 only. The KDC chooses the ticket's etype from the `-e` list and the service account's keys and settings, so the hash is labelled with the etype that came back, which may not be the first one requested. When the KDC can issue none of them, there is no ticket and the target is skipped.
+- **Targets.** `-t` takes an SPN, a sAMAccountName or a UPN. Anything containing `/` is treated as an SPN and anything else containing `@` as a UPN. KerbWolf requests each ticket by the account's sAMAccountName rather than by SPN, so an SPN or a UPN is first looked up in LDAP (`servicePrincipalName` or `userPrincipalName`) and replaced with the owning account's sAMAccountName, and that name is what goes in the TGS-REQ. `--ldap` returns sAMAccountNames directly.
+
+    | Target given as | LDAP bind works and the name matches | No bind, or nothing matches |
+    |---|---|---|
+    | sAMAccountName | Sent as given | Sent as given |
+    | SPN (contains `/`) | Replaced with the owning account's sAMAccountName | Sent as-is, and ends up in the user field of the hash |
+    | UPN (contains `@`) | Replaced with the owning account's sAMAccountName | Sent as the part before the `@` |
+
+- **The lookup needs a working LDAP bind.** It uses the same credentials as the roast (`-u` with `-p` or `-H`, or `-k`), so there is none with `--no-preauth`. A raw SPN in the user field is harmless for RC4, but an AES or DES hash then carries the wrong salt and will not crack until the user field is [corrected](../troubleshooting.md#correcting-a-line-by-hand). With `-k`, the bind goes through GSSAPI and needs the [Kerberos setup](../installation.md#kerberos-setup).
+- **Salt check.** Before requesting tickets, each account-name target is probed with one AS-REQ without pre-authentication, and the salt in the KDC's answer (a `PREAUTH_REQUIRED` error, or an AS-REP for a `DONT_REQ_PREAUTH` account) supplies the exact spelling of the name, so the hash carries the salt the key was derived with. A target whose salt cannot be read keeps the name as given, and a warning is logged if its ticket is not RC4.
+- **`-e` applies to the service ticket, not the TGT.** With `-u` and a password, kw-roast gets its own TGT offering AES256, AES128 and RC4; with `-H` it offers RC4 only. Which etype the ticket comes back with is the KDC's choice, described under [Encryption type selection](common-options.md#encryption-type-selection).
 - **`--no-preauth`.** The targets go in the sname of an AS-REQ sent as the given `DONT_REQ_PREAUTH` account, so no credentials are needed.
 - **Skipped targets.** A target the KDC refuses is skipped without a message; `-vv` shows them.
-- **Output.** `-o` never overwrites. If the file exists, the hashes go to `name_1.ext`, then `name_2.ext`, and so on.
 
-## Examples
+## Output
 
-```bash
-# LDAP auto-discovery with password auth
-kw-roast -d CORP.LOCAL --dc-ip 10.0.0.1 -u admin -p 'Password1!' --ldap
+One `$krb5tgs$` line per ticket, labelled with the etype that came back. The mode for each etype is in the [mode matrix](../cracking/hash-reference.md#mode-matrix).
 
-# Kerberos auth from ccache (domain auto-detected)
-kw-roast -k -c admin.ccache --ldap
-
-# No-preauth kerberoasting (no credentials needed)
-kw-roast -d CORP.LOCAL --dc-ip 10.0.0.1 --no-preauth vuln_user -t svc_sql
-
-# Specific target, AES256
-kw-roast -d CORP.LOCAL --dc-ip 10.0.0.1 -u admin -p pass -t MSSQLSvc/db01 -e aes256
-
-# DES kerberoast (DES must be enabled in the DC's Kerberos encryption-types policy; not possible on Server 2025)
-kw-roast -d CORP.LOCAL --dc-ip 10.0.0.1 -u admin -p pass --ldap -e des-cbc-md5
-```
+`-o` never overwrites. If the file exists, the hashes go to `name_1.ext`, then `name_2.ext`, and so on.

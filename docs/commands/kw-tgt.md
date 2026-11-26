@@ -2,7 +2,26 @@
 
 Request a Kerberos TGT using password, hash, or key (pass-the-key). Saves a ccache file for use with `kw-roast -k -c` or any tool that reads `KRB5CCNAME`.
 
-Credential and etype selection are described under [Behaviour](#behaviour) below. For the encryption types themselves, see [encryption types](../background/encryption-types.md).
+Finding the DC and the transport options are described on [Common options](common-options.md). For the encryption types themselves, see [encryption types](../background/encryption-types.md).
+
+## Examples
+
+```bash
+# Password
+kw-tgt -d CORP.LOCAL --dc-ip 10.0.0.1 -u admin -p 'Password1!'
+
+# NT hash (overpass-the-hash)
+kw-tgt -d CORP.LOCAL --dc-ip 10.0.0.1 -u admin -H :7facdc498ed1680c4fd1448319a8c04f
+
+# AES256 key (pass-the-key)
+kw-tgt -d CORP.LOCAL --dc-ip 10.0.0.1 -u admin --aes256-key <64hex>
+
+# Password with AES256 authentication
+kw-tgt -d CORP.LOCAL --dc-ip 10.0.0.1 -u admin -p 'Password1!' -e aes256
+
+# Then use the TGT
+kw-roast -k -c admin.ccache --ldap
+```
 
 ## Help
 
@@ -58,23 +77,7 @@ output:
 
 - **Etype selection.** The first `-e` value picks the key used for pre-authentication, and the whole list goes in the AS-REQ body. The default is `rc4`. `-H` and the `--*-key` flags fix the etype themselves; a `-e` given alongside them is ignored with a warning.
 - **Salt lookup.** With a password and an AES or DES etype, kw-tgt first sends an AS-REQ without pre-authentication to read the account's salt from the KDC, then derives the key and sends the real request. RC4 has no salt, so it goes straight to the pre-authenticated request, as do `-H` and the key flags.
-- **Output.** The ccache is written to `-o`, or to `<user>.ccache` in the current directory, and replaces a file that is already there.
 
-## Examples
+## Output
 
-```bash
-# Password
-kw-tgt -d CORP.LOCAL --dc-ip 10.0.0.1 -u admin -p 'Password1!'
-
-# NT hash (overpass-the-hash)
-kw-tgt -d CORP.LOCAL --dc-ip 10.0.0.1 -u admin -H :7facdc498ed1680c4fd1448319a8c04f
-
-# AES256 key (pass-the-key)
-kw-tgt -d CORP.LOCAL --dc-ip 10.0.0.1 -u admin --aes256-key <64hex>
-
-# Password with AES256 authentication
-kw-tgt -d CORP.LOCAL --dc-ip 10.0.0.1 -u admin -p 'Password1!' -e aes256
-
-# Then use the TGT
-kw-roast -k -c admin.ccache --ldap
-```
+The ccache is written to `-o`, or to `<user>.ccache` in the current directory, and replaces a file that is already there. The other commands never overwrite their output; this one does.
