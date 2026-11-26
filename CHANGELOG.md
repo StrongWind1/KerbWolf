@@ -19,6 +19,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Fixed
 
 - A machine account with no known salt is written as `host<fqdn>` in the user field. `kw-asrep`, `kw-roast` and `kw-extract` wrote `NAME$`, and hashcat rejected the line because it splits fields on `$`.
+- `kw-extract` files the salt from a `PREAUTH_REQUIRED` error under the name in the AS-REQ it answers. It used the name inside the salt, which for a machine account is `host<fqdn>` and for a renamed account the old name, so tickets and pre-auth lines for those accounts were not corrected.
+- `kw-extract` no longer fails on an AS-REQ that has no padata field.
 - `kw-extract` reads the NTLM challenge from an SMB1 session setup response with extended security. Only the request form was parsed, so such a logon was dropped for lack of a challenge.
 - `kw-extract` reads an SMTP NTLM challenge that follows an empty `334` prompt, as Postfix sends one. The pattern ran across the line break and skipped the challenge line.
 

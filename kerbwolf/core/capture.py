@@ -79,6 +79,11 @@ _ETHERTYPE_IPV4 = 0x0800
 _ETHERTYPE_IPV6 = 0x86DD
 _IP_PROTO_TCP = 6
 _IP_PROTO_UDP = 17
+_IP_VERSION_4 = 4
+_IP_VERSION_6 = 6
+_IPV4_MIN_HEADER = 20
+_IPV6_HEADER = 40
+_AS_REQ_TAG = 0x6A  # [APPLICATION 10]
 
 # MS-SNTP packet lengths (format detection by length, not header fields).
 _SNTP_AUTH_LEN = 68  # Authenticator (MS-SNTP 2.2.1/2.2.2)
@@ -94,6 +99,11 @@ _SNTP_KEY_SELECTOR_OLD = 1 << 31
 
 
 SaltHints = dict[str, str]
+
+# The cname of the last AS-REQ each client endpoint sent, keyed by
+# ``(client_ip, client_port, kdc_ip, kdc_port)``.  A PREAUTH_REQUIRED error
+# does not name the account it is about; the request it answers does.
+KrbRequests = dict[tuple[str, int, str, int], str]
 
 
 def parse_pcap(path: str) -> list[CapturedHash]:
@@ -176,16 +186,17 @@ def _parse_stream(fh: BinaryIO) -> list[CapturedHash]:
     magic = struct.unpack("<I", header)[0]
     ntlm_sessions: dict[tuple[str, int, str, int], bytes] = {}
     tcp_streams: TcpStreams = {}
+    krb_requests: KrbRequests = {}
 
     if magic in {_PCAP_MAGIC_LE, _PCAP_MAGIC_NS_LE}:
         _log.debug("Format: pcap (little-endian)")
-        results = _parse_pcap(fh, header, byte_order="<", ntlm_sessions=ntlm_sessions, tcp_streams=tcp_streams)
+        results = _parse_pcap(fh, header, byte_order="<", ntlm_sessions=ntlm_sessions, tcp_streams=tcp_streams, krb_requests=krb_requests)
     elif magic in {_PCAP_MAGIC_BE, _PCAP_MAGIC_NS_BE}:
         _log.debug("Format: pcap (big-endian)")
-        results = _parse_pcap(fh, header, byte_order=">", ntlm_sessions=ntlm_sessions, tcp_streams=tcp_streams)
+        results = _parse_pcap(fh, header, byte_order=">", ntlm_sessions=ntlm_sessions, tcp_streams=tcp_streams, krb_requests=krb_requests)
     elif magic == _PCAPNG_SHB_TYPE:
         _log.debug("Format: pcapng")
-        results = _parse_pcapng(fh, ntlm_sessions=ntlm_sessions, tcp_streams=tcp_streams)
+        results = _parse_pcapng(fh, ntlm_sessions=ntlm_sessions, tcp_streams=tcp_streams, krb_requests=krb_requests)
     else:
         msg = f"Unknown file format (magic: 0x{magic:08X})"
         raise KerbWolfError(msg)
@@ -239,6 +250,7 @@ def _parse_pcap(
     byte_order: str,
     ntlm_sessions: dict[tuple[str, int, str, int], bytes],
     tcp_streams: TcpStreams,
+    krb_requests: KrbRequests,
 ) -> list[CapturedHash]:
     """Parse a libpcap format file."""
     rest = fh.read(20)
@@ -263,7 +275,7 @@ def _parse_pcap(
             if len(pkt_data) < incl_len:
                 break
             pkt_count += 1
-            results.extend(_process_packet(pkt_data, link_type, tcp_streams, ntlm_sessions))
+            results.extend(_process_packet(pkt_data, link_type, tcp_streams, ntlm_sessions, krb_requests))
     except KeyboardInterrupt:
         _log.info("Interrupted: keeping what was read so far")
 
@@ -276,6 +288,7 @@ def _parse_pcapng(
     *,
     ntlm_sessions: dict[tuple[str, int, str, int], bytes],
     tcp_streams: TcpStreams,
+    krb_requests: KrbRequests,
 ) -> list[CapturedHash]:
     """Parse a pcapng format file."""
     shb_rest = fh.read(8)
@@ -316,14 +329,14 @@ def _parse_pcapng(
                 )
                 link_type = link_types[iface_id] if iface_id < len(link_types) else _LINKTYPE_ETHERNET
                 pkt_data = body[20 : 20 + cap_len]
-                results.extend(_process_packet(pkt_data, link_type, tcp_streams, ntlm_sessions))
+                results.extend(_process_packet(pkt_data, link_type, tcp_streams, ntlm_sessions, krb_requests))
 
             elif block_type == _PCAPNG_SPB_TYPE and len(body) >= 4:  # noqa: PLR2004
                 # A Simple Packet Block has no interface field: it belongs to interface 0.
                 orig_len = struct.unpack(f"{byte_order}I", body[:4])[0]
                 link_type = link_types[0] if link_types else _LINKTYPE_ETHERNET
                 pkt_data = body[4 : 4 + orig_len]
-                results.extend(_process_packet(pkt_data, link_type, tcp_streams, ntlm_sessions))
+                results.extend(_process_packet(pkt_data, link_type, tcp_streams, ntlm_sessions, krb_requests))
     except KeyboardInterrupt:
         _log.info("Interrupted: keeping what was read so far")
 
@@ -340,6 +353,7 @@ def _process_packet(
     link_type: int,
     tcp_streams: TcpStreams,
     ntlm_sessions: dict[tuple[str, int, str, int], bytes],
+    krb_requests: KrbRequests | None = None,
 ) -> list[CapturedHash]:
     """Process a raw packet, routing TCP through stream reassembly.
 
@@ -375,7 +389,7 @@ def _process_packet(
 
         # Kerberos TCP (port 88): length-prefix extraction.
         if _KRB_PORT in {src_port, dst_port} and conn_key in tcp_streams:
-            results.extend(_extract_kerberos_from_stream(tcp_streams[conn_key]))
+            results.extend(_extract_kerberos_from_stream(tcp_streams[conn_key], conn_key, krb_requests))
 
         # Kerberos AP-REQ (SMB, HTTP, LDAP, DCE-RPC): service tickets.  This
         # only reads the stream, so it runs before NTLM consumes SMB messages.
@@ -403,7 +417,7 @@ def _process_packet(
         return results
 
     # UDP path: direct extraction (SNTP, Kerberos UDP).
-    return _extract_from_packet(pkt_data, link_type)
+    return _extract_from_packet(pkt_data, link_type, krb_requests)
 
 
 # ---------------------------------------------------------------------------
@@ -411,7 +425,7 @@ def _process_packet(
 # ---------------------------------------------------------------------------
 
 
-def _extract_from_packet(pkt_data: bytes, link_type: int) -> list[CapturedHash]:
+def _extract_from_packet(pkt_data: bytes, link_type: int, krb_requests: KrbRequests | None = None) -> list[CapturedHash]:
     """Extract all roastable data from a raw packet."""
     ip_data = _strip_link_layer(pkt_data, link_type)
     if ip_data is None:
@@ -436,11 +450,45 @@ def _extract_from_packet(pkt_data: bytes, link_type: int) -> list[CapturedHash]:
         if msg_len <= len(payload) - 4:
             krb_data = payload[4 : 4 + msg_len]
 
+    addresses = _ip_addresses(ip_data)
+    conn_key = (addresses[0], src_port, addresses[1], dst_port) if addresses is not None else None
+    return _kerberos_hashes(krb_data, conn_key, krb_requests)
+
+
+def _ip_addresses(ip_data: bytes) -> tuple[str, str] | None:
+    """Return the source and destination address of an IPv4 or IPv6 packet."""
+    version = (ip_data[0] >> 4) & 0xF if ip_data else 0
+    if version == _IP_VERSION_4 and len(ip_data) >= _IPV4_MIN_HEADER:
+        return socket.inet_ntoa(ip_data[12:16]), socket.inet_ntoa(ip_data[16:20])
+    if version == _IP_VERSION_6 and len(ip_data) >= _IPV6_HEADER:
+        return socket.inet_ntop(socket.AF_INET6, ip_data[8:24]), socket.inet_ntop(socket.AF_INET6, ip_data[24:40])
+    return None
+
+
+def _kerberos_hashes(
+    krb_data: bytes,
+    conn_key: tuple[str, int, str, int] | None = None,
+    krb_requests: KrbRequests | None = None,
+) -> list[CapturedHash]:
+    """Run every Kerberos extractor over one message.
+
+    The cname of an AS-REQ is remembered for the endpoint that sent it, so
+    that a PREAUTH_REQUIRED error coming back the other way can be tied to the
+    account it is about.
+    """
+    requested = ""
+    if conn_key is not None and krb_requests is not None:
+        cname = _as_req_cname(krb_data)
+        if cname:
+            krb_requests[conn_key] = cname
+        src_ip, src_port, dst_ip, dst_port = conn_key
+        requested = krb_requests.get((dst_ip, dst_port, src_ip, src_port), "")
+
     results: list[CapturedHash] = []
     results.extend(_try_parse_asreq(krb_data))
     results.extend(_try_parse_asrep(krb_data))
     results.extend(_try_parse_tgsrep(krb_data))
-    results.extend(_try_parse_krberror_salt(krb_data))
+    results.extend(_try_parse_krberror_salt(krb_data, requested))
     return results
 
 
@@ -613,7 +661,11 @@ def _parse_tcp_info(ip_data: bytes) -> tuple[bytes, str, int, str, int, int, int
 # ---------------------------------------------------------------------------
 
 
-def _extract_kerberos_from_stream(buffer: bytearray) -> list[CapturedHash]:
+def _extract_kerberos_from_stream(
+    buffer: bytearray,
+    conn_key: tuple[str, int, str, int] | None = None,
+    krb_requests: KrbRequests | None = None,
+) -> list[CapturedHash]:
     """Extract complete Kerberos messages from a TCP stream buffer.
 
     Kerberos over TCP uses a 4-byte big-endian length prefix per RFC 4120
@@ -627,10 +679,7 @@ def _extract_kerberos_from_stream(buffer: bytearray) -> list[CapturedHash]:
         if total > len(buffer):
             break  # Incomplete message, wait for more data.
         krb_data = bytes(buffer[4:total])
-        results.extend(_try_parse_asreq(krb_data))
-        results.extend(_try_parse_asrep(krb_data))
-        results.extend(_try_parse_tgsrep(krb_data))
-        results.extend(_try_parse_krberror_salt(krb_data))
+        results.extend(_kerberos_hashes(krb_data, conn_key, krb_requests))
         del buffer[:total]
     return results
 
@@ -638,6 +687,19 @@ def _extract_kerberos_from_stream(buffer: bytearray) -> list[CapturedHash]:
 # ---------------------------------------------------------------------------
 # Kerberos ASN.1 extraction - one function per message type
 # ---------------------------------------------------------------------------
+
+
+def _as_req_cname(data: bytes) -> str:
+    """Return the cname of an AS-REQ, or ``""`` when *data* is not one."""
+    if not data or data[0] != _AS_REQ_TAG:
+        return ""
+    try:
+        as_req, _ = decoder.decode(data, asn1Spec=AS_REQ())
+    except Exception:  # noqa: BLE001
+        return ""
+    if int(as_req["msg-type"]) != int(krb_constants.ApplicationTagNumbers.AS_REQ.value):
+        return ""
+    return _extract_cname(as_req["req-body"])
 
 
 def _try_parse_asreq(data: bytes) -> list[CapturedHash]:
@@ -657,8 +719,10 @@ def _try_parse_asreq(data: bytes) -> list[CapturedHash]:
         return []
 
     results: list[CapturedHash] = []
-    if as_req["padata"]:
-        for pa_data in as_req["padata"]:
+    # padata is OPTIONAL in a KDC-REQ (RFC 4120 section 5.4.1).
+    padata = as_req["padata"]
+    if padata.hasValue():
+        for pa_data in padata:
             if int(pa_data["padata-type"]) == int(krb_constants.PreAuthenticationDataTypes.PA_ENC_TIMESTAMP.value):
                 enc_data, _ = decoder.decode(pa_data["padata-value"], asn1Spec=EncryptedData())
                 results.append(
@@ -844,13 +908,19 @@ def _ap_reqs_in_blob(blob: bytes) -> list[tuple[bytes, CapturedHash]]:
 # ---------------------------------------------------------------------------
 
 
-def _try_parse_krberror_salt(data: bytes) -> list[CapturedHash]:
+def _try_parse_krberror_salt(data: bytes, cname: str = "") -> list[CapturedHash]:
     """Extract ETYPE-INFO2 salt from a KRB-ERROR (PREAUTH_REQUIRED).
 
-    Returns a ``SALT_HINT`` pseudo-hash that carries the ``cname`` from
-    the preceding AS-REQ and the ETYPE-INFO2 salt from the error.
-    These are filtered out by ``extract_from_pcap`` and used to build
-    a salt dictionary for correcting TGS-REP hash usernames.
+    Returns ``SALT_HINT`` pseudo-hashes that carry the ETYPE-INFO2 salt from
+    the error.  They are filtered out by ``extract_from_pcap`` and used to
+    build a salt dictionary for correcting hash usernames.
+
+    The error does not name the account.  *cname* is the name from the AS-REQ
+    it answers, and the hint is filed under it: that is the name later
+    messages for the account carry, which the salt need not contain (a machine
+    account is salted with ``host<fqdn>``, and a renamed account keeps its old
+    salt).  The hint is also filed under the name read out of the salt, which
+    is all there is when the request was not captured.
     """
     try:
         krb_error = decoder.decode(data, asn1Spec=KRB_ERROR())[0]
@@ -885,26 +955,14 @@ def _try_parse_krberror_salt(data: bytes) -> list[CapturedHash]:
     if not salt:
         return []
 
-    username = ""
+    salt_name = ""
     nul_idx = salt.find("\x00")
     clean_salt = salt[nul_idx + 1 :] if nul_idx >= 0 else salt
     if realm and clean_salt.startswith(realm):
-        username = clean_salt[len(realm) :]
+        salt_name = clean_salt[len(realm) :]
 
-    if not username:
-        return []
-
-    return [
-        CapturedHash(
-            attack=AttackType.SALT_HINT,
-            username=username,
-            realm=realm,
-            spn="",
-            etype=0,
-            cipher_hex="",
-            padata_salt=salt,
-        )
-    ]
+    names = [name for name in dict.fromkeys((cname, salt_name)) if name]
+    return [CapturedHash(attack=AttackType.SALT_HINT, username=name, realm=realm, spn="", etype=0, cipher_hex="", padata_salt=salt) for name in names]
 
 
 def _try_parse_sntp(payload: bytes) -> list[CapturedHash]:
