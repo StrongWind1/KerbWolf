@@ -54,7 +54,7 @@ The SRV lookup runs first and the flags then override what it found. A hostname 
 | `kw-roast` | `--ldap-all` | Every enabled user | A ticket request for every user. The KDC refuses a ticket for an account with no SPN, so those are skipped: against a lab DC the spray returned exactly the accounts `--ldap` finds |
 | `kw-asrep` | `--ldap` | Enabled, non-computer accounts with the `DONT_REQUIRE_PREAUTH` flag (UAC bit 4194304) | One AS-REQ per account. If you see zero results, no enabled, non-computer account that your bind user can see has the flag |
 | `kw-asrep` | `--ldap-all` | Every enabled user | An AS-REQ for every user. The KDC itself tells you which accounts don't require pre-auth by returning an AS-REP instead of a `PREAUTH_REQUIRED` error. Accounts that do require pre-auth are silently skipped |
-| `kw-timeroast` | `--ldap` | Computer and gMSA accounts, with no disabled-account exclusion: RIDs from `objectSid`, names from sAMAccountName | One NTP request per RID. The NTP probe determines what responds: a disabled account is asked too and [does not answer](../background/timeroasting.md#which-accounts-respond). Trust accounts are not in the filter and need a RID scan |
+| `kw-timeroast` | `--ldap` | Computer and gMSA accounts, and MSAs, which are computer objects too, with no disabled-account exclusion: RIDs from `objectSid`, names from sAMAccountName | One NTP request per RID. The NTP probe determines what responds: a disabled account is asked too and [does not answer](../background/timeroasting.md#which-accounts-respond). Trust accounts are not in the filter and need a RID scan |
 
 The filters, as sent:
 

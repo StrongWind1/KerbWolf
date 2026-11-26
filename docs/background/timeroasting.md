@@ -8,20 +8,21 @@ Two tools produce these hashes. [`kw-timeroast`](../commands/kw-timeroast.md) re
 
 ## Which accounts respond
 
-Tested on Windows Server 2022 (Build 20348) and Server 2025 (Build 26100):
+Checked on a Windows Server 2022 DC (Build 20348). Every answer was confirmed against the account's NT hash, from a known password or read from the directory:
 
 | Account type | objectClass | Timeroastable |
 |---|---|---|
 | **Computer** | computer | **YES** |
 | **gMSA** | msDS-GroupManagedServiceAccount | **YES** |
+| **MSA** | msDS-ManagedServiceAccount | **YES** once enabled. `New-ADServiceAccount -RestrictToSingleComputer` left it disabled, and it stayed silent until it was enabled |
 | **Trust account** | user (INTERDOMAIN_TRUST_ACCOUNT) | **YES** (RID scan only — not in LDAP filter) |
-| MSA | msDS-ManagedServiceAccount | No |
-| dMSA | msDS-DelegatedManagedServiceAccount | No |
 | User (even with `$` in name) | user | No |
 | Computer, disabled | computer | No |
 | Computer object flagged as a normal account (`userAccountControl` 0x200 in place of 0x1000 or 0x2000) | computer | No |
 
-The last two rows are from a Server 2022 DC with 232 computer objects: all 215 enabled machine accounts answered, none of the 14 disabled ones did, and neither did 3 whose `userAccountControl` marks them as user accounts. The object class and the `$` in the name do not decide it; an enabled machine account does.
+What decides is the account type in `userAccountControl` and whether the account is enabled, not the object class or the `$` in the name: an enabled workstation, server or interdomain trust account answers. On a DC with 232 computer objects all 215 enabled machine accounts answered, none of the 14 disabled ones did, and neither did 3 whose `userAccountControl` marks them as user accounts.
+
+A dMSA (`msDS-DelegatedManagedServiceAccount`) exists only with the Server 2025 schema. An earlier test on Server 2025 (Build 26100) got no answer from one; that test was not repeated, and it did not record whether the account was enabled.
 
 The LDAP filter behind `kw-timeroast --ldap` is on the [Common options](../commands/common-options.md#ldap-target-discovery) page.
 
@@ -60,20 +61,20 @@ The 68-byte format is the primary attack target because hashcat mode 31300 can c
 
 ## Password selection
 
-- **68-byte**: Bit 31 of the Key Identifier selects current (0) or previous (1) password. Works correctly on all tested DCs.
-- **120-byte**: The spec says Flags bit 0 (USE_OLDKEY_VERSION) selects old password, but the DC requires bit 0 to be set just to respond. No working mechanism to select current vs previous, so `kw-timeroast` sends the 120-byte request once per RID whatever `--password` says, and does not label those hashes by password age.
+- **68-byte**: Bit 31 of the Key Identifier selects current (0) or previous (1) password. For a trust account created with two known passwords, the two selectors returned hashes of the current and of the previous one.
+- **120-byte**: The spec says Flags bit 0 (USE_OLDKEY_VERSION) selects the old password, and the DC answers only when that bit is set. So the one answer it gives is keyed with the previous password when the account has one, and with the current password otherwise: the same trust account's 120-byte hash was of its previous password. There is no way to ask for the current password of such an account in this format, so `kw-timeroast` sends the 120-byte request once per RID whatever `--password` says, and does not label those hashes by password age.
 
-Per MS-SNTP Appendix A `<27>`/`<28>`: machine accounts do not keep password history. Only trust accounts can have a previous password. If no previous exists, the DC returns the current password for both selectors: against a lab DC, the current and previous hashes of the same accounts cracked to the same passwords.
+Per MS-SNTP Appendix A `<27>`/`<28>`: machine accounts do not keep password history. Only trust accounts can have a previous password. If no previous exists, the DC returns the current password for both selectors. That held for a computer account whose password was reset by an administrator and then changed by the account itself: both selectors, and the 120-byte answer, followed the newest password each time.
 
 ## Spec versus live behaviour
 
-Tested against Windows Server 2022 (Build 20348) and Server 2025 (Build 26100). Full 0-255 byte sweep of the 120-byte control fields:
+Swept on a Windows Server 2022 DC (Build 20348): all 256 values of each of the three control bytes of the 120-byte request. An earlier sweep on Server 2025 (Build 26100) gave the same table and was not repeated.
 
 | Byte | Field | Spec says | Live behavior |
 |------|-------|-----------|---------------|
-| 53 | Flags | 0x00 for current, 0x01 for old | **Bit 0 MUST be 1 or DC drops the packet** |
+| 53 | Flags | 0x00 for current, 0x01 for old | **Bit 0 MUST be 1 or DC drops the packet**; the answer then uses the old password when there is one |
 | 54 | ClientHashIDHints | NTLM_PWD_HASH (0x01) MUST be set or DC drops | **DC ignores** -- all 256 values work |
-| 55 | SignatureHashID | Must be 0x00 in request | DC ignores -- all 256 values work |
+| 55 | SignatureHashID | The server ignores it in a request | DC ignores -- all 256 values work, as specified |
 | Response byte 55 | SignatureHashID | Server MUST set to 0x01 | **DC always returns 0x00** (confirmed bug) |
 
 ## Hash lines
