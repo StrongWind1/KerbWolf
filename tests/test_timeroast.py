@@ -406,3 +406,61 @@ class TestExtendedOutputIsLabelledPrevious:
         assert roast.call_count == 1
         assert roast.call_args.kwargs["extended"] is True
         assert roast.call_args.kwargs["old_pwd"] is True
+
+
+# ---------------------------------------------------------------------------
+# -R file: comments, blank lines and lines that are not ranges
+# ---------------------------------------------------------------------------
+
+
+class TestRidFile:
+    def test_comments_and_blank_lines(self, tmp_path):
+        from kerbwolf.cli.timeroast import _load_rids_from_file
+
+        f = tmp_path / "rids.lst"
+        f.write_text("# domain controller\n1000\n\n1103-1104  # clients\n   # indented comment\n1684-1685,1700\n")
+        assert list(_load_rids_from_file(str(f))) == [1000, 1103, 1104, 1684, 1685, 1700]
+
+    def test_bad_line_names_the_file_and_line(self, tmp_path):
+        import pytest
+
+        from kerbwolf.cli.timeroast import _load_rids_from_file
+        from kerbwolf.models import KerbWolfError
+
+        f = tmp_path / "rids.lst"
+        f.write_text("1000\nnot-a-rid\n")
+        with pytest.raises(KerbWolfError, match=r"rids\.lst, line 2: not a RID range: 'not-a-rid'"):
+            _load_rids_from_file(str(f))
+
+    def test_reversed_range_is_a_bad_line(self, tmp_path):
+        import pytest
+
+        from kerbwolf.cli.timeroast import _load_rids_from_file
+        from kerbwolf.models import KerbWolfError
+
+        f = tmp_path / "rids.lst"
+        f.write_text("200-100\n")
+        with pytest.raises(KerbWolfError, match="line 1"):
+            _load_rids_from_file(str(f))
+
+    def test_main_reports_a_bad_file_and_sends_nothing(self, tmp_path, capsys):
+        from unittest.mock import patch
+
+        from kerbwolf.cli.timeroast import main
+
+        f = tmp_path / "rids.lst"
+        f.write_text("1000\n12x\n")
+        with patch("kerbwolf.cli.timeroast.timeroast") as roast:
+            main(["192.0.2.1", "-R", str(f)])
+        assert not roast.called
+        assert "line 2: not a RID range: '12x'" in capsys.readouterr().err
+
+    def test_main_reports_a_missing_file(self, tmp_path, capsys):
+        from unittest.mock import patch
+
+        from kerbwolf.cli.timeroast import main
+
+        with patch("kerbwolf.cli.timeroast.timeroast") as roast:
+            main(["192.0.2.1", "-R", str(tmp_path / "absent.lst")])
+        assert not roast.called
+        assert "absent.lst" in capsys.readouterr().err

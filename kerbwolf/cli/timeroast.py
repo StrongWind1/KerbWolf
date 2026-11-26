@@ -14,6 +14,7 @@ from kerbwolf.cli._common import parse_nthash, print_header, safe_output_path
 from kerbwolf.core.ldap import connect as ldap_connect
 from kerbwolf.core.ldap import find_timeroastable
 from kerbwolf.log import Logger
+from kerbwolf.models import KerbWolfError
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
@@ -171,13 +172,32 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _load_rids_from_file(path: str) -> RidRanges:
-    """Load RID ranges from a file, one range expression per line."""
+    """Load RID ranges from a file, one range expression per line.
+
+    A ``#`` starts a comment that runs to the end of the line, and blank lines
+    are skipped.  A line that is not a range is reported with its number.
+    """
     ranges: list[range] = []
-    for line in Path(path).read_text().splitlines():
-        stripped = line.strip()
-        if stripped and not stripped.startswith("#"):
-            ranges.extend(_parse_ranges(stripped))
+    for number, line in enumerate(Path(path).read_text().splitlines(), start=1):
+        text = line.split("#", 1)[0].strip()
+        if not text:
+            continue
+        try:
+            ranges.extend(_parse_ranges(text))
+        except (ValueError, argparse.ArgumentTypeError) as exc:
+            msg = f"{path}, line {number}: not a RID range: {text!r}"
+            raise KerbWolfError(msg) from exc
     return RidRanges(ranges)
+
+
+def _rids_from_file(path: str, logger: Logger) -> RidRanges | None:
+    """Load the ``-R`` file, logging what is wrong with it when it cannot be used."""
+    try:
+        return _load_rids_from_file(path)
+    except (KerbWolfError, OSError) as exc:
+        problem = str(exc)
+    logger.error("%s", problem)
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -371,7 +391,9 @@ def main(argv: list[str] | None = None) -> None:
             return
         rid_desc = f"LDAP ({len(accounts)} accounts)"
     elif args.rids_file:
-        rids = _load_rids_from_file(args.rids_file)
+        rids = _rids_from_file(args.rids_file, logger)
+        if rids is None:
+            return
         rid_desc = f"from {args.rids_file}"
     elif isinstance(args.rids, RidRanges):
         rids = args.rids

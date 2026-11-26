@@ -15,7 +15,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Restructured the docs. Pages are grouped as Commands, Cracking, Troubleshooting and Background, and every old page address redirects to its new one. Three pages are new: Common options (credentials, DC resolution, LDAP discovery, `-e`), Troubleshooting (a symptom table, and the rule that the user and realm fields are the salt for AES and DES) and Timeroasting. Command pages open with examples and share one layout. Tables that restated each other were merged and nine redundant diagrams removed; nothing else was dropped.
 - The docs install from PyPI, and the remaining diagrams are readable in the light theme.
 - Checked the docs against hashcat master (`16b164c15`) and against a Server 2022 domain controller, and corrected what had drifted. Mode 39400 takes a 58-76 hex timestamp, modes 19800 and 19900 an explicit salt of up to 1022 chars, and the no-etype shape of 18200 rejects another etype's joined line. The docs now say that hashcat v8.0.0 does not load the `$user$realm$` layout in modes 7500, 13100, 18200, 19800, 19900, 35300, 35400 and 38500, so those lines need a build from master; that a user field ending in `$` (a machine account) makes hashcat reject a line; and that disabled machine accounts do not answer a timeroast request. Two timeroast statements were wrong: an enabled MSA does answer, and the 120-byte answer is keyed with the previous password when the account has one.
-
 - `kw-timeroast --ldap` leaves out disabled accounts, which never answer, and returns interdomain trust accounts, the only accounts with a previous password. Its filter was computer and gMSA objects with no other condition.
 - `kw-timeroast` labels the 120-byte hashes previous and writes them to `<name>-previous-sha512.txt`, not `<name>-sha512.txt`. The only 120-byte request a DC answers is the one for the previous password, which a trust account with two known passwords confirmed; an account with no previous password answers with its current one.
 
@@ -25,6 +24,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `kw-extract` files the salt from a `PREAUTH_REQUIRED` error under the name in the AS-REQ it answers. It used the name inside the salt, which for a machine account is `host<fqdn>` and for a renamed account the old name, so tickets and pre-auth lines for those accounts were not corrected.
 - `kw-extract` no longer fails on an AS-REQ that has no padata field.
 - `kw-extract` finds an AP-REQ that has no GSS-API header in front of it, as Impacket's LDAP bind sends it. It looked for the header, not the message.
+- `kw-timeroast -R` accepts a comment after a range and reports a line that is not a range by file name and line number. Both ended in a traceback.
 - `kw-extract` reads the NTLM challenge from an SMB1 session setup response with extended security. Only the request form was parsed, so such a logon was dropped for lack of a challenge.
 - `kw-extract` reads an SMTP NTLM challenge that follows an empty `334` prompt, as Postfix sends one. The pattern ran across the line break and skipped the challenge line.
 
