@@ -15,7 +15,10 @@ See also: [encryption types](../background/encryption-types.md) for key derivati
 | **Pre-Auth** | 39300 `$krb5pa$1$` | 39000 `$krb5pa$3$` | 19800 `$krb5pa$17$` | 19900 `$krb5pa$18$` | none | none | 7500 `$krb5pa$23$` |
 | **DB Key** | 38400 `$krb5db$1$` | 38400 `$krb5db$3$` | 28800 `$krb5db$17$` | 28900 `$krb5db$18$` | none | none | 1000 (NT hash) |
 
-These are the 21 Kerberos modes in hashcat master as of 2026-11-15, plus mode 1000 for the etype 23 database key. Modes 35300, 35400, 38400, 38500 and 38600 first shipped in hashcat v8.0.0; 39000 through 39400 were added after that release, so they need a build from master.
+These are the 21 Kerberos modes in hashcat master as of 2026-11-25, plus mode 1000 for the etype 23 database key. Modes 35300, 35400, 38400, 38500 and 38600 first shipped in hashcat v8.0.0; 39000 through 39400 were added after that release, so they need a build from master.
+
+!!! warning "Build hashcat from master"
+    KerbWolf writes the `$user$realm$` layout. hashcat added that layout to modes 7500, 13100, 18200, 19800, 19900, 35300, 35400 and 38500 on 2026-11-04, after the v8.0.0 release. A v8.0.0 build loads KerbWolf's lines only in modes 19600, 19700, 32100, 32200 and 38600; in the other eight it rejects them with `Token length exception`, `Separator unmatched` or `Signature unmatched`, and it has no modes 39000 through 39400. Until the next release, build hashcat from its master branch.
 
 !!! warning "No hashcat mode for AES-SHA2"
     hashcat has no mode for etypes 19 and 20 (RFC 8009). KerbWolf still extracts those hashes from pcaps and writes them in the canonical layout, but nothing in hashcat loads them.
@@ -33,7 +36,7 @@ Mode 38400 handles etypes 1, 2, and 3 in one module (same DES string-to-key). RC
 
 ### NT-hash variants (etype 23 only)
 
-Same canonical line and the same ciphertext as the RC4 password modes, but the candidates are 32-char NT hashes instead of passwords: these modes crack the NT hash directly. Mode 39400 is narrower than 7500: it needs a 72-hex encrypted timestamp and does not take 7500's single-field shape.
+Same canonical line and the same ciphertext as the RC4 password modes, but the candidates are 32-char NT hashes instead of passwords: these modes crack the NT hash directly. Mode 39400 takes the same lines as 7500 except its single-field shape.
 
 | Attack | NT Mode | Password Mode |
 |---|---|---|
@@ -72,7 +75,7 @@ The three RC4 password modes (7500, 13100, 18200) run faster with `-O`; what tha
 
 ## Line format
 
-All etypes use the same field layout, except DES pre-auth, which has one cipher field. This is what KerbWolf outputs for the TGS-REP, AS-REP and Pre-Auth hashes, and what every hashcat Kerberos mode accepts. hashcat prints a cracked hash back in the shape it was loaded in, so a canonical line stays canonical and a legacy line stays legacy.
+All etypes use the same field layout, except DES pre-auth, which has one cipher field. This is what KerbWolf outputs for the TGS-REP, AS-REP and Pre-Auth hashes, and what every Kerberos mode of hashcat master accepts (v8.0.0 [does not](#mode-matrix)). hashcat prints a cracked hash back in the shape it was loaded in, so a canonical line stays canonical and a legacy line stays legacy.
 
 **TGS-REP / AS-REP (enc-part hashes):**
 
@@ -99,7 +102,7 @@ $krb5db$<etype>$<user>$<realm>$<key_hex>
 
 KerbWolf does not produce DB key lines. They come from hashcat's `tools/krb5db2hashcat.py`, which turns secretsdump, gosecretsdump, mimikatz, DSInternals and ntdissector output into these lines. An account's etype 1 and etype 3 keys are the same DES key, so loading both lines into mode 38400 counts as one hash. The etype 23 key is not a `$krb5db$` line: it is the bare NT hash, 32 hex, for mode 1000.
 
-For RC4 the `user` and `realm` fields are metadata only. For every other etype they are part of the salt, and a wrong one means the hash never cracks: see [Troubleshooting](../troubleshooting.md#the-user-field-is-a-cryptographic-input).
+For RC4 the `user` and `realm` fields are metadata only. For every other etype they are part of the salt, and a wrong one means the hash never cracks: see [Troubleshooting](../troubleshooting.md#the-user-field-is-a-cryptographic-input). Whatever the etype, a user field that ends in `$` (a machine account name) makes hashcat reject the line, because `$` separates the fields.
 
 The SPN is not in the canonical format. It is operational metadata that does not feed any crypto. KerbWolf stores it in the result record but does not include it in the hash output.
 

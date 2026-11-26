@@ -1,6 +1,6 @@
 # Cracking Speed
 
-Measured hashcat speed for all 21 Kerberos modes on one NVIDIA GeForce RTX 4090, and what those rates mean for how long an attack takes. The numbers come from hashcat master at commit `d62291d29`, measured on 2026-11-15. They are one data point for one card: a different GPU, driver or hashcat commit will move them.
+Measured hashcat speed for all 21 Kerberos modes on one NVIDIA GeForce RTX 4090, and what those rates mean for how long an attack takes. The numbers come from hashcat master at commit `d62291d29`, measured on 2026-11-15. They are one data point for one card: a different GPU, driver or hashcat commit will move them. The commit matters here: between 2026-11-19 and 2026-11-22 hashcat master reworked the kernels of the RC4 modes 7500, 13100 and 18200 and of the seven DES modes, which now run on bit slices in a mask attack, the attack a benchmark measures, and it changed the benchmark mask of the three NT-hash modes. The RC4, DES and NT-hash figures on this page are from before that work and were not measured again; the AES kernels were not part of it.
 
 See also: [Hash Reference](hash-reference.md) for which mode takes which hash, [Encryption Types](../background/encryption-types.md) for why the etypes cost what they do.
 
@@ -53,7 +53,7 @@ Both backends drive the same card. CUDA is faster for 18 of the 21 modes.
 
 | Family | Modes | Faster backend | Margin |
 |---|---|---|---|
-| RC4 | 7500, 13100, 18200 | CUDA | 7% to 14% with `-O`, 5% to 11% without |
+| RC4 | 7500, 13100, 18200 | CUDA | 7% to 14% with `-O`, 5% to 10% without |
 | RC4, NT input | 35300, 35400, 39400 | CUDA | 2% |
 | AES128-SHA1 | 19600, 19800, 28800, 32100 | CUDA | 3.6% to 3.8% |
 | AES256-SHA1 | 19700, 19900, 28900, 32200 | CUDA | 4.4% to 4.6% |

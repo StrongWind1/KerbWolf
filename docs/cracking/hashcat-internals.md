@@ -1,8 +1,10 @@
 # Hashcat Internals
 
-Field-by-field breakdown of how hashcat parses each Kerberos hash mode, read from the `module_*.c` files of hashcat master (commit `d62291d29`, 2026-11-15). Useful when a hash won't load or when you're building tooling that outputs these formats. Which fields affect cracking and which are only labels is on the [Troubleshooting](../troubleshooting.md#the-user-field-is-a-cryptographic-input) page.
+Field-by-field breakdown of how hashcat parses each Kerberos hash mode, read from the `module_*.c` files of hashcat master (commit `16b164c15`, 2026-11-25) and checked by loading boundary-case lines into a build of that commit. Useful when a hash won't load or when you're building tooling that outputs these formats. Which fields affect cracking and which are only labels is on the [Troubleshooting](../troubleshooting.md#the-user-field-is-a-cryptographic-input) page.
 
-hashcat has 21 Kerberos modes: 7500, 13100, 18200, 19600, 19700, 19800, 19900, 28800, 28900, 32100, 32200, 35300, 35400, 38400, 38500, 38600, 39000, 39100, 39200, 39300 and 39400. There is no mode for etypes 19 and 20 (AES-SHA2). Modes 39000 through 39400 were added after the v8.0.0 release.
+hashcat has 21 Kerberos modes: 7500, 13100, 18200, 19600, 19700, 19800, 19900, 28800, 28900, 32100, 32200, 35300, 35400, 38400, 38500, 38600, 39000, 39100, 39200, 39300 and 39400. There is no mode for etypes 19 and 20 (AES-SHA2).
+
+This page describes master, not the v8.0.0 release. Modes 39000 through 39400 were added after v8.0.0, and so was the `$user$realm$` layout of modes 7500, 13100, 18200, 19800, 19900, 35300, 35400 and 38500 (2026-11-04): in those eight modes v8.0.0 loads only the other shapes listed below.
 
 Most modes accept more than one line shape. hashcat prints a cracked hash back in the shape it was loaded in, so nothing is converted to a single layout. The one exception is the optional `*spn*` field of modes 19600, 19700, 28800, 28900 and 38400, which is accepted and then dropped. The "canonical" shape below is the `$user$realm$` layout that every mode accepts. KerbWolf writes it for the TGS-REP, AS-REP and Pre-Auth modes, and hashcat's `tools/krb5db2hashcat.py` writes it for the DB key modes.
 
@@ -71,6 +73,7 @@ In every DES mode (38400, 38500, 38600, 39000, 39100, 39200, 39300) user plus re
 - **DES modes cap the salt and the password.** User plus realm may be at most 128 bytes together, and candidate passwords at most 64 bytes.
 - **DES ciphertext must be whole blocks.** The hex of the cipher has to be a multiple of 16 chars (8 bytes), or the line is rejected.
 - **Hex fields accept both cases.** `a-f` and `A-F` both load; hashcat prints lowercase.
+- **A `$` inside a field breaks the line.** Fields are split on `$`, so a user field that ends in `$`, as a machine account name does, shifts every field after it and the line is rejected with `Token length exception`. What to write instead is under [Correcting a line by hand](../troubleshooting.md#correcting-a-line-by-hand).
 
 Which fields are cryptographic inputs and which are only labels, and what a wrong user or realm does to an AES or DES hash, is on the [Troubleshooting](../troubleshooting.md#the-user-field-is-a-cryptographic-input) page.
 
@@ -165,6 +168,8 @@ Two other shapes load:
 
 The canonical shape is chosen when `23$` is present and there is no `:`. In every shape the principal is a label; only checksum and edata2 are used.
 
+A no-etype line whose principal opens with digits and a `$`, such as `$krb5asrep$3$user@realm:checksum$edata2`, is rejected: it is the joined shape of another etype. A `$` right before the `@`, as in `1234$@realm`, is still accepted.
+
 ---
 
 ### Mode 32100: AES128
@@ -255,11 +260,11 @@ This is the shape KerbWolf writes. Three other shapes load, all with the encrypt
 |-------|-----------|
 | `$krb5pa$17$user$realm$<encrypted><checksum>` (single field) | `REALM + user` |
 | `$krb5pa$17$user$realm$$<encrypted><checksum>` (empty salt, JtR) | `REALM + user` |
-| `$krb5pa$17$user$realm$salt$<encrypted><checksum>` (explicit salt) | the salt field, verbatim, up to 513 chars |
+| `$krb5pa$17$user$realm$salt$<encrypted><checksum>` (explicit salt) | the salt field, verbatim, up to 1022 chars |
 
 The shape is picked by counting `$`. With six or more, the salt shapes are tried first; if that fails and there are exactly six, the split shape is tried. With fewer, the line is read as the single field.
 
-The parser accepts an explicit salt of up to 1022 chars, but hashcat aborts with a buffer overflow when the salt is longer than 513 (it copies the salt into a 513-byte buffer to print the line back). 513 is the usable limit in both 19800 and 19900. In the explicit-salt shape the user and realm fields are labels.
+An explicit salt may be up to 1022 chars in both 19800 and 19900; v8.0.0 takes 512. A build of master from between 2026-11-12 and 2026-11-23 accepts 1022 but aborts with a buffer overflow when the salt is longer than 513, because it copied the salt into a 513-byte buffer to print the line back. In the explicit-salt shape the user and realm fields are labels.
 
 ### Mode 19900: AES256
 
@@ -281,7 +286,7 @@ $krb5pa$3$user$realm$cipher
 
 This is the shape KerbWolf writes: the whole PA-ENC-TIMESTAMP cipher in one field. The split shape `$krb5pa$3$user$realm$<32 hex>$<32-224 hex>`, with the first two blocks apart, also loads, and is the shape of hashcat's own example hash. User plus realm may be at most 128 bytes together.
 
-The kernel decrypts the whole timestamp with DES-CBC under a zero IV, rejects early unless the plaintext at byte 24 opens a `SEQUENCE` (`0x30`), and verifies the embedded MD5 with its field zeroed.
+The kernel first decrypts only the fourth block, DES-CBC under a zero IV, and rejects the candidate unless the plaintext at byte 24 opens a `SEQUENCE` (`0x30`). It then decrypts the whole timestamp and verifies the embedded MD5 with its field zeroed.
 
 ### Mode 39300: DES-CBC-CRC
 
@@ -335,7 +340,7 @@ The etype digit is kept only to print the line back. The DES string-to-key gives
 
 ## NT Hash Input
 
-These three modes take the same lines as their password counterparts, but the candidates are 32-hex NT hashes instead of passwords. hashcat skips the MD4 step and uses each candidate directly as the RC4 key. Candidates must be exactly 32 characters, and the modes are left out of hash-mode autodetection, so `-m` has to be given.
+These three modes take the same lines as their password counterparts, but the candidates are 32-hex NT hashes instead of passwords. hashcat skips the MD4 step and uses each candidate directly as the RC4 key. Candidates must be exactly 32 hex digits, in either case; anything else is skipped. The modes are left out of hash-mode autodetection, so `-m` has to be given.
 
 ### Mode 35300: TGS-REP, NT hash input
 
@@ -353,7 +358,7 @@ Same three line shapes as mode 18200.
 
 **Module:** `module_39400.c`
 
-Takes the split shape `$krb5pa$23$user$realm$checksum$encrypted` and the salt shape `$krb5pa$23$user$realm$salt$<encrypted><checksum>` of mode 7500, but not the single field. The encrypted timestamp must be exactly 72 hex here, where 7500 allows 58-76.
+Takes the split shape `$krb5pa$23$user$realm$checksum$encrypted` and the salt shape `$krb5pa$23$user$realm$salt$<encrypted><checksum>` of mode 7500, but not the single field. The encrypted timestamp may be 58-76 hex, as in 7500; a build of master older than 2026-11-25 takes exactly 72.
 
 ---
 

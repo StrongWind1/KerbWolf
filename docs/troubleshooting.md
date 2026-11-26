@@ -9,9 +9,11 @@ A hash will not load, a hash will not crack, or a tool returned nothing. Find wh
 | An AES or DES hash never cracks with a password known to be right | The user field is not the name the key is salted with | [The section below](#the-user-field-is-a-cryptographic-input) |
 | The line is etype 19 or 20, or starts `$sntp-ms-sha512$` | hashcat has no mode for it | [Mode matrix](cracking/hash-reference.md#mode-matrix) |
 | hashcat does not know modes 39000 through 39400 | They were added after v8.0.0 and need a build from master | [Mode matrix](cracking/hash-reference.md#mode-matrix) |
+| hashcat v8.0.0 rejects a KerbWolf line in mode 7500, 13100, 18200, 19800, 19900, 35300, 35400 or 38500 (`Token length exception`, `Separator unmatched`, `Signature unmatched`) | The `$user$realm$` layout was added to those modes after v8.0.0 and needs a build from master | [Mode matrix](cracking/hash-reference.md#mode-matrix) |
+| hashcat rejects a line whose user field ends in `$` with `Token length exception` | A machine account name: the `$` is read as a field separator | [Correcting a line by hand](#correcting-a-line-by-hand) |
 | hashcat rejects a DES line | The cipher hex is not a multiple of 16 chars, or user plus realm is over 128 bytes | [Parser rules](cracking/hashcat-internals.md#parser-rules) |
-| Mode 39400 rejects a line that 7500 loads | 39400 needs exactly 72 hex of encrypted timestamp and does not take the single-field shape | [Mode 39400](cracking/hashcat-internals.md#mode-39400-pre-auth-nt-hash-input) |
-| hashcat aborts on a `$krb5pa$` line that carries an explicit salt | The salt is longer than 513 chars | [Mode 19800](cracking/hashcat-internals.md#mode-19800-aes128) |
+| Mode 39400 rejects a line that 7500 loads | 39400 does not take the single-field shape; a build of master older than 2026-11-25 also needs exactly 72 hex of encrypted timestamp | [Mode 39400](cracking/hashcat-internals.md#mode-39400-pre-auth-nt-hash-input) |
+| hashcat aborts on a `$krb5pa$` line that carries an explicit salt | A build of master from between 2026-11-12 and 2026-11-23, and a salt longer than 513 chars | [Mode 19800](cracking/hashcat-internals.md#mode-19800-aes128) |
 | An AS-REP line from a capture never cracks | It came from a smartcard or FAST-armored logon | [kw-extract](commands/kw-extract.md#kerberos-details) |
 | `kw-roast` or `kw-asrep` returns nothing for a target | The KDC refused it; `-vv` shows the skipped targets | [Encryption type selection](commands/common-options.md#encryption-type-selection) |
 | A `-k` LDAP bind fails with `Cannot find KDC for realm` | The system Kerberos library cannot find the KDC | [Kerberos setup](installation.md#kerberos-setup) |
@@ -57,4 +59,6 @@ The timeroast lines have no user field. In mode 31300 the MD5 digest and the sal
 
 ### Correcting a line by hand
 
-Replace the user field with the name the key is salted with: the sAMAccountName, in its exact case, for a user account, and `host<fqdn>` for a computer account. How those salts are built for each etype is under [Salt](background/encryption-types.md#salt) on the Encryption Types page. An RC4 line needs no correction.
+Replace the user field with the name the key is salted with: the sAMAccountName, in its exact case, for a user account, and `host<fqdn>` in lower case for a computer account (`hostws01.corp.local` for `WS01$`). How those salts are built for each etype is under [Salt](background/encryption-types.md#salt) on the Encryption Types page.
+
+An RC4 line needs no correction for cracking, with one exception: a user field that ends in `$`. hashcat splits the line on `$`, so `$krb5asrep$23$WS01$$CORP.LOCAL$...` does not load. `kw-asrep` and `kw-extract` write such a line for a machine account when the AS-REP is RC4, which carries no salt, and `kw-extract` also for a ticket whose account it has no salt for. Delete the trailing `$` of the name, or empty the field, and the line loads.

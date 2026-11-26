@@ -121,7 +121,7 @@ Examples:
 
 - **No authentication needed** for blind RID scanning. LDAP mode requires credentials.
 - **Where the RIDs come from.** `--ldap` takes priority over `-r`/`-R`: when `--ldap` is set, RIDs and account names both come from LDAP, and `-d` is required. When `--ldap` is not set, `-R` provides the RIDs if given, otherwise `-r`, otherwise the default range 500-10000.
-- **RID ranges.** `-r` accepts `1`, `1-100`, `1-`, `-100`, `-` and `1-100,500-600`. An open-ended range (`1-`, `-`) runs to RID 2147483647; in practice the scan ends when the DC has been silent for `--timeout` seconds. A `-R` file holds one range per line in the same syntax, with `#` comments.
+- **RID ranges.** `-r` accepts `1`, `1-100`, `1-`, `-100`, `-` and `1-100,500-600`. An open-ended range (`1-`, `-`) runs to RID 2147483647; in practice the scan ends when the DC has been silent for `--timeout` seconds. A `-R` file holds one range per line in the same syntax; blank lines and lines that start with `#` are skipped. A comment after a range on the same line is not accepted.
 - **Requests per RID.** `--format` and `--password` together decide how many requests each RID gets. Bit 31 of the Key Identifier selects the password in the 68-byte request. The 120-byte format cannot select the password, so its request is sent once per RID whatever `--password` is set to.
 
     | `--format` | `--password` | Requests per RID | Files written by `-o hashes.txt` |

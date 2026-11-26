@@ -18,6 +18,10 @@ Tested on Windows Server 2022 (Build 20348) and Server 2025 (Build 26100):
 | MSA | msDS-ManagedServiceAccount | No |
 | dMSA | msDS-DelegatedManagedServiceAccount | No |
 | User (even with `$` in name) | user | No |
+| Computer, disabled | computer | No |
+| Computer object flagged as a normal account (`userAccountControl` 0x200 in place of 0x1000 or 0x2000) | computer | No |
+
+The last two rows are from a Server 2022 DC with 232 computer objects: all 215 enabled machine accounts answered, none of the 14 disabled ones did, and neither did 3 whose `userAccountControl` marks them as user accounts. The object class and the `$` in the name do not decide it; an enabled machine account does.
 
 The LDAP filter behind `kw-timeroast --ldap` is on the [Common options](../commands/common-options.md#ldap-target-discovery) page.
 

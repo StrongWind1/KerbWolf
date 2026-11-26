@@ -61,6 +61,8 @@ hashcat -m 13100 hashes.txt wordlist.txt    # RC4
 hashcat -m 19700 hashes.txt wordlist.txt    # AES256
 ```
 
+hashcat has to be built from its master branch: the v8.0.0 release does not load these lines in mode 13100 and several others (see the [mode matrix](cracking/hash-reference.md#mode-matrix)).
+
 Domain and username come from the ccache, so `-d` and `-u` aren't needed. DC is found via DNS SRV. No DNS? Add `--dc-ip`, and give the system Kerberos library a `krb5.conf` for the LDAP bind (see [Kerberos setup](installation.md#kerberos-setup)).
 
 **Without credentials**, AS-REP roast named accounts or timeroast a RID range:
