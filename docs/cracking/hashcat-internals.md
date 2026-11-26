@@ -1,6 +1,6 @@
 # Hashcat Internals
 
-Field-by-field breakdown of how hashcat parses each Kerberos hash mode, read from the `module_*.c` files of hashcat master (commit `d62291d29`, 2026-11-15). Useful when a hash won't load, when you're building tooling that outputs these formats, or when you need to know which fields affect cracking and which are only labels.
+Field-by-field breakdown of how hashcat parses each Kerberos hash mode, read from the `module_*.c` files of hashcat master (commit `d62291d29`, 2026-11-15). Useful when a hash won't load or when you're building tooling that outputs these formats. Which fields affect cracking and which are only labels is on the [Troubleshooting](../troubleshooting.md#the-user-field-is-a-cryptographic-input) page.
 
 hashcat has 21 Kerberos modes: 7500, 13100, 18200, 19600, 19700, 19800, 19900, 28800, 28900, 32100, 32200, 35300, 35400, 38400, 38500, 38600, 39000, 39100, 39200, 39300 and 39400. There is no mode for etypes 19 and 20 (AES-SHA2). Modes 39000 through 39400 were added after the v8.0.0 release.
 
@@ -27,7 +27,7 @@ Most modes accept more than one line shape. hashcat prints a cracked hash back i
 | [39300](#mode-39300-des-cbc-crc) | AS-REQ Pre-Auth | 1 | `$krb5pa$1$user$realm$cipher` | split after 32 hex | **yes** |
 | [28800](#mode-28800-aes128-db-key) | DB Key | 17 | `$krb5db$17$user$realm$key` | optional `*spn*` | **yes** |
 | [28900](#mode-28900-aes256-db-key) | DB Key | 18 | `$krb5db$18$user$realm$key` | optional `*spn*` | **yes** |
-| [38400](#mode-38400-des-db-key) | DB Key | 1, 2, 3 | `$krb5db$<1\|2\|3>$user$realm$key` | optional `*spn*` | **yes** |
+| [38400](#mode-38400-des-db-key) | DB Key | 1, 2, 3 | <code>$krb5db$&lt;1&#124;2&#124;3&gt;$user$realm$key</code> | optional `*spn*` | **yes** |
 | [35300](#mode-35300-tgs-rep-nt-hash-input) | TGS-REP (NT) | 23 | same as 13100 | same as 13100 | no |
 | [35400](#mode-35400-as-rep-nt-hash-input) | AS-REP (NT) | 23 | same as 18200 | same as 18200 | no |
 | [39400](#mode-39400-pre-auth-nt-hash-input) | AS-REQ Pre-Auth (NT) | 23 | same as 7500 | salt field only | no |
@@ -35,19 +35,44 @@ Most modes accept more than one line shape. hashcat prints a cracked hash back i
 
 ---
 
-## Things that will silently break your crack
+## Field limits
 
-!!! warning "Case sensitivity and salt construction"
-    For the AES modes (19600, 19700, 19800, 19900, 28800, 28900, 32100, 32200) and the DES modes (38400, 38500, 38600, 39000, 39100, 39200, 39300):
+What each mode accepts in its canonical line. Every field is delimited by `$`. The other shapes a mode loads, and how hashcat tells them apart, are in the per-mode sections below.
 
-    - **Realm is uppercased at parse time.** hashcat calls `uppercase()` on the realm field when it builds the salt, so `contoso.com` and `Contoso.Com` both become `CONTOSO.COM`. The cracked line is printed back with the realm as you wrote it. The realm still has to be the KDC's realm.
-    - **Username is case-sensitive and left as-is.** If the account is `Administrator` and your hash says `administrator`, the derived key is different and cracking produces nothing, with no error.
-    - **Salt = `REALM` + `user`, concatenated.** No separator, no null byte: `CONTOSO.COMAdministrator`. AES feeds it to PBKDF2-HMAC-SHA1 with 4096 iterations; DES feeds it to the RFC 3961 string-to-key.
-    - **An explicit salt field is used verbatim.** The JtR shapes of 32100/32200 (`salt$edata2$checksum`) and 19800/19900 (`user$realm$salt$data`) take the salt exactly as written, with no uppercasing.
-    - **DES modes cap the salt and the password.** User plus realm may be at most 128 bytes together, and candidate passwords at most 64 bytes.
-    - **DES ciphertext must be whole blocks.** The hex of the cipher has to be a multiple of 16 chars (8 bytes), or the line is rejected.
-    - **Hex fields accept both cases.** `a-f` and `A-F` both load; hashcat prints lowercase.
-    - **RC4 modes (7500, 13100, 18200, 35300, 35400, 39400) don't care about any of this.** The user, realm, salt and SPN fields are labels. The NT hash has no salt, so those fields can be empty or wrong and cracking still works.
+| Mode | Signature | User | Realm | Checksum | Data field |
+|------|-----------|------|-------|----------|------------|
+| 13100 | `$krb5tgs$` (9 chars), then etype `23` (2 digits) | 0-511 chars | 0-511 chars | 32 hex (16 bytes) | edata2, 64-40958 hex |
+| 19600 | `$krb5tgs$17$` (12 chars) | 1-511 chars | 1-511 chars | 24 hex (12 bytes) | edata2, 64-40960 hex |
+| 19700 | `$krb5tgs$18$` | as 19600 | as 19600 | as 19600 | as 19600 |
+| 38500 | `$krb5tgs$3$` (11 chars) | 1-127 chars | 1-127 chars | 32 hex (16 bytes) | edata2, 64-40960 hex, a multiple of 16 |
+| 39100 | `$krb5tgs$1$` | as 38500 | as 38500 | as 38500 | as 38500 |
+| 18200 | `$krb5asrep$` (11 chars), then etype `23` (2 digits) | 0-511 chars | 0-511 chars | 32 hex (16 bytes) | edata2, 64-40958 hex |
+| 32100 | `$krb5asrep$17$` (14 chars) | 1-511 chars | 1-511 chars | 24 hex (12 bytes) | edata2, 64-40960 hex |
+| 32100, JtR shape | `$krb5asrep$17$` (14 chars) | salt, 1-511 chars | none | 24 hex (12 bytes), after the data | edata2, 64-40960 hex |
+| 32200 | `$krb5asrep$18$` | as 32100 | as 32100 | as 32100 | as 32100 |
+| 38600 | `$krb5asrep$3$` (13 chars) | 1-127 chars | 1-127 chars | 32 hex (16 bytes) | edata2, 64-40960 hex, a multiple of 16 |
+| 39200 | `$krb5asrep$1$` | as 38600 | as 38600 | as 38600 | as 38600 |
+| 7500 | `$krb5pa$23$` (11 chars) | 0-511 chars | 0-511 chars | 32 hex (16 bytes) | encrypted, 58-76 hex |
+| 19800 | `$krb5pa$17$` (11 chars) | 1-511 chars | 1-511 chars | 24 hex (12 bytes) | encrypted, 80-88 hex |
+| 19900 | `$krb5pa$18$` | as 19800 | as 19800 | as 19800 | as 19800 |
+| 39000 | `$krb5pa$3$` (10 chars) | 1-127 chars | 1-127 chars | none | cipher, 64-256 hex, a multiple of 16 |
+| 39300 | `$krb5pa$1$` | as 39000 | as 39000 | none | as 39000 |
+| 28800 | `$krb5db$17$` (11 chars) | 1-511 chars | 1-511 chars | none | key, 32 hex (16 bytes) |
+| 28900 | `$krb5db$18$` | as 28800 | as 28800 | none | key, 64 hex (32 bytes) |
+| 38400 | `$krb5db$1$`, `$krb5db$2$` or `$krb5db$3$` (10 chars) | 1-127 chars | 1-127 chars | none | key, 16 hex (8 bytes) |
+| 31300 | `$sntp-ms$` (9 chars) | none | none | MD5 digest, 32 hex | salt (NTP response header), 96 hex (48 bytes) |
+| No mode, `$sntp-ms-sha512$` | `$sntp-ms-sha512$` | RID, 1-10 digits | none | HMAC-SHA512 digest, 128 hex (64 bytes) | salt (NTP response header), 96 hex (48 bytes) |
+
+In every DES mode (38400, 38500, 38600, 39000, 39100, 39200, 39300) user plus realm may be at most 128 bytes together. The NT-hash modes 35300, 35400 and 39400 are covered in [their own section](#nt-hash-input).
+
+## Parser rules
+
+- **An explicit salt field is used verbatim.** The JtR shapes of 32100/32200 (`salt$edata2$checksum`) and 19800/19900 (`user$realm$salt$data`) take the salt exactly as written, with no uppercasing.
+- **DES modes cap the salt and the password.** User plus realm may be at most 128 bytes together, and candidate passwords at most 64 bytes.
+- **DES ciphertext must be whole blocks.** The hex of the cipher has to be a multiple of 16 chars (8 bytes), or the line is rejected.
+- **Hex fields accept both cases.** `a-f` and `A-F` both load; hashcat prints lowercase.
+
+Which fields are cryptographic inputs and which are only labels, and what a wrong user or realm does to an AES or DES hash, is on the [Troubleshooting](../troubleshooting.md#the-user-field-is-a-cryptographic-input) page.
 
 ---
 
@@ -61,16 +86,7 @@ Most modes accept more than one line shape. hashcat prints a cracked hash back i
 $krb5tgs$23$user$realm$checksum$edata2
 ```
 
-| Field | Delimiter | Length | Used for cracking |
-|-------|-----------|--------|-------------------|
-| signature `$krb5tgs$` | | 9 chars | |
-| etype `23` | `$` | 2 digits | |
-| user | `$` | 0-511 chars | no |
-| realm | `$` | 0-511 chars | no |
-| checksum | `$` | 32 hex (16 bytes) | yes |
-| edata2 | `$` | 64-40958 hex | yes |
-
-User and realm are labels and may be empty. Only checksum and edata2 matter. Three other shapes load:
+User and realm are labels and may be empty. Only checksum and edata2 matter: the checksum keys the RC4 decryption, and 13100, 18200, 35300 and 35400 also verify it as the HMAC-MD5. Three other shapes load:
 
 | Shape | Detected when |
 |-------|---------------|
@@ -89,14 +105,6 @@ The canonical shape is chosen when `23$` is followed by at least three more `$`.
 ```
 $krb5tgs$17$user$realm$checksum$edata2
 ```
-
-| Field | Delimiter | Length | Used for cracking |
-|-------|-----------|--------|-------------------|
-| signature `$krb5tgs$17$` | | 12 chars | |
-| user | `$` | 1-511 chars | **yes** (PBKDF2 salt) |
-| realm | `$` | 1-511 chars | **yes** (PBKDF2 salt, uppercased) |
-| checksum | `$` | 24 hex (12 bytes) | yes |
-| edata2 | `$` | 64-40960 hex | yes |
 
 Also accepts `$krb5tgs$17$user$realm$*spn*$checksum$edata2`, with an SPN wrapped in `*...*$` between realm and checksum. The SPN is dropped: the line is printed back without it.
 
@@ -119,14 +127,6 @@ Same parser and limits as 19600, including the optional `*spn*$` field. The sign
 ```
 $krb5tgs$3$user$realm$checksum$edata2
 ```
-
-| Field | Delimiter | Length | Used for cracking |
-|-------|-----------|--------|-------------------|
-| signature `$krb5tgs$3$` | | 11 chars | |
-| user | `$` | 1-127 chars (user + realm at most 128) | **yes** (string-to-key salt) |
-| realm | `$` | 1-127 chars (user + realm at most 128) | **yes** (string-to-key salt, uppercased) |
-| checksum | `$` | 32 hex (16 bytes) | yes |
-| edata2 | `$` | 64-40960 hex, a multiple of 16 | yes |
 
 User plus realm may be at most 128 bytes together. Also accepts `$krb5tgs$3$*user$realm$spn*$checksum$edata2`; user and realm are taken from inside the block, and the line is printed back with the block intact.
 
@@ -156,15 +156,6 @@ Same parser and limits as 38500 with the signature `$krb5tgs$1$`. Etype 1 uses t
 $krb5asrep$23$user$realm$checksum$edata2
 ```
 
-| Field | Delimiter | Length | Used for cracking |
-|-------|-----------|--------|-------------------|
-| signature `$krb5asrep$` | | 11 chars | |
-| etype `23` | `$` | 2 digits | |
-| user | `$` | 0-511 chars | no |
-| realm | `$` | 0-511 chars | no |
-| checksum | `$` | 32 hex (16 bytes) | yes |
-| edata2 | `$` | 64-40958 hex | yes |
-
 Two other shapes load:
 
 | Shape | Detected when |
@@ -184,26 +175,11 @@ The canonical shape is chosen when `23$` is present and there is no `:`. In ever
 $krb5asrep$17$user$realm$checksum$edata2
 ```
 
-| Field | Delimiter | Length | Used for cracking |
-|-------|-----------|--------|-------------------|
-| signature `$krb5asrep$17$` | | 14 chars | |
-| user | `$` | 1-511 chars | **yes** (PBKDF2 salt) |
-| realm | `$` | 1-511 chars | **yes** (PBKDF2 salt, uppercased) |
-| checksum | `$` | 24 hex (12 bytes) | yes |
-| edata2 | `$` | 64-40960 hex | yes |
-
 #### Mode 32100: AES128 &mdash; JtR shape (checksum after edata2)
 
 ```
 $krb5asrep$17$salt$edata2$checksum
 ```
-
-| Field | Delimiter | Length | Used for cracking |
-|-------|-----------|--------|-------------------|
-| signature `$krb5asrep$17$` | | 14 chars | |
-| salt | `$` | 1-511 chars | **yes** (PBKDF2 salt, used verbatim) |
-| edata2 | `$` | 64-40960 hex | yes |
-| checksum | `$` | 24 hex (12 bytes) | yes |
 
 Detected when the character at `line_len - 25` is `$`: the checksum is always 24 hex, so a `$` at that offset means the checksum is the last field. The salt has to be the full `REALMuser` string already; nothing is uppercased. The line is printed back in this shape.
 
@@ -225,14 +201,6 @@ Same parser and limits as 32100, including the JtR shape. The key is 32 bytes.
 ```
 $krb5asrep$3$user$realm$checksum$edata2
 ```
-
-| Field | Delimiter | Length | Used for cracking |
-|-------|-----------|--------|-------------------|
-| signature `$krb5asrep$3$` | | 13 chars | |
-| user | `$` | 1-127 chars (user + realm at most 128) | **yes** (string-to-key salt) |
-| realm | `$` | 1-127 chars (user + realm at most 128) | **yes** (string-to-key salt, uppercased) |
-| checksum | `$` | 32 hex (16 bytes) | yes |
-| edata2 | `$` | 64-40960 hex, a multiple of 16 | yes |
 
 User plus realm may be at most 128 bytes together. Also accepts the joined shape `$krb5asrep$3$user@realm:checksum$edata2`, chosen when a `:` comes before the first `$`; the realm is what follows the last `@`.
 
@@ -260,14 +228,6 @@ Same parser and limits as 38600, including the joined shape, with the signature 
 $krb5pa$23$user$realm$checksum$encrypted
 ```
 
-| Field | Delimiter | Length | Used for cracking |
-|-------|-----------|--------|-------------------|
-| signature `$krb5pa$23$` | | 11 chars | |
-| user | `$` | 0-511 chars | no |
-| realm | `$` | 0-511 chars | no |
-| checksum | `$` | 32 hex (16 bytes) | yes |
-| encrypted | `$` | 58-76 hex | yes |
-
 This is the shape KerbWolf writes: the HMAC-MD5 checksum first, then the encrypted timestamp, in wire order. Two other shapes load, both with the encrypted timestamp before the checksum:
 
 | Shape | Data field |
@@ -276,6 +236,8 @@ This is the shape KerbWolf writes: the HMAC-MD5 checksum first, then the encrypt
 | `$krb5pa$23$user$realm$<encrypted><checksum>` (single field) | 90-108 hex |
 
 The parser tries the salt shape first, then the split shape, then the single field. The salt is a label.
+
+The pre-auth modes 7500 and 39400 do not recompute the HMAC: they decrypt the timestamp and accept a candidate when the plaintext looks like one.
 
 ---
 
@@ -286,14 +248,6 @@ The parser tries the salt shape first, then the split shape, then the single fie
 ```
 $krb5pa$17$user$realm$checksum$encrypted
 ```
-
-| Field | Delimiter | Length | Used for cracking |
-|-------|-----------|--------|-------------------|
-| signature `$krb5pa$17$` | | 11 chars | |
-| user | `$` | 1-511 chars | **yes** (PBKDF2 salt) |
-| realm | `$` | 1-511 chars | **yes** (PBKDF2 salt, uppercased) |
-| checksum | `$` | 24 hex (12 bytes) | yes |
-| encrypted | `$` | 80-88 hex | yes |
 
 This is the shape KerbWolf writes. Three other shapes load, all with the encrypted timestamp before the checksum in one 104-112 hex field:
 
@@ -325,13 +279,6 @@ Same parser and limits as 19800 with the signature `$krb5pa$18$`. The key is 32 
 $krb5pa$3$user$realm$cipher
 ```
 
-| Field | Delimiter | Length | Used for cracking |
-|-------|-----------|--------|-------------------|
-| signature `$krb5pa$3$` | | 10 chars | |
-| user | `$` | 1-127 chars (user + realm at most 128) | **yes** (string-to-key salt) |
-| realm | `$` | 1-127 chars (user + realm at most 128) | **yes** (string-to-key salt, uppercased) |
-| cipher | `$` | 64-256 hex, a multiple of 16 | yes |
-
 This is the shape KerbWolf writes: the whole PA-ENC-TIMESTAMP cipher in one field. The split shape `$krb5pa$3$user$realm$<32 hex>$<32-224 hex>`, with the first two blocks apart, also loads, and is the shape of hashcat's own example hash. User plus realm may be at most 128 bytes together.
 
 The kernel decrypts the whole timestamp with DES-CBC under a zero IV, rejects early unless the plaintext at byte 24 opens a `SEQUENCE` (`0x30`), and verifies the embedded MD5 with its field zeroed.
@@ -360,13 +307,6 @@ These modes hold no ciphertext. hashcat derives the key from the candidate passw
 $krb5db$17$user$realm$key
 ```
 
-| Field | Delimiter | Length | Used for cracking |
-|-------|-----------|--------|-------------------|
-| signature `$krb5db$17$` | | 11 chars | |
-| user | `$` | 1-511 chars | **yes** (PBKDF2 salt) |
-| realm | `$` | 1-511 chars | **yes** (PBKDF2 salt, uppercased) |
-| key | `$` | 32 hex (16 bytes) | yes |
-
 Key derivation is PBKDF2-HMAC-SHA1 with 4096 iterations. Also accepts an optional `*spn*$` block before the key, which is dropped on output.
 
 ### Mode 28900: AES256 DB Key
@@ -386,13 +326,6 @@ Same as 28800 with the signature `$krb5db$18$` and a 64-hex (32-byte) key.
 ```
 $krb5db$<1|2|3>$user$realm$key
 ```
-
-| Field | Delimiter | Length | Used for cracking |
-|-------|-----------|--------|-------------------|
-| signature `$krb5db$1$`, `$krb5db$2$` or `$krb5db$3$` | | 10 chars | |
-| user | `$` | 1-127 chars (user + realm at most 128) | **yes** (string-to-key salt) |
-| realm | `$` | 1-127 chars (user + realm at most 128) | **yes** (string-to-key salt, uppercased) |
-| key | `$` | 16 hex (8 bytes) | yes |
 
 User plus realm may be at most 128 bytes together. Also accepts an optional `*spn*$` block before the key, which is dropped on output.
 
@@ -434,12 +367,6 @@ Takes the split shape `$krb5pa$23$user$realm$checksum$encrypted` and the salt sh
 $sntp-ms$<32hex_digest>$<96hex_salt>
 ```
 
-| Field | Delimiter | Length | Used for cracking |
-|-------|-----------|--------|-------------------|
-| signature `$sntp-ms$` | | 9 chars | |
-| MD5 digest | `$` | 32 hex | yes |
-| salt (NTP response header) | `$` | 96 hex (48 bytes) | yes |
-
 The hash is `MD5(NTOWFv1 || salt)` where NTOWFv1 is the NT hash (MD4 of the UTF-16LE password) and salt is the 48-byte NTP server response header.
 
 The RID identifies the account but is not part of the hash string and is not used in the MD5. `kw-timeroast --rid-prefix` writes it, or the account name, in front of the line for account mapping.
@@ -452,12 +379,6 @@ hashcat has no mode for this format. KerbWolf writes it as:
 $sntp-ms-sha512$<RID>$<128hex_digest>$<96hex_salt>
 ```
 
-| Field | Length | Used for cracking |
-|-------|--------|-------------------|
-| RID | 1-10 digits | **yes** (KDF context input) |
-| HMAC-SHA512 digest | 128 hex (64 bytes) | yes |
-| salt (NTP response header) | 96 hex (48 bytes) | yes |
-
 Unlike mode 31300, where the RID is a label, this format needs the RID to crack. It feeds the SP800-108 KDF as the Context parameter:
 
 ```
@@ -465,60 +386,3 @@ derived_key = KDF(SP800-108, PRF=HMAC-SHA512, Key=NTOWFv1,
     data = counter(4,BE) || "sntp-ms\0" || 0x00 || RID(4,LE) || 512(4,BE))
 checksum = HMAC-SHA512(derived_key, salt)
 ```
-
----
-
-## What hashcat actually needs to crack each hash
-
-The hash line carries both cryptographic inputs and labels. Getting a label wrong breaks nothing. Getting a cryptographic input wrong means zero results with no error.
-
-### RC4 modes (7500, 13100, 18200, 35300, 35400, 39400)
-
-| Field | Role | Wrong value breaks cracking? |
-|-------|------|------------------------------|
-| checksum | Cryptographic: keys the RC4 decryption; 13100, 18200, 35300 and 35400 also verify it as the HMAC-MD5 | Yes |
-| edata2 / encrypted | Cryptographic: ciphertext | Yes |
-| user | Label | No |
-| realm | Label | No |
-| spn | Label | No |
-| salt (7500, 39400) | Label | No |
-
-RC4 key derivation is `MD4(UTF-16LE(password))`: no salt, no username, no realm. The labels exist so cracked results can be attributed back to accounts. The pre-auth modes 7500 and 39400 do not recompute the HMAC: they decrypt the timestamp and accept a candidate when the plaintext looks like one.
-
-### AES modes (19600, 19700, 19800, 19900, 28800, 28900, 32100, 32200)
-
-| Field | Role | Wrong value breaks cracking? |
-|-------|------|------------------------------|
-| checksum / stored key | Cryptographic: verification target | Yes |
-| edata2 / encrypted | Cryptographic: ciphertext | Yes |
-| user | **Cryptographic**: PBKDF2 salt component (case-sensitive); a label when the line carries an explicit salt | **Yes** |
-| realm | **Cryptographic**: PBKDF2 salt component (uppercased by hashcat); a label when the line carries an explicit salt | **Yes** |
-| explicit salt (JtR shapes) | **Cryptographic**: PBKDF2 salt, used verbatim | **Yes** |
-| spn | Label | No |
-
-Key derivation is `PBKDF2-HMAC-SHA1(password, REALM + user, 4096)` followed by the RFC 3962 key derivation. Wrong username case means a wrong salt, a wrong key, and silent failure.
-
-### DES modes (38400, 38500, 38600, 39000, 39100, 39200, 39300)
-
-| Field | Role | Wrong value breaks cracking? |
-|-------|------|------------------------------|
-| checksum + edata2 / cipher | Cryptographic: the DES-CBC ciphertext (38500, 38600, 39000, 39100, 39200, 39300) | Yes |
-| stored key | Cryptographic: verification target (38400) | Yes |
-| user | **Cryptographic**: string-to-key salt component | **Yes** |
-| realm | **Cryptographic**: string-to-key salt component (uppercased by hashcat) | **Yes** |
-| spn | Label | No |
-| etype digit (38400) | Label: the key is the same for 1, 2 and 3 | No |
-
-The DES string-to-key uses `REALM + user` as salt, same as AES. These modes take password candidates and run the string-to-key on each one; they do not search the 56-bit key space.
-
-### Timeroast (31300)
-
-| Field | Role | Wrong value breaks cracking? |
-|-------|------|------------------------------|
-| MD5 digest | Cryptographic: verification target | Yes |
-| salt | Cryptographic: NTP response header fed to MD5 | Yes |
-
-### Summary rule
-
-**RC4: only the ciphertext matters.** Everything else is a label.
-**AES and DES: the ciphertext and the username and realm matter.** They are the salt. Get them wrong and hashcat silently produces nothing.

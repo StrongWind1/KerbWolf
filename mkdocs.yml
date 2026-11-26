@@ -114,6 +114,7 @@ nav:
       - Hash Reference: cracking/hash-reference.md
       - Cracking Speed: cracking/speed.md
       - Hashcat Internals: cracking/hashcat-internals.md
+  - Troubleshooting: troubleshooting.md
   - Background:
       - Attacks: background/attacks.md
       - Timeroasting: background/timeroasting.md

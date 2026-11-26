@@ -47,6 +47,23 @@ flowchart LR
 
 RC4 has **no salt** and uses a single fast hash (MD4). AES-SHA1 uses a salt, 4096 PBKDF2-HMAC-SHA1 iterations and a final DK step with the constant `kerberos`. AES-SHA2 adds an etype name prefix to the salt, switches PBKDF2 to SHA-256 or SHA-384, and replaces DK with KDF-HMAC-SHA2. DES uses a salt but has a tiny 56-bit keyspace.
 
+## Comparison
+
+| | DES (etypes 1, 3) | RC4 (etype 23) | AES-SHA1 (etypes 17, 18) | AES-SHA2 (etypes 19, 20) |
+|---|---|---|---|---|
+| **IANA name** | des-cbc-crc, des-cbc-md5 | rc4-hmac | aes128-cts-hmac-sha1-96, aes256-cts-hmac-sha1-96 | aes128-cts-hmac-sha256-128, aes256-cts-hmac-sha384-192 |
+| **Key size** | 56 bits effective (8 bytes with parity) | 128 bits (16 bytes) | 16 bytes (128 bits) for AES128, 32 bytes (256 bits) for AES256 | 16 bytes (128 bits) for etype 19, 32 bytes (256 bits) for etype 20 |
+| **Key derivation** | MIT DES string-to-key (password + salt) | `MD4(UTF-16LE(password))` = NT hash | PBKDF2-HMAC-SHA1, 4096 iterations, then DK (nfold) | PBKDF2-HMAC-SHA256 for etype 19, PBKDF2-HMAC-SHA384 for etype 20, 4096 iterations + KDF (SP800-108) |
+| **Salt** | `REALM` + `username` (e.g., `CONTOSO.COMAdmin`) | None | `REALM` + `username` | `aes128-cts-hmac-sha256-128\x00REALM` + `username`, or `aes256-cts-hmac-sha384-192\x00REALM` + `username` |
+| **Cipher** | DES-CBC (IV=key) for etype 1, DES-CBC (IV=0) for etype 3 | RC4 | AES-128-CTS, AES-256-CTS | AES-128-CTS, AES-256-CTS |
+| **Integrity** | CRC32 for etype 1, MD5 for etype 3 | HMAC-MD5 | HMAC-SHA1-96 | HMAC-SHA256-128 (16 bytes), HMAC-SHA384-192 (24 bytes) |
+| **RFC** | 3961 | 4757 | 3962 | 8009 |
+| **Introduced** | Windows 2000 | Windows 2000 | Server 2008 / Vista | Windows 11 24H2 / Server 2025, disabled by default |
+| **Status** | Deprecated. Disabled by default in Windows 7 / Server 2008 R2, removed in Server 2025 | Deprecated by RFC 8429 (2018); off by default with the April 2026 updates | In use; AES256 is the default on modern domains | Disabled by default |
+| **hashcat** | Modes for every attack | Modes for every attack | Modes for every attack | No mode |
+
+The modes themselves are in the [Hash Reference](../cracking/hash-reference.md#mode-matrix), and measured rates for each etype on the [Cracking Speed](../cracking/speed.md) page.
+
 ---
 
 ## DES (etypes 1 and 3)
@@ -57,15 +74,6 @@ Both etypes produce the same key from the same password and salt. The key is onl
 
 DES was disabled by default in Windows 7 and Server 2008 R2 (2009) and can be re-enabled there through the "Network security: Configure encryption types allowed for Kerberos" policy; the `USE_DES_KEY_ONLY` account flag then restricts an account to DES. It is removed in Server 2025.
 
-| Property | Value |
-|----------|-------|
-| **Key size** | 56 bits effective (8 bytes with parity) |
-| **Key derivation** | MIT DES string-to-key (password + salt) |
-| **Salt** | `REALM` + `username` (e.g., `CONTOSO.COMAdmin`) |
-| **Introduced** | Windows 2000 |
-| **Disabled by default** | Windows 7 / Server 2008 R2 |
-| **Removed** | Server 2025 |
-
 ## RC4-HMAC (etype 23)
 
 Microsoft added RC4-HMAC in Windows 2000 to bridge NTLM and Kerberos. Key derivation: take the password, encode as UTF-16LE, MD4 hash it. Done. The result is the NT hash, and the NT hash **is** the RC4 key.
@@ -74,14 +82,7 @@ Microsoft added RC4-HMAC in Windows 2000 to bridge NTLM and Kerberos. Key deriva
 
 The key derivation hashcat has to do per guess is a single `MD4(UTF-16LE(candidate))`, with no iterations. Each hash is still tested separately: modes 7500, 13100 and 18200 treat the ciphertext of every hash as its own salt, so a candidate is tried against each loaded hash in turn.
 
-| Property | Value |
-|----------|-------|
-| **Key size** | 128 bits (16 bytes) |
-| **Key derivation** | `MD4(UTF-16LE(password))` = NT hash |
-| **Salt** | None |
-| **Introduced** | Windows 2000 |
-| **Deprecated** | RFC 8429 (2018); on Microsoft's deprecated-features list for Server 2025 |
-| **Off by default** | Server 2025 KDCs no longer issue RC4 TGTs. The April 2026 updates (CVE-2026-20833, all supported DCs) change the default for accounts with no `msDS-SupportedEncryptionTypes` to AES-SHA1 only. RC4 still works where it is explicitly enabled |
+RC4 is on Microsoft's deprecated-features list for Server 2025, and Server 2025 KDCs no longer issue RC4 TGTs. The April 2026 updates (CVE-2026-20833, all supported DCs) change the default for accounts with no `msDS-SupportedEncryptionTypes` to AES-SHA1 only. RC4 still works where it is explicitly enabled.
 
 ## AES128 and AES256 (etypes 17 and 18)
 
@@ -89,15 +90,8 @@ AES128-CTS-HMAC-SHA1-96 (etype 17) and AES256-CTS-HMAC-SHA1-96 (etype 18) shippe
 
 Same derivation for both, just different output length (16 bytes for AES128, 32 for AES256). AES256 is the default on modern domains.
 
-| Property | AES128 (etype 17) | AES256 (etype 18) |
-|----------|-------------------|-------------------|
-| **Key size** | 16 bytes (128 bits) | 32 bytes (256 bits) |
-| **Key derivation** | PBKDF2-HMAC-SHA1, 4096 iterations, then DK | Same |
-| **Salt** | `REALM` + `username` | Same |
-| **Introduced** | Server 2008 / Vista | Same |
-
 !!! note "AES is slower to crack, not impossible"
-    The 4096 PBKDF2 iterations make AES hundreds of times slower to crack than RC4 per candidate password. The exact gap depends on the device: in hashcat's own benchmark on the CPU used to check this page, mode 13100 ran roughly 200 times faster than mode 19700. But weak passwords are still weak. `Password1!` falls in seconds even with AES.
+    The 4096 PBKDF2 iterations make AES hundreds of times slower to crack than RC4 per candidate password. The exact gap depends on the device: in hashcat's own benchmark on the CPU used to check this page, mode 13100 ran roughly 200 times faster than mode 19700, and on the RTX 4090 measured for the [Cracking Speed](../cracking/speed.md) page the gap is about 1,500 times (4008.9 against 2.649 MH/s). But weak passwords are still weak. `Password1!` falls in seconds even with AES.
 
 ## AES128-SHA2 and AES256-SHA2 (etypes 19 and 20)
 
@@ -109,60 +103,26 @@ Key derivation is a three-step process:
 2. **PBKDF2**: `PBKDF2-HMAC-SHA256` (etype 19) or `PBKDF2-HMAC-SHA384` (etype 20) with 4096 iterations (what Windows was observed to use; the RFC 8009 default is 32768)
 3. **KDF-HMAC-SHA2**: SP 800-108 Counter Mode KDF with label `kerberos` to produce the final key
 
-| Property | AES128-SHA2 (etype 19) | AES256-SHA2 (etype 20) |
-|----------|------------------------|------------------------|
-| **Key size** | 16 bytes (128 bits) | 32 bytes (256 bits) |
-| **Key derivation** | PBKDF2-HMAC-SHA256, 4096 iterations + KDF | PBKDF2-HMAC-SHA384, 4096 iterations + KDF |
-| **Salt** | `aes128-cts-hmac-sha256-128\x00REALM` + `username` | `aes256-cts-hmac-sha384-192\x00REALM` + `username` |
-| **Integrity** | HMAC-SHA256-128 (16 bytes) | HMAC-SHA384-192 (24 bytes) |
-| **Introduced** | Windows 11 24H2 / Server 2025, disabled by default |  Same |
-| **RFC** | 8009 | Same |
-
 !!! warning "Windows uses 4096 iterations, not 32768"
     RFC 8009 specifies a default of 32768 PBKDF2 iterations. Windows Server 2025 (build 26100) was observed to use 4096 instead, matching the AES-SHA1 iteration count, when the etypes were force-enabled on a lab DC. Microsoft does not document the count. KerbWolf's key derivation for etypes 19 and 20 uses 4096.
 
 !!! note "Tool support for AES-SHA2"
-    hashcat has no mode for etypes 19 and 20, so these hashes cannot be cracked with it today. In KerbWolf, the `-e` flag of `kw-roast`, `kw-asrep` and `kw-tgt` offers `des-cbc-crc`, `des-cbc-md5`, `rc4`, `aes128` and `aes256` only. AES-SHA2 hashes come from `kw-extract`, which formats any etype 19 or 20 message it finds in a capture.
+    hashcat has no mode for etypes 19 and 20, so these hashes cannot be cracked with it today. `-e` does not offer them either: AES-SHA2 hashes come from `kw-extract`, as described under [Encryption type selection](../commands/common-options.md#encryption-type-selection).
 
 ---
 
-## Salt computation
+## Salt
 
-The salt is mixed into key derivation: appended to the password for DES, and passed as the PBKDF2 salt for AES. Same password on two different accounts = different keys. Computation varies by etype:
+The salt is mixed into key derivation: appended to the password for DES, and passed as the PBKDF2 salt for AES. Same password on two different accounts = different keys. Computation varies by etype, and for **computer accounts** the salt changes. KerbWolf treats any sAMAccountName ending in `$` as one.
 
-```mermaid
-flowchart TD
-    A{Which etype?} -->|"RC4 (23)"| B["No salt needed<br/>Key = MD4(UTF-16LE(password))"]
-    A -->|"DES, AES-SHA1, AES-SHA2"| C{Account type?}
-
-    C -->|"User account<br/>(e.g., Admin)"| D["Salt = REALM + username<br/>CONTOSO.COMAdmin"]
-    C -->|"Computer account<br/>(e.g., DC01$)"| E["Salt = REALM + host + hostname.realm<br/>CONTOSO.COMhostdc01.contoso.com"]
-
-    D & E --> S{"AES-SHA2 (19, 20)?"}
-    S -->|Yes| S2["Prepend etype_name + \\x00"]
-    S -->|No| F
-    S2 --> F["Key = string-to-key(password, salt)"]
-    B --> G["Key ready"]
-    F --> G
-
-    style B fill:#4a2020,stroke:#ff6b6b
-    style G fill:#1a3a1a,stroke:#6bcb77
-```
-
-| Etype | Salt | Example |
+| Etype | User account (e.g., `Admin`) | Computer account (e.g., `DC01$`) |
 |-------|------|---------|
-| **DES** (1, 3) | `REALM` (uppercase) + `username` (case-preserved) | `CONTOSO.COMAdmin` |
-| **RC4** (23) | **None** — the key is just `MD4(UTF-16LE(password))` | — |
-| **AES-SHA1** (17, 18) | `REALM` (uppercase) + `username` (case-preserved) | `CONTOSO.COMAdmin` |
-| **AES-SHA2** (19, 20) | `etype_name` + `\x00` + `REALM` + `username` | `aes256-cts-hmac-sha384-192\x00CONTOSO.COMAdmin` |
+| **DES** (1, 3) | `REALM` (uppercase) + `username` (case-preserved): `CONTOSO.COMAdmin` | `REALM` + `host` + `hostname.realm` (all lowercase): `CONTOSO.COMhostdc01.contoso.com` |
+| **RC4** (23) | **None** — the key is just `MD4(UTF-16LE(password))` | None |
+| **AES-SHA1** (17, 18) | `REALM` (uppercase) + `username` (case-preserved): `CONTOSO.COMAdmin` | `REALM` + `host` + `hostname.realm` (all lowercase): `CONTOSO.COMhostdc01.contoso.com` |
+| **AES-SHA2** (19, 20) | `etype_name` + `\x00` + `REALM` + `username`: `aes256-cts-hmac-sha384-192\x00CONTOSO.COMAdmin` | `etype_name` + `\x00` prepended to the computer salt above |
 
-For **computer accounts** the salt changes. KerbWolf treats any sAMAccountName ending in `$` as one:
-
-| Etype | Machine account salt | Example |
-|-------|---------------------|---------|
-| **DES / AES** | `REALM` + `host` + `hostname.realm` (all lowercase) | `CONTOSO.COMhostdc01.contoso.com` |
-
-The salt matters because **hashcat needs it to derive the key**. For AES hashes, the username and realm in the hash string aren't just labels; they're cryptographic inputs. Wrong username or realm = wrong key = cracking silently fails even with the right password.
+The username and realm in an AES or DES hash line are this salt, not labels, so a wrong one silently breaks cracking even with the right password: see [Troubleshooting](../troubleshooting.md#the-user-field-is-a-cryptographic-input).
 
 RC4 has no salt, which is why it cracks fast and why pass-the-hash works: the key depends on the password alone.
 
@@ -171,22 +131,6 @@ RC4 has no salt, which is why it cracks fast and why pass-the-hash works: the ke
 ## msDS-SupportedEncryptionTypes
 
 Each account's supported etypes are stored in the `msDS-SupportedEncryptionTypes` AD attribute. The KDC checks this bitmask when issuing tickets.
-
-```mermaid
-block-beta
-    columns 5
-    b4["Bit 4<br/>AES256<br/>0x10"]:1
-    b3["Bit 3<br/>AES128<br/>0x08"]:1
-    b2["Bit 2<br/>RC4<br/>0x04"]:1
-    b1["Bit 1<br/>DES-MD5<br/>0x02"]:1
-    b0["Bit 0<br/>DES-CRC<br/>0x01"]:1
-
-    style b4 fill:#1a3a1a,stroke:#6bcb77
-    style b3 fill:#1a3a1a,stroke:#6bcb77
-    style b2 fill:#4a4a20,stroke:#ffd93d
-    style b1 fill:#4a2020,stroke:#ff6b6b
-    style b0 fill:#4a2020,stroke:#ff6b6b
-```
 
 | Bit | Value | Encryption type |
 |-----|-------|-----------------|
@@ -211,32 +155,11 @@ Common values you'll see:
 | **0xF8** | AES128 + AES256 SHA1 + AES-SK + AES128-SHA2 + AES256-SHA2 (possible on Server 2025, not a default) |
 | **0xFF** | All eight bits set: the seven encryption types plus the AES-session-key bit |
 
-`kw-roast --ldap` queries for accounts with `servicePrincipalName` set. The KDC picks the etype for the ticket from the etypes in the request and the keys and settings of the service account, so a hash can come back with a different etype than the first one given to `-e`. A request the KDC cannot satisfy returns no ticket and the target is skipped: against a Server 2022 lab DC, `-e rc4` for an account limited to AES256 (`0x10`) produced nothing.
+The KDC picks a ticket's etype from the etypes in the request and this attribute, so what `-e` asks for is not always what comes back: see [Encryption type selection](../commands/common-options.md#encryption-type-selection).
 
 ---
 
 ## Windows version timeline
-
-```mermaid
-gantt
-    title Windows Kerberos Encryption Type Support
-    dateFormat YYYY
-    axisFormat %Y
-
-    section DES-CBC (1, 3)
-    Enabled by default            :des1, 2000, 2009
-    Disabled by default (policy)  :des2, 2009, 2024
-    Removed in Server 2025        :milestone, 2024, 0d
-
-    section RC4-HMAC (23)
-    Default and preferred         :rc41, 2000, 2008
-    Available, AES preferred      :rc42, 2008, 2022
-    AES session keys by default   :rc43, 2022, 2026
-    Off by default (2026 updates) :milestone, 2026, 0d
-
-    section AES128/256 (17, 18)
-    Introduced (Server 2008)      :aes1, 2008, 2026
-```
 
 | Version | Year | Supported etypes | Key change |
 |---------|------|-----------------|------------|

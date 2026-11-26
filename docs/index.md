@@ -83,6 +83,7 @@ tcpdump -i eth0 -w - port 88 | kw-extract -
 
 - **Run a tool**: the command pages above, each opening with examples.
 - **Pick a hashcat mode**: the [Hash Reference](cracking/hash-reference.md) starts with the mode for every attack and etype.
+- **Fix a hash that will not load or crack**: [Troubleshooting](troubleshooting.md) lists symptoms and causes.
 - **Understand the attacks**: [Attacks](background/attacks.md), [Timeroasting](background/timeroasting.md) and [Encryption Types](background/encryption-types.md).
 - **Estimate the work**: [Cracking Speed](cracking/speed.md) has measured rates and time to exhaust common keyspaces.
 - **Write these hash lines yourself**: [Hashcat Internals](cracking/hashcat-internals.md) has the limits and accepted shapes of every mode.
