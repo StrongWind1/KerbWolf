@@ -21,7 +21,7 @@ A hash will not load, a hash will not crack, or a tool returned nothing. Find wh
 | An NTLM logon is in the capture but no hash is written | Its Type 2 challenge is not in the capture | [NTLM details](commands/kw-extract.md#ntlm-details) |
 | A Kerberos message is missing from the output of a capture | A TCP segment was not captured | [kw-extract](commands/kw-extract.md#what-it-extracts) |
 | An RC4 session runs slower than the speed table | The RC4 column of that table assumes `-O` | [Cracking Speed](cracking/speed.md#speed-by-etype-and-attack) |
-| A RID gives no timeroast reply | MSA, dMSA and user accounts do not respond | [Which accounts respond](background/timeroasting.md#which-accounts-respond) |
+| A RID gives no timeroast reply | User accounts and disabled machine accounts do not respond, and neither does a RID that does not exist | [Which accounts respond](background/timeroasting.md#which-accounts-respond) |
 
 ## The user field is a cryptographic input
 
